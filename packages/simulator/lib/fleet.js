@@ -85,6 +85,7 @@ class Fleet {
     municipality,
     vehicleTypes,
     recyclingTypes,
+    optimizedRoutes,
   }) {
     this.id = id
     this.name = name
@@ -93,10 +94,11 @@ class Fleet {
     this.municipality = municipality
     this.recyclingTypes = recyclingTypes
     this.vehiclesCount = 0
+    this.optimizedRoutes = optimizedRoutes
 
     this.cars = this.createCars(vehicleTypes)
     this.unhandledBookings = new ReplaySubject()
-    this.dispatchedBookings = this.startDispatcher()
+    this.dispatchedBookings = new ReplaySubject()
   }
 
   createCars(vehicleTypes) {
@@ -119,6 +121,7 @@ class Fleet {
             fleet: this,
             position: new Position(offsetPosition),
             recyclingTypes: this.recyclingTypes,
+            optimizedRoutes: this.optimizedRoutes,
           })
         })
       }),
@@ -139,6 +142,35 @@ class Fleet {
     booking.fleet = this
     this.unhandledBookings.next(booking) // add to queue
     return booking
+  }
+
+  startStandardDispatcher() {
+    this.dispatchedBookings = this.unhandledBookings.pipe(
+      bufferTime(1000),
+      filter((bookings) => bookings.length > 0),
+      withLatestFrom(this.cars.pipe(toArray())),
+      tap(([bookings, cars]) => {
+        info(
+          `Fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars`
+        )
+      }),
+      mergeMap(([bookings, cars]) => {
+        return from(bookings).pipe(
+          filter((booking) => !booking.assigned),
+          map((booking) => {
+            const car = cars.shift()
+            cars.push(car)
+            return { car, booking }
+          }),
+          mergeMap(({ car, booking }) => car.handleStandardBooking(booking))
+        )
+      }),
+      catchError((err) => {
+        error(`Error handling bookings for ${this.name}:`, err)
+        return of(null)
+      })
+    )
+    return this.dispatchedBookings
   }
 
   // Handle all unhandled bookings via Vroom

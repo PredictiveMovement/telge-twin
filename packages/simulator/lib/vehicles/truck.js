@@ -85,6 +85,22 @@ class Truck extends Vehicle {
     return booking && this.queue.length < this.parcelCapacity
   }
 
+  async handleStandardBooking(booking) {
+    if (this.queue.indexOf(booking) > -1) throw new Error('Already queued')
+    this.queue.push(booking)
+    booking.assign(this)
+    booking.queued(this)
+
+    this.plan = this.queue.map((booking) => ({
+      action: 'pickup',
+      booking: booking,
+    }))
+
+    if (!this.instruction) await this.pickNextInstructionFromPlan()
+
+    return booking
+  }
+
   async handleBooking(booking) {
     if (this.queue.indexOf(booking) > -1) throw new Error('Already queued')
     this.queue.push(booking)
