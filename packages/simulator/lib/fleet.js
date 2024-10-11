@@ -26,6 +26,7 @@ const {
   planWithVroom,
   convertBackToBookings,
 } = require('./clustering')
+const { addMeters } = require('./distance')
 
 const vehicleClasses = {
   recycleTruck: {
@@ -76,7 +77,16 @@ const vehicleClasses = {
 }
 
 class Fleet {
-  constructor({ name, hub, type, municipality, vehicleTypes, recyclingTypes }) {
+  constructor({
+    id,
+    name,
+    hub,
+    type,
+    municipality,
+    vehicleTypes,
+    recyclingTypes,
+  }) {
+    this.id = id
     this.name = name
     this.type = type
     this.hub = { position: new Position(hub) }
@@ -98,16 +108,19 @@ class Fleet {
           return []
         }
         this.vehiclesCount += vehiclesCount
-        return Array.from({ length: vehiclesCount }).map(
-          (_, i) =>
-            new Vehicle({
-              ...vehicleTypes[type],
-              id: this.name + '-' + i,
-              fleet: this,
-              position: this.hub.position,
-              recyclingTypes: this.recyclingTypes,
-            })
-        )
+        return Array.from({ length: vehiclesCount }).map((_, i) => {
+          const offsetPosition = addMeters(this.hub.position, {
+            x: 10 + 5 * this.id,
+            y: -10 + 3 * i,
+          })
+          return new Vehicle({
+            ...vehicleTypes[type],
+            id: this.name + '-' + i,
+            fleet: this,
+            position: new Position(offsetPosition),
+            recyclingTypes: this.recyclingTypes,
+          })
+        })
       }),
       mergeAll(), // platta ut arrayen
       shareReplay()

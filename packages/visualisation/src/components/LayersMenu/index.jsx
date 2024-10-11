@@ -10,6 +10,7 @@ import ContentPaste from '@mui/icons-material/ContentPaste'
 
 import { Hail, Info, Map, Person } from '@mui/icons-material'
 import RouteIcon from '@mui/icons-material/Route'
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
 
 export default function LayersMenu({
   activeLayers,
@@ -146,6 +147,35 @@ export default function LayersMenu({
             <Info fontSize="small" />
           </ListItemIcon>
           <ListItemText>Experiment: {experimentId}</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem>
+          <ListItemIcon>
+            <DirectionsCarIcon fontSize="small" />
+          </ListItemIcon>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={activeLayers.carLayer}
+                onChange={() => activeLayers.setCarLayer((on) => !on)}
+              />
+            }
+            label="Visa fordon"
+          />
+        </MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <DirectionsCarIcon fontSize="small" />
+          </ListItemIcon>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={activeLayers.useIcons}
+                onChange={() => activeLayers.setUseIcons((on) => !on)}
+              />
+            }
+            label="Använd ikoner för fordon"
+          />
         </MenuItem>
       </Menu>
     </React.Fragment>

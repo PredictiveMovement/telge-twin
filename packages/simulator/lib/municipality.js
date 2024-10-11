@@ -99,8 +99,9 @@ Fleet 9: Baklastare, enfack
 */
     this.fleets = from(this.fleetsConfig).pipe(
       map(
-        ({ name, recyclingTypes, vehicles, hubAddress }) =>
+        ({ name, recyclingTypes, vehicles, hubAddress }, i) =>
           new Fleet({
+            id: i,
             name: name,
             hub: this.center,
             municipality: this,

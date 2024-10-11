@@ -37,8 +37,6 @@ class Truck extends Vehicle {
         this.status = 'toPickup'
         return this.navigateTo(this.booking.pickup.position)
       case 'delivery':
-        this.status = 'toDelivery'
-        return this.navigateTo(this.booking.destination.position)
       case 'end':
       case 'ready':
       case 'returning':
@@ -53,7 +51,13 @@ class Truck extends Vehicle {
 
   stopped() {
     super.stopped()
-    this.pickNextInstructionFromPlan()
+    //If no more jobs, set position to start position
+    if (!this.plan.length) {
+      this.position = this.startPosition
+      this.movedEvents.next(this)
+    } else {
+      this.pickNextInstructionFromPlan()
+    }
   }
 
   async pickup() {

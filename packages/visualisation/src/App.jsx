@@ -19,6 +19,7 @@ const App = () => {
   const [speed, setSpeed] = useState(60)
   const [time, setTime] = useState(-3600000) // 00:00
   const [carLayer, setCarLayer] = useState(true)
+  const [useIcons, setUseIcons] = useState(false) // Add this line
   const [passengerLayer, setPassengerLayer] = useState(true)
   const [postombudLayer, setPostombudLayer] = useState(false)
   const [commercialAreasLayer, setCommercialAreasLayer] = useState(false)
@@ -40,6 +41,8 @@ const App = () => {
   const activeLayers = {
     carLayer,
     setCarLayer,
+    useIcons, // Add this line
+    setUseIcons, // Add this line
     postombudLayer,
     setPostombudLayer,
     passengerLayer,
