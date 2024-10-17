@@ -58,7 +58,6 @@ class Truck extends Vehicle {
       this.position = this.startPosition
       this.movedEvents.next(this)
     } else {
-      console.log('Picking next instruction from plan', this.plan.length)
       this.pickNextInstructionFromPlan()
     }
   }

@@ -4,15 +4,15 @@ import ProgressBar from '../ProgressBar'
 import { Paragraph } from '../Typography'
 import moment from 'moment'
 import {
-  IoCarOutline,
-  IoSpeedometerOutline,
-  IoNavigateOutline,
-  IoLeafOutline,
-  IoTrashBinOutline,
-  IoTimerOutline,
-  IoInformationCircleOutline,
-  IoLocationOutline,
-} from 'react-icons/io5'
+  DirectionsCar,
+  Speed,
+  Navigation,
+  LocalShipping,
+  Delete,
+  Timer,
+  Info,
+  LocationOn,
+} from '@mui/icons-material'
 
 const Wrapper = styled.div.attrs((props) => ({
   style: {
@@ -56,7 +56,7 @@ const VehicleImage = styled.img`
 const InfoItem = styled.div`
   margin-bottom: 0.5rem;
   display: flex;
-  align-items: center;
+  align-items: start;
 `
 
 const IconWrapper = styled.div`
@@ -74,7 +74,7 @@ const Label = styled.span`
 const Value = styled.span`
   font-weight: bold;
   font-size: 0.9rem;
-  margin-left: 0.5rem;
+  margin-left: 0.3rem;
 `
 
 const Title = styled.h3`
@@ -111,7 +111,7 @@ const statusLabel = (status) => {
 
 const vehicleImages = {
   Matavfall: '/matavfall.png',
-  default: '/path/to/default-vehicle-image.png',
+  default: '/matavfall.png',
 }
 
 const ProgressBarContainer = styled.div`
@@ -142,38 +142,38 @@ const CarInfo = ({ data }) => {
       </Title>
       <InfoItem>
         <IconWrapper>
-          <IoCarOutline />
+          <DirectionsCar />
         </IconWrapper>
         <Label>Flotta:</Label> <Value>{data.fleet}</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoInformationCircleOutline />
+          <Info />
         </IconWrapper>
         <Label>Status:</Label> <Value>{data.status}</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoSpeedometerOutline />
+          <Speed />
         </IconWrapper>
         <Label>Hastighet:</Label> <Value>{data.speed || 0} km/h</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoLocationOutline />
+          <LocationOn />
         </IconWrapper>
         <Label>Avstånd:</Label> <Value>{data.ema} m</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoNavigateOutline />
+          <Navigation />
         </IconWrapper>
         <Label>Körsträcka:</Label>{' '}
         <Value>{Math.ceil(10 * data.distance) / 10 || 0} km</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoLeafOutline />
+          <LocalShipping />
         </IconWrapper>
         <Label>
           CO<sub>2</sub>:
@@ -184,7 +184,7 @@ const CarInfo = ({ data }) => {
       {data.recyclingTypes && (
         <InfoItem>
           <IconWrapper>
-            <IoTrashBinOutline />
+            <Delete />
           </IconWrapper>
           <Label>Återvinningstyper:</Label>{' '}
           <Value>{data.recyclingTypes.join(', ')}</Value>
@@ -193,7 +193,7 @@ const CarInfo = ({ data }) => {
 
       <InfoItem>
         <IconWrapper>
-          <IoTimerOutline />
+          <Timer />
         </IconWrapper>
         <Label>Köat:</Label> <Value>{data.queue || 0} kärl</Value>
       </InfoItem>
@@ -267,26 +267,26 @@ const GenericInfo = ({ data }) => {
       </Title>
       <InfoItem>
         <IconWrapper>
-          <IoTrashBinOutline />
+          <Delete />
         </IconWrapper>
         <Label>Typ:</Label> <Value>Återvinningskärl</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoTrashBinOutline />
+          <Delete />
         </IconWrapper>
         <Label>Återvinningstyp:</Label> <Value>{data.recyclingType}</Value>
       </InfoItem>
       <InfoItem>
         <IconWrapper>
-          <IoCarOutline />
+          <DirectionsCar />
         </IconWrapper>
         <Label>Bil:</Label> <Value>{data.carId}</Value>
       </InfoItem>
       {data.deliveryTime && (
         <InfoItem>
           <IconWrapper>
-            <IoTimerOutline />
+            <Timer />
           </IconWrapper>
           <Label>Leveranstid:</Label>{' '}
           <Value>{Math.ceil((10 * data.deliveryTime) / 60 / 60) / 10} h</Value>
@@ -295,7 +295,7 @@ const GenericInfo = ({ data }) => {
       {data.status && (
         <InfoItem>
           <IconWrapper>
-            <IoInformationCircleOutline />
+            <Info />
           </IconWrapper>
           <Label>Status:</Label> <Value>{statusLabel(data.status)}</Value>
         </InfoItem>
@@ -303,7 +303,7 @@ const GenericInfo = ({ data }) => {
       {data.pickupDateTime && (
         <InfoItem>
           <IconWrapper>
-            <IoTimerOutline />
+            <Timer />
           </IconWrapper>
           <Label>Tömdes kl:</Label>{' '}
           <Value>{moment(data.pickupDateTime).format('HH:mm')}</Value>
@@ -312,7 +312,7 @@ const GenericInfo = ({ data }) => {
       {data.co2 && (
         <InfoItem>
           <IconWrapper>
-            <IoLeafOutline />
+            <Eco />
           </IconWrapper>
           <Label>
             CO<sub>2</sub>:
@@ -323,7 +323,7 @@ const GenericInfo = ({ data }) => {
       {data.cost && (
         <InfoItem>
           <IconWrapper>
-            <IoInformationCircleOutline />
+            <Info />
           </IconWrapper>
           <Label>Schablonkostnad:</Label>{' '}
           <Value>{Math.ceil(10 * data.cost) / 10} kr</Value>
