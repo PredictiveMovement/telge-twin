@@ -11,6 +11,7 @@ import ContentPaste from '@mui/icons-material/ContentPaste'
 import { Hail, Info, Map, Person } from '@mui/icons-material'
 import RouteIcon from '@mui/icons-material/Route'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
+import LegendToggleIcon from '@mui/icons-material/LegendToggle'
 
 export default function LayersMenu({
   activeLayers,
@@ -175,6 +176,21 @@ export default function LayersMenu({
               />
             }
             label="Använd ikoner för fordon"
+          />
+        </MenuItem>
+        <Divider />
+        <MenuItem>
+          <ListItemIcon>
+            <LegendToggleIcon fontSize="small" />
+          </ListItemIcon>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={activeLayers.showBookingLegend}
+                onChange={() => activeLayers.setShowBookingLegend((on) => !on)}
+              />
+            }
+            label="Visa färgförklaring för bokningar"
           />
         </MenuItem>
       </Menu>

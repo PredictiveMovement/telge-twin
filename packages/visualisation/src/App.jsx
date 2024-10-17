@@ -20,6 +20,7 @@ const App = () => {
   const [time, setTime] = useState(-3600000) // 00:00
   const [carLayer, setCarLayer] = useState(true)
   const [useIcons, setUseIcons] = useState(false) // Add this line
+  const [showBookingLegend, setShowBookingLegend] = useState(false)
   const [passengerLayer, setPassengerLayer] = useState(true)
   const [postombudLayer, setPostombudLayer] = useState(false)
   const [commercialAreasLayer, setCommercialAreasLayer] = useState(false)
@@ -43,6 +44,8 @@ const App = () => {
     setCarLayer,
     useIcons, // Add this line
     setUseIcons, // Add this line
+    showBookingLegend,
+    setShowBookingLegend,
     postombudLayer,
     setPostombudLayer,
     passengerLayer,

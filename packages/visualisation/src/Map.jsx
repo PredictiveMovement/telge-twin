@@ -13,6 +13,7 @@ import MunicipalityStatisticsBox from './components/MunicipalityStatisticsBox'
 import TimeProgressBar from './components/TimeProgressBar'
 import LayersMenu from './components/LayersMenu/index.jsx'
 import HoverInfoBox from './components/HoverInfoBox'
+import { Typography, Box } from '@mui/material'
 
 const transitionInterpolator = new LinearInterpolator(['bearing'])
 
@@ -138,13 +139,13 @@ const Map = ({
   }
 
   const ICON_MAPPING = {
-    hemsortering: {x: 0, y: 0, width: 640, height: 640, mask: true},
-    hushållsavfall: {x: 0, y: 0, width: 640, height: 640, mask: true},
-    matavfall: {x: 0, y: 0, width: 640, height: 640, mask: true},
-    skåpbil: {x: 0, y: 0, width: 640, height: 640, mask: true},
-    frontlastare: {x: 0, y: 0, width: 640, height: 640, mask: true},
-    baklastare: {x: 0, y: 0, width: 640, height: 640, mask: true},
-  };
+    hemsortering: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    hushållsavfall: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    matavfall: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    skåpbil: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    frontlastare: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    baklastare: { x: 0, y: 0, width: 640, height: 640, mask: true },
+  }
 
   const carIconLayer = new IconLayer({
     id: 'car-icon-layer',
@@ -152,10 +153,10 @@ const Map = ({
     pickable: true,
     iconAtlas: '/delivery-truck-svgrepo-com.png',
     iconMapping: ICON_MAPPING,
-    getIcon: d => d.fleet.toLowerCase(),
+    getIcon: (d) => d.fleet.toLowerCase(),
     sizeScale: 7,
-    getPosition: d => d.position,
-    getSize: d => 5,
+    getPosition: (d) => d.position,
+    getSize: (d) => 5,
     getColor: getColorBasedOnStatus,
     onHover: ({ object, x, y, viewport }) => {
       if (!object) return setHoverInfo(null)
@@ -176,7 +177,7 @@ const Map = ({
       })
       setActiveCar(object)
     },
-  });
+  })
 
   const carLayer = new ScatterplotLayer({
     id: 'car-layer',
@@ -373,6 +374,47 @@ const Map = ({
 
   const map = useRef()
 
+  const BookingLegend = () => (
+    <Box
+      sx={{
+        position: 'absolute',
+        bottom: '150px',
+        left: '20px',
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        padding: '10px',
+        borderRadius: '5px',
+      }}
+    >
+      <Typography variant="h6">Bokningar</Typography>
+      {[
+        { color: 'rgb(170, 187, 255)', label: 'Levererad' },
+        { color: 'rgb(170, 255, 187)', label: 'Upphämtad' },
+        { color: 'rgb(205, 127, 50)', label: 'HEM' },
+        { color: 'rgb(99, 20, 145)', label: 'KRA' },
+        { color: 'rgb(189, 197, 129)', label: '2FA' },
+        { color: 'rgb(249, 202, 36)', label: 'SOP' },
+        { color: 'rgb(57, 123, 184)', label: 'ORD' },
+        { color: 'rgb(235, 77, 75)', label: 'MAT' },
+        { color: 'rgb(232, 67, 147)', label: 'BLB' },
+      ].map(({ color, label }) => (
+        <Box
+          key={label}
+          sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}
+        >
+          <Box
+            sx={{
+              width: '20px',
+              height: '20px',
+              backgroundColor: color,
+              marginRight: '10px',
+            }}
+          />
+          <Typography>{label}</Typography>
+        </Box>
+      ))}
+    </Box>
+  )
+
   return (
     <DeckGL
       //mapLib={maplibregl}
@@ -398,7 +440,8 @@ const Map = ({
         destinationLayer,
         showArcLayer && arcLayer,
         (showAssignedBookings || showActiveDeliveries) && routesLayer,
-        activeLayers.carLayer && (activeLayers.useIcons ? carIconLayer : carLayer),
+        activeLayers.carLayer &&
+          (activeLayers.useIcons ? carIconLayer : carLayer),
       ]}
     >
       <div
@@ -460,6 +503,8 @@ const Map = ({
 
       {/* Municipality stats. */}
       {municipalityInfo && <MunicipalityStatisticsBox {...municipalityInfo} />}
+
+      {activeLayers.showBookingLegend && <BookingLegend />}
     </DeckGL>
   )
 }
