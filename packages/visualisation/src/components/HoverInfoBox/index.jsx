@@ -204,7 +204,7 @@ const CarInfo = ({ data }) => {
           <Value>{data.cargo || 0} kärl</Value>
         </ProgressBarLabel>
         <ProgressBar
-          completed={Math.round((data.cargo / totalBins) * 100) || 0}
+          completed={Math.round((data.cargo / data.queue) * 100) || 0}
           color="#4CAF50"
         />
       </ProgressBarContainer>
@@ -215,7 +215,7 @@ const CarInfo = ({ data }) => {
           <Value>{data.delivered || 0} kärl</Value>
         </ProgressBarLabel>
         <ProgressBar
-          completed={Math.round((data.delivered / totalBins) * 100) || 0}
+          completed={Math.round((data.delivered / data.queue) * 100) || 0}
           color="#2196F3"
         />
       </ProgressBarContainer>
