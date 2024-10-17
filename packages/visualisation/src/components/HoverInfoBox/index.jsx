@@ -50,6 +50,7 @@ const VehicleImage = styled.img`
   object-fit: cover;
   object-position: bottom;
   border-radius: 6px;
+  margin-bottom: 1rem;
 `
 
 const InfoItem = styled.div`
@@ -77,6 +78,7 @@ const Value = styled.span`
 `
 
 const Title = styled.h3`
+  margin-top: 0rem;
   margin-bottom: 1rem;
 `
 
@@ -260,36 +262,73 @@ const CarInfo = ({ data }) => {
 const GenericInfo = ({ data }) => {
   return (
     <Wrapper left={data.x} top={data.viewport.height - data.y + 20}>
-      <Paragraph>
+      <Title>
         <strong>{data.id}</strong>
-      </Paragraph>
-      <Paragraph>Återvinningskärl</Paragraph>
-      <Paragraph>Återvinningstyp: {data.recyclingType}</Paragraph>
-      <br />
-      <Paragraph>Bil: {data.carId}</Paragraph>
-      {data.deliveryTime ? (
-        <Paragraph>
-          Leveranstid: {Math.ceil((10 * data.deliveryTime) / 60 / 60) / 10} h
-        </Paragraph>
-      ) : null}
-      {data.status ? (
-        <Paragraph>Status: {`${statusLabel(data.status)}`}</Paragraph>
-      ) : null}
-      {data.pickupDateTime ? (
-        <Paragraph>
-          Tömdes kl: {moment(data.pickupDateTime).format('HH:mm')}
-        </Paragraph>
-      ) : null}
-      {data.co2 ? (
-        <Paragraph>
-          CO<sub>2</sub>: {Math.ceil(10 * data.co2) / 10} kg
-        </Paragraph>
-      ) : null}
-      {data.cost ? (
-        <Paragraph>
-          Schablonkostnad: {Math.ceil(10 * data.cost) / 10} kr
-        </Paragraph>
-      ) : null}
+      </Title>
+      <InfoItem>
+        <IconWrapper>
+          <IoTrashBinOutline />
+        </IconWrapper>
+        <Label>Typ:</Label> <Value>Återvinningskärl</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <IoTrashBinOutline />
+        </IconWrapper>
+        <Label>Återvinningstyp:</Label> <Value>{data.recyclingType}</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <IoCarOutline />
+        </IconWrapper>
+        <Label>Bil:</Label> <Value>{data.carId}</Value>
+      </InfoItem>
+      {data.deliveryTime && (
+        <InfoItem>
+          <IconWrapper>
+            <IoTimerOutline />
+          </IconWrapper>
+          <Label>Leveranstid:</Label>{' '}
+          <Value>{Math.ceil((10 * data.deliveryTime) / 60 / 60) / 10} h</Value>
+        </InfoItem>
+      )}
+      {data.status && (
+        <InfoItem>
+          <IconWrapper>
+            <IoInformationCircleOutline />
+          </IconWrapper>
+          <Label>Status:</Label> <Value>{statusLabel(data.status)}</Value>
+        </InfoItem>
+      )}
+      {data.pickupDateTime && (
+        <InfoItem>
+          <IconWrapper>
+            <IoTimerOutline />
+          </IconWrapper>
+          <Label>Tömdes kl:</Label>{' '}
+          <Value>{moment(data.pickupDateTime).format('HH:mm')}</Value>
+        </InfoItem>
+      )}
+      {data.co2 && (
+        <InfoItem>
+          <IconWrapper>
+            <IoLeafOutline />
+          </IconWrapper>
+          <Label>
+            CO<sub>2</sub>:
+          </Label>{' '}
+          <Value>{Math.ceil(10 * data.co2) / 10} kg</Value>
+        </InfoItem>
+      )}
+      {data.cost && (
+        <InfoItem>
+          <IconWrapper>
+            <IoInformationCircleOutline />
+          </IconWrapper>
+          <Label>Schablonkostnad:</Label>{' '}
+          <Value>{Math.ceil(10 * data.cost) / 10} kr</Value>
+        </InfoItem>
+      )}
     </Wrapper>
   )
 }
