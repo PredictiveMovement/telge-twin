@@ -40,7 +40,9 @@ class Truck extends Vehicle {
       case 'end':
       case 'ready':
       case 'returning':
+        this.delivered.push(this.position)
         this.status = 'ready'
+        this.statusEvents.next(this)
         return this.navigateTo(this.startPosition)
       default:
         warn('Unknown status', this.status, this.instruction)
@@ -52,10 +54,11 @@ class Truck extends Vehicle {
   stopped() {
     super.stopped()
     //If no more jobs, set position to start position
-    if (!this.plan.length) {
+    if (this.plan.length === 0) {
       this.position = this.startPosition
       this.movedEvents.next(this)
     } else {
+      console.log('Picking next instruction from plan', this.plan.length)
       this.pickNextInstructionFromPlan()
     }
   }

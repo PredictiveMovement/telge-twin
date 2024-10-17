@@ -26,6 +26,7 @@ const cleanCars = ({
   eta,
   vehicleType,
   recyclingTypes,
+  delivered,
 }) => ({
   id,
   destination: (destination && [destination.lon, destination.lat]) || null,
@@ -43,6 +44,7 @@ const cleanCars = ({
   parcelCapacity,
   vehicleType,
   recyclingTypes,
+  delivered: delivered.length,
 })
 
 const register = (experiment, socket) => {

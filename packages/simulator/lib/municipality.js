@@ -152,7 +152,7 @@ Fleet 9: Baklastare, enfack
         info('All bookings are now added to queue:', bookings.length)
         return this.fleets.pipe(
           mergeMap((fleet) =>
-            !fleet.optimizedRoutes
+            fleet.optimizedRoutes
               ? fleet.startDispatcher()
               : fleet.startStandardDispatcher()
           )
