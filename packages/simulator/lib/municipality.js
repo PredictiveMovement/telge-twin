@@ -99,7 +99,7 @@ Fleet 9: Baklastare, enfack
 */
     this.fleets = from(this.fleetsConfig).pipe(
       map(
-        ({ name, recyclingTypes, vehicles, hubAddress }, i) =>
+        ({ name, recyclingTypes, vehicles, hubAddress, optimizedRoutes }, i) =>
           new Fleet({
             id: i,
             name: name,
@@ -108,6 +108,7 @@ Fleet 9: Baklastare, enfack
             hubAddress: hubAddress,
             vehicleTypes: vehicles,
             recyclingTypes: recyclingTypes,
+            optimizedRoutes: optimizedRoutes,
           })
       ),
       tap((fleet) =>
@@ -149,7 +150,13 @@ Fleet 9: Baklastare, enfack
       toArray(), // this forces all bookings to be done before we continue
       mergeMap((bookings) => {
         info('All bookings are now added to queue:', bookings.length)
-        return this.fleets.pipe(mergeMap((fleet) => fleet.startDispatcher()))
+        return this.fleets.pipe(
+          mergeMap((fleet) =>
+            fleet.optimizedRoutes
+              ? fleet.startDispatcher()
+              : fleet.startStandardDispatcher()
+          )
+        )
       }),
       catchError((err) => {
         error('dispatchedBookings:', err)

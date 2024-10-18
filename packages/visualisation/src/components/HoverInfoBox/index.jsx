@@ -3,6 +3,16 @@ import styled from 'styled-components'
 import ProgressBar from '../ProgressBar'
 import { Paragraph } from '../Typography'
 import moment from 'moment'
+import {
+  DirectionsCar,
+  Speed,
+  Navigation,
+  LocalShipping,
+  Delete,
+  Timer,
+  Info,
+  LocationOn,
+} from '@mui/icons-material'
 
 const Wrapper = styled.div.attrs((props) => ({
   style: {
@@ -11,14 +21,12 @@ const Wrapper = styled.div.attrs((props) => ({
   },
 }))`
   position: absolute;
-
   background-color: #fff;
   color: #000;
-  min-width: 200px;
-  min-height: 60px;
+  width: 300px;
   padding: 1.1rem;
-  border-radius: 4px;
-  justify-content: space-between;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   z-index: 1;
 
   :after {
@@ -34,6 +42,44 @@ const Wrapper = styled.div.attrs((props) => ({
     border-left: solid 10px transparent;
     border-right: solid 10px transparent;
   }
+`
+
+const VehicleImage = styled.img`
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  object-position: bottom;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+`
+
+const InfoItem = styled.div`
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: start;
+`
+
+const IconWrapper = styled.div`
+  margin-right: 0.5rem;
+  display: flex;
+  align-items: center;
+  color: #666;
+`
+
+const Label = styled.span`
+  font-size: 0.9rem;
+  color: #666;
+`
+
+const Value = styled.span`
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-left: 0.3rem;
+`
+
+const Title = styled.h3`
+  margin-top: 0rem;
+  margin-bottom: 1rem;
 `
 
 const vehicleName = (vehicleType) => {
@@ -53,90 +99,161 @@ const statusLabel = (status) => {
   switch (status) {
     case 'Queued':
     case 'Assigned':
-      return "Väntar på tömning"
+      return 'Väntar på tömning'
     case 'Picked up':
-      return "Tömd"
+      return 'Tömd'
     case 'Delivered':
-      return "Tömd och klar"
+      return 'Tömd och klar'
     default:
       return status
   }
 }
 
+const vehicleImages = {
+  Matavfall: '/matavfall.png',
+  default: '/matavfall.png',
+}
+
+const ProgressBarContainer = styled.div`
+  margin-top: 1rem;
+`
+
+const ProgressBarLabel = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+`
+
 const CarInfo = ({ data }) => {
+  console.log(data)
+  const imageUrl = vehicleImages[data.fleet] || vehicleImages.default
+
+  const totalBins =
+    (data.queue || 0) + (data.cargo || 0) + (data.delivered || 0)
+
   return (
     <Wrapper left={data.x} top={data.viewport.height - data.y + 20}>
-      <div>
-        <Paragraph>
-          <strong>{`${vehicleName(data.vehicleType)} ${data.id}`}</strong>
-        </Paragraph>
-        {data.lineNumber !== undefined && (
-          <Paragraph>
-            Linje: <strong>{data.lineNumber}</strong>
-          </Paragraph>
-        )}
+      <VehicleImage
+        src={imageUrl}
+        alt={`${vehicleName(data.vehicleType)} ${data.id}`}
+      />
+      <Title>
+        <strong>{`${vehicleName(data.vehicleType)} ${data.id}`}</strong>
+      </Title>
+      <InfoItem>
+        <IconWrapper>
+          <DirectionsCar />
+        </IconWrapper>
+        <Label>Flotta:</Label> <Value>{data.fleet}</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <Info />
+        </IconWrapper>
+        <Label>Status:</Label> <Value>{data.status}</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <Speed />
+        </IconWrapper>
+        <Label>Hastighet:</Label> <Value>{data.speed || 0} km/h</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <LocationOn />
+        </IconWrapper>
+        <Label>Avstånd:</Label> <Value>{data.ema} m</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <Navigation />
+        </IconWrapper>
+        <Label>Körsträcka:</Label>{' '}
+        <Value>{Math.ceil(10 * data.distance) / 10 || 0} km</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <LocalShipping />
+        </IconWrapper>
+        <Label>
+          CO<sub>2</sub>:
+        </Label>{' '}
+        <Value>{Math.ceil(10 * data.co2) / 10 || 0} kg</Value>
+      </InfoItem>
 
-        <Paragraph>&nbsp;</Paragraph>
-        <Paragraph>
-          Flotta: <strong>{data.fleet}</strong>
-        </Paragraph>
-        <Paragraph>
-          Status: <strong>{data.status}</strong>
-        </Paragraph>
-        <Paragraph>
-          Återvinningstyper: <strong>{data?.recyclingTypes.join(', ')}</strong>
-        </Paragraph>
+      {data.recyclingTypes && (
+        <InfoItem>
+          <IconWrapper>
+            <Delete />
+          </IconWrapper>
+          <Label>Återvinningstyper:</Label>{' '}
+          <Value>{data.recyclingTypes.join(', ')}</Value>
+        </InfoItem>
+      )}
 
-        <Paragraph>&nbsp;</Paragraph>
-        <Paragraph>
-          Hastighet: <strong>{data.speed || 0} km/h</strong>
-        </Paragraph>
-        <Paragraph>
-          Avstånd till destination: <strong>{data.ema} m</strong>
-        </Paragraph>
-        <Paragraph>&nbsp;</Paragraph>
-        <Paragraph>
-          Körsträcka:{' '}
-          <strong>{Math.ceil(10 * data.distance) / 10 || 0} km</strong>
-        </Paragraph>
-        <Paragraph>
-          CO<sub>2</sub>:{' '}
-          <strong>{Math.ceil(10 * data.co2) / 10 || 0} kg</strong>
-        </Paragraph>
+      <InfoItem>
+        <IconWrapper>
+          <Timer />
+        </IconWrapper>
+        <Label>Köat:</Label> <Value>{data.queue || 0} kärl</Value>
+      </InfoItem>
 
-        <Paragraph>&nbsp;</Paragraph>
-        <Paragraph>
-          Köat: <strong>{data.queue || 0} kärl</strong>
-        </Paragraph>
-        <Paragraph>
-          Upphämtat: <strong>{data.cargo || 0} kärl</strong>
-        </Paragraph>
-        <Paragraph>
-          Tömt: <strong>{data.delivered || 0} kärl</strong>
-        </Paragraph>
-      </div>
+      <ProgressBarContainer>
+        <ProgressBarLabel>
+          <Label>Upphämtat:</Label>
+          <Value>{data.cargo || 0} kärl</Value>
+        </ProgressBarLabel>
+        <ProgressBar
+          completed={Math.round((data.cargo / data.queue) * 100) || 0}
+          color="#4CAF50"
+        />
+      </ProgressBarContainer>
 
-      <Paragraph>&nbsp;</Paragraph>
+      <ProgressBarContainer>
+        <ProgressBarLabel>
+          <Label>Tömt:</Label>
+          <Value>{data.delivered || 0} kärl</Value>
+        </ProgressBarLabel>
+        <ProgressBar
+          completed={Math.round((data.delivered / data.queue) * 100) || 0}
+          color="#2196F3"
+        />
+      </ProgressBarContainer>
+
       {data.passengerCapacity && (
-        <div>
-          <Paragraph>Passagerarfyllnadsgrad:</Paragraph>
+        <ProgressBarContainer>
+          <ProgressBarLabel>
+            <Label>Passagerarfyllnadsgrad:</Label>
+            <Value>
+              {Math.round((data.passengers / data.passengerCapacity) * 100) ||
+                0}
+              %
+            </Value>
+          </ProgressBarLabel>
           <ProgressBar
             completed={Math.round(
               Math.min(100, (data.passengers / data.passengerCapacity) * 100) ||
                 0
             )}
+            color="#13c57b"
           />
-        </div>
+        </ProgressBarContainer>
       )}
       {data.parcelCapacity && (
-        <div>
-          <Paragraph>Fyllnadsgrad 2 kärl:</Paragraph>
+        <ProgressBarContainer>
+          <ProgressBarLabel>
+            <Label>Fyllnadsgrad 2 kärl:</Label>
+            <Value>
+              {Math.round((data.cargo / data.parcelCapacity) * 100) || 0}%
+            </Value>
+          </ProgressBarLabel>
           <ProgressBar
             completed={Math.round(
               Math.min(100, (data.cargo / data.parcelCapacity) * 100) || 0
             )}
+            color="#13c57b"
           />
-        </div>
+        </ProgressBarContainer>
       )}
     </Wrapper>
   )
@@ -145,38 +262,73 @@ const CarInfo = ({ data }) => {
 const GenericInfo = ({ data }) => {
   return (
     <Wrapper left={data.x} top={data.viewport.height - data.y + 20}>
-      <Paragraph>
+      <Title>
         <strong>{data.id}</strong>
-      </Paragraph>
-      <Paragraph>Återvinningskärl</Paragraph>
-      <Paragraph>Återvinningstyp: {data.recyclingType}</Paragraph>
-      <br />
-      <Paragraph>Bil: {data.carId}</Paragraph>
-      {data.deliveryTime ? (
-        <Paragraph>
-          Leveranstid: {Math.ceil((10 * data.deliveryTime) / 60 / 60) / 10} h
-        </Paragraph>
-      ) : null}
-      {data.status ? (
-        <Paragraph>
-          Status: {`${statusLabel(data.status)}`}
-          </Paragraph> 
-      ) : null}
-      {data.pickupDateTime ? (
-        <Paragraph>
-          Tömdes kl: {moment(data.pickupDateTime).format('HH:mm')}
-        </Paragraph>
-      ) : null}
-      {data.co2 ? (
-        <Paragraph>
-          CO<sub>2</sub>: {Math.ceil(10 * data.co2) / 10} kg
-        </Paragraph>
-      ) : null}
-      {data.cost ? (
-        <Paragraph>
-          Schablonkostnad: {Math.ceil(10 * data.cost) / 10} kr
-        </Paragraph>
-      ) : null}
+      </Title>
+      <InfoItem>
+        <IconWrapper>
+          <Delete />
+        </IconWrapper>
+        <Label>Typ:</Label> <Value>Återvinningskärl</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <Delete />
+        </IconWrapper>
+        <Label>Återvinningstyp:</Label> <Value>{data.recyclingType}</Value>
+      </InfoItem>
+      <InfoItem>
+        <IconWrapper>
+          <DirectionsCar />
+        </IconWrapper>
+        <Label>Bil:</Label> <Value>{data.carId}</Value>
+      </InfoItem>
+      {data.deliveryTime && (
+        <InfoItem>
+          <IconWrapper>
+            <Timer />
+          </IconWrapper>
+          <Label>Leveranstid:</Label>{' '}
+          <Value>{Math.ceil((10 * data.deliveryTime) / 60 / 60) / 10} h</Value>
+        </InfoItem>
+      )}
+      {data.status && (
+        <InfoItem>
+          <IconWrapper>
+            <Info />
+          </IconWrapper>
+          <Label>Status:</Label> <Value>{statusLabel(data.status)}</Value>
+        </InfoItem>
+      )}
+      {data.pickupDateTime && (
+        <InfoItem>
+          <IconWrapper>
+            <Timer />
+          </IconWrapper>
+          <Label>Tömdes kl:</Label>{' '}
+          <Value>{moment(data.pickupDateTime).format('HH:mm')}</Value>
+        </InfoItem>
+      )}
+      {data.co2 && (
+        <InfoItem>
+          <IconWrapper>
+            <Eco />
+          </IconWrapper>
+          <Label>
+            CO<sub>2</sub>:
+          </Label>{' '}
+          <Value>{Math.ceil(10 * data.co2) / 10} kg</Value>
+        </InfoItem>
+      )}
+      {data.cost && (
+        <InfoItem>
+          <IconWrapper>
+            <Info />
+          </IconWrapper>
+          <Label>Schablonkostnad:</Label>{' '}
+          <Value>{Math.ceil(10 * data.cost) / 10} kr</Value>
+        </InfoItem>
+      )}
     </Wrapper>
   )
 }
@@ -184,15 +336,15 @@ const GenericInfo = ({ data }) => {
 const HoverInfoBox = ({ data, cars, bookings }) => {
   const objectData = useMemo(() => {
     if (data.type === 'car') {
-      const car = cars.find((car) => car.id === data.id);
+      const car = cars.find((car) => car.id === data.id)
       if (!car) return null
       return { ...car, ...data }
     } else if (data.type === 'booking') {
-      const booking = bookings.find((booking) => booking.id === data.id);
+      const booking = bookings.find((booking) => booking.id === data.id)
       if (!booking) return null
       return { ...booking, ...data }
     }
-    return null;
+    return null
   }, [data, cars, bookings])
 
   if (!objectData) return null
@@ -205,6 +357,6 @@ const HoverInfoBox = ({ data, cars, bookings }) => {
     default:
       return null
   }
-};
+}
 
 export default HoverInfoBox
