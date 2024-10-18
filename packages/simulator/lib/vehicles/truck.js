@@ -37,9 +37,6 @@ class Truck extends Vehicle {
         this.status = 'toPickup'
         return this.navigateTo(this.booking.pickup.position)
       case 'delivery':
-      case 'end':
-      case 'ready':
-      case 'returning':
         return this.navigateTo(this.startPosition)
       default:
         warn('Unknown status', this.status, this.instruction)
@@ -55,7 +52,7 @@ class Truck extends Vehicle {
     }
     //If no more jobs, set position to start position
     if (this.plan.length === 0) {
-      this.status = 'ready'
+      this.status = 'end'
       this.statusEvents.next(this)
       this.position = this.startPosition
       this.movedEvents.next(this)
@@ -122,19 +119,30 @@ class Truck extends Vehicle {
             this.position.distanceTo(b.center)
         )
 
-        this.plan = await firstValueFrom(
-          from(clusters).pipe(
-            mergeMap(
-              async (cluster) =>
-                await findBestRouteToPickupBookings(this, cluster.items, [
-                  'pickup',
-                ]),
-              1
-            ),
-            mergeAll(), // flatten the arrays
-            toArray()
-          )
-        )
+        this.plan = [
+          {
+            action: 'start',
+          },
+          ...(await firstValueFrom(
+            from(clusters).pipe(
+              mergeMap(
+                async (cluster) =>
+                  await findBestRouteToPickupBookings(this, cluster.items, [
+                    'pickup',
+                  ]),
+                1
+              ),
+              mergeAll(), // flatten the arrays
+              toArray()
+            )
+          )),
+          {
+            action: 'delivery',
+          },
+          {
+            action: 'end',
+          },
+        ]
         //console.log('Plan', this.plan)
       } else {
         this.plan = await findBestRouteToPickupBookings(this, this.queue)
