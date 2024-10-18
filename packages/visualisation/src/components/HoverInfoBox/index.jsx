@@ -312,7 +312,7 @@ const GenericInfo = ({ data }) => {
       {data.co2 && (
         <InfoItem>
           <IconWrapper>
-            <Eco />
+            <LocalShipping />
           </IconWrapper>
           <Label>
             CO<sub>2</sub>:
