@@ -41,7 +41,7 @@ const register = (experiment, socket) => {
     experiment.dispatchedBookings
       .pipe(
         cleanBookings(),
-        bufferTime(100, null, 1000),
+        bufferTime(100),
         filter((e) => e.length)
       )
       .subscribe((bookings) => {
@@ -51,7 +51,7 @@ const register = (experiment, socket) => {
     experiment.bookingUpdates
       .pipe(
         cleanBookings(),
-        bufferTime(100, null, 1000),
+        bufferTime(100),
         filter((e) => e.length)
       )
       .subscribe((bookings) => {

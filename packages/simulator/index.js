@@ -61,12 +61,17 @@ const engine = {
         error('bookingUpdates', err)
         return caught
       }),
-      share()
+      shareReplay()
     )
+
     experiment.subscriptions.push(
       experiment.bookingUpdates.subscribe((booking) =>
         statistics.collectBooking(booking, parameters)
       )
+    )
+
+    experiment.subscriptions.push(
+      experiment.cars.subscribe((car) => statistics.collectCar(car, parameters))
     )
 
     // TODO: Rename to vehicleUpdates

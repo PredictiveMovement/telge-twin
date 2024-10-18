@@ -332,6 +332,28 @@ class Vehicle {
     this.co2 += co2
     return co2
   }
+
+  toObject() {
+    return {
+      id: this.id,
+      position: this.position,
+      destination: this.destination,
+      speed: this.speed,
+      bearing: this.bearing,
+      status: this.status,
+      fleet: this.fleet?.name || 'Private',
+      co2: this.co2,
+      distance: this.distance,
+      ema: this.ema,
+      eta: this.eta,
+      cargo: this.cargo.length,
+      queue: this.queue.length,
+      parcelCapacity: this.parcelCapacity,
+      vehicleType: this.vehicleType,
+      recyclingTypes: this.recyclingTypes,
+      delivered: this.delivered.length,
+    }
+  }
 }
 
 module.exports = Vehicle

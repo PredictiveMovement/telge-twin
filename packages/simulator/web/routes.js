@@ -7,6 +7,8 @@ const moment = require('moment')
 
 const defaultEmitters = emitters()
 
+let experiment
+
 function subscribe(experiment, socket) {
   return [
     defaultEmitters.includes('bookings') &&
@@ -26,15 +28,19 @@ function subscribe(experiment, socket) {
     .flat()
 }
 
-function start(socket) {
-  const experiment = engine.createExperiment({ defaultEmitters })
+function start(socket, io) {
+  if (!experiment) {
+    experiment = engine.createExperiment({ defaultEmitters })
+    experiment.virtualTime
+      .waitUntil(moment().endOf('day').valueOf())
+      .then(() => {
+        io.emit('reset')
+        info('Experiment finished. Restarting...')
+        process.kill(process.pid, 'SIGUSR2')
+      })
+  }
   socket.data.experiment = experiment
-  experiment.subscriptions = subscribe(experiment, socket)
-  experiment.virtualTime.waitUntil(moment().endOf('day').valueOf()).then(() => {
-    socket.emit('reset')
-    info('Experiment finished. Restarting...')
-    process.kill(process.pid, 'SIGUSR2')
-  })
+  subscribe(experiment, socket)
 }
 
 function register(io) {
@@ -47,9 +53,7 @@ function register(io) {
   }
 
   io.on('connection', function (socket) {
-    if (!socket.data.experiment) {
-      start(socket)
-    }
+    start(socket, io)
 
     socket.data.experiment.parameters.initMapState = {
       latitude: parseFloat(process.env.LATITUDE) || 65.0964472642777,
@@ -58,6 +62,12 @@ function register(io) {
     }
 
     socket.emit('parameters', socket.data.experiment.parameters)
+
+    socket.on('reset', () => {
+      experiment = null
+      start(socket, io)
+    })
+
     socket.data.emitCars = defaultEmitters.includes('cars')
 
     socket.emit('init')

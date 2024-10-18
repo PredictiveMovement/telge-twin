@@ -56,17 +56,18 @@ const createIndices = () =>
     })
   )
 
-const save = (booking, indexName) => {
-  return client
-    .index({
-      index: indexName,
-      id: booking.id,
-      body: booking,
+const save = async (document, id, index) => {
+  try {
+    const result = await client.index({
+      index,
+      id,
+      body: document,
     })
-    .then(() => {})
-    .catch((e) => {
-      error('Could not save booking', e)
-    })
+    return result
+  } catch (error) {
+    console.error(`Error saving document to ${index}:`, error)
+    throw error
+  }
 }
 
 const search = (searchQuery) => {

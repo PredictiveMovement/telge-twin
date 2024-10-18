@@ -91,7 +91,10 @@ const Map = ({
   const getColorBasedOnStatus = ({ status }) => {
     const opacity = Math.round((4 / 5) * 255)
     switch (status) {
+      case 'delivery':
+      case 'end':
       case 'ready':
+      case 'returning':
         return [0, 200, 0, opacity]
       default:
         return [254, 254, 254, opacity]
