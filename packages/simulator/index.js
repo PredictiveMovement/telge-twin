@@ -69,6 +69,10 @@ const engine = {
       )
     )
 
+    experiment.subscriptions.push(
+      experiment.cars.subscribe((car) => statistics.collectCar(car, parameters))
+    )
+
     // TODO: Rename to vehicleUpdates
     experiment.carUpdates = merge(
       // experiment.buses,
