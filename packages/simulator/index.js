@@ -61,8 +61,9 @@ const engine = {
         error('bookingUpdates', err)
         return caught
       }),
-      share()
+      shareReplay()
     )
+
     experiment.subscriptions.push(
       experiment.bookingUpdates.subscribe((booking) =>
         statistics.collectBooking(booking, parameters)
