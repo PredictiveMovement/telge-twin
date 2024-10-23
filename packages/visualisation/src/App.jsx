@@ -240,6 +240,7 @@ const App = () => {
     setExperimentParameters({ ...experimentParameters, fleets: updatedJson })
   }
 
+  console.log('currentParameters', currentParameters)
   return (
     <>
       <Logo />
@@ -253,7 +254,6 @@ const App = () => {
           bookings={bookings.length}
           municipalities={municipalities.length}
           lineShapes={lineShapes.length}
-          parameters={currentParameters}
         />
       )}
 
@@ -274,6 +274,7 @@ const App = () => {
         setShow={setShowEditExperimentModal}
         restartSimulation={restartSimulation}
         saveFleets={saveFleets}
+        settings={currentParameters.settings}
       />
 
       {/* Experiment done modal. */}

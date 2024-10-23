@@ -29,6 +29,7 @@ class Municipality {
     citizens,
     squares,
     fleetsConfig,
+    settings,
   }) {
     this.squares = squares
     this.geometry = geometry
@@ -43,7 +44,7 @@ class Municipality {
     this.co2 = 0
     this.citizens = citizens
     this.fleetsConfig = fleetsConfig
-
+    this.settings = settings
     /*
 Fleet 1: Hushållsavfall
         1	Baklastare, enfack	HUSHSORT
@@ -99,7 +100,7 @@ Fleet 9: Baklastare, enfack
 */
     this.fleets = from(this.fleetsConfig).pipe(
       map(
-        ({ name, recyclingTypes, vehicles, hubAddress, optimizedRoutes }, i) =>
+        ({ name, recyclingTypes, vehicles, hubAddress }, i) =>
           new Fleet({
             id: i,
             name: name,
@@ -108,7 +109,7 @@ Fleet 9: Baklastare, enfack
             hubAddress: hubAddress,
             vehicleTypes: vehicles,
             recyclingTypes: recyclingTypes,
-            optimizedRoutes: optimizedRoutes,
+            settings: this.settings,
           })
       ),
       tap((fleet) =>
@@ -152,7 +153,7 @@ Fleet 9: Baklastare, enfack
         info('All bookings are now added to queue:', bookings.length)
         return this.fleets.pipe(
           mergeMap((fleet) =>
-            fleet.optimizedRoutes
+            this.settings.optimizedRoutes
               ? fleet.startDispatcher()
               : fleet.startStandardDispatcher()
           )

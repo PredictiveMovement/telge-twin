@@ -17,6 +17,19 @@ import { Typography, Box } from '@mui/material'
 
 const transitionInterpolator = new LinearInterpolator(['bearing'])
 
+// Add this constant at the top of the file, outside of the Map component
+const BOOKING_COLORS = {
+  HEM: [254, 97, 0],
+  KRA: [176, 96, 255],
+  '2FA': [1, 161, 147],
+  SOP: [254, 254, 98],
+  ORD: [124, 167, 255],
+  MAT: [255, 132, 87],
+  BLB: [251, 144, 201],
+  DELIVERED: [113, 120, 153],
+  PICKED_UP: [173, 177, 199],
+}
+
 const Map = ({
   activeLayers,
   cars,
@@ -101,25 +114,19 @@ const Map = ({
     }
   }
 
-  const getColorBasedOnType = ({ id }) => {
-    const [carrier, type, car, order] = id.split('-')
-    const types = ['HEM', 'KRA', '2FA', 'SOP', 'ORD', 'MAT', 'BLB']
-
+  const getColorBasedOnType = ({ id, status }) => {
     const opacity = Math.round((4 / 5) * 255)
-    const colors = [
-      [205, 127, 50, opacity],
-      [99, 20, 145, opacity],
-      [189, 197, 129, opacity],
-      [249, 202, 36, opacity],
-      [57, 123, 184, opacity],
-      [235, 77, 75, opacity],
-      [232, 67, 147, opacity],
-      [119, 155, 172, opacity],
-      [34, 166, 179, opacity],
-      [255, 255, 0, opacity],
-      [254, 254, 254, opacity],
-    ]
-    return colors[types.indexOf(type.slice(0, 3)) % colors.length]
+
+    if (status === 'Delivered') {
+      return [...BOOKING_COLORS.DELIVERED, 55] // Lower opacity for delivered
+    }
+    if (status === 'Picked up') {
+      return [...BOOKING_COLORS.PICKED_UP, 128]
+    }
+
+    const [carrier, type] = id.split('-')
+    const bookingType = type.slice(0, 3)
+    return [...(BOOKING_COLORS[bookingType] || [254, 254, 254]), opacity]
   }
 
   const getColorBasedOnCar = ({ id }) => {
@@ -219,7 +226,7 @@ const Map = ({
 
   const bookingLayer = new ScatterplotLayer({
     id: 'booking-layer',
-    data: bookings.filter((b) => b.type === 'recycle'), //.filter((b) => !b.assigned), // TODO: revert change
+    data: bookings.filter((b) => b.type === 'recycle'),
     opacity: 1,
     stroked: false,
     filled: true,
@@ -229,15 +236,7 @@ const Map = ({
       return c.pickup
     },
     getRadius: () => 4,
-    // #fab
-    getFillColor: (
-      { id, status } // TODO: Different colors for IKEA & HM
-    ) =>
-      status === 'Delivered'
-        ? [170, 187, 255, 55]
-        : status === 'Picked up'
-        ? [170, 255, 187, 128] // Set opacity to around 50 for delivered items
-        : getColorBasedOnType({ id }),
+    getFillColor: (booking) => getColorBasedOnType(booking),
     pickable: true,
     onHover: ({ object, x, y, viewport }) => {
       if (!object) return setHoverInfo(null)
@@ -286,30 +285,24 @@ const Map = ({
         const car = cars.find((car) => car.id === booking.carId)
         if (car === undefined) return null
 
+        const bookingColor = getColorBasedOnType(booking)
+
         switch (booking.status) {
           case 'Picked up':
             return (
               showActiveDeliveries && {
-                inbound: [169, 178, 237, 55],
-                outbound: getColorBasedOnCar(booking),
+                inbound: bookingColor,
+                outbound: bookingColor,
                 from: car.position,
                 to: booking.destination,
               }
             )
           case 'Assigned':
-            return (
-              showAssignedBookings && {
-                inbound: getColorBasedOnCar(booking),
-                outbound: getColorBasedOnCar(booking),
-                from: car.position,
-                to: booking.pickup,
-              }
-            )
           case 'Queued':
             return (
               showAssignedBookings && {
-                inbound: getColorBasedOnCar(booking),
-                outbound: getColorBasedOnCar(booking),
+                inbound: bookingColor,
+                outbound: bookingColor,
                 from: car.position,
                 to: booking.pickup,
               }
@@ -319,8 +312,8 @@ const Map = ({
 
           default:
             return {
-              inbound: [255, 255, 255, 200],
-              outbound: [255, 255, 255, 100],
+              inbound: bookingColor,
+              outbound: bookingColor,
               from: booking.pickup,
               to: booking.destination,
             }
@@ -383,37 +376,47 @@ const Map = ({
         position: 'absolute',
         bottom: '150px',
         left: '20px',
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-        padding: '10px',
+        backgroundColor: 'rgba(69, 69, 69, 0.8)',
+        padding: '20px',
         borderRadius: '5px',
+        color: '#FFFFFF',
       }}
     >
       <Typography variant="h6">Bokningar</Typography>
       {[
-        { color: 'rgb(170, 187, 255)', label: 'Levererad' },
-        { color: 'rgb(170, 255, 187)', label: 'Upphämtad' },
-        { color: 'rgb(205, 127, 50)', label: 'HEM' },
-        { color: 'rgb(99, 20, 145)', label: 'KRA' },
-        { color: 'rgb(189, 197, 129)', label: '2FA' },
-        { color: 'rgb(249, 202, 36)', label: 'SOP' },
-        { color: 'rgb(57, 123, 184)', label: 'ORD' },
-        { color: 'rgb(235, 77, 75)', label: 'MAT' },
-        { color: 'rgb(232, 67, 147)', label: 'BLB' },
-      ].map(({ color, label }) => (
-        <Box
-          key={label}
-          sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}
-        >
-          <Box
-            sx={{
-              width: '20px',
-              height: '20px',
-              backgroundColor: color,
-              marginRight: '10px',
-            }}
-          />
-          <Typography>{label}</Typography>
-        </Box>
+        { color: BOOKING_COLORS.DELIVERED, label: 'Levererad' },
+        { color: BOOKING_COLORS.PICKED_UP, label: 'Upphämtad' },
+        { type: 'divider' },
+        ...Object.entries(BOOKING_COLORS)
+          .filter(([key]) => !['DELIVERED', 'PICKED_UP'].includes(key))
+          .map(([key, color]) => ({ color, label: key })),
+      ].map(({ color, label, type }, index) => (
+        <React.Fragment key={label || index}>
+          {type === 'divider' ? (
+            <Box
+              sx={{
+                height: '1px',
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                margin: '10px 0',
+              }}
+            />
+          ) : (
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}
+            >
+              <Box
+                sx={{
+                  width: '20px',
+                  height: '20px',
+                  backgroundColor: `rgb(${color.join(',')})`,
+                  marginRight: '10px',
+                  borderRadius: '50%',
+                }}
+              />
+              <Typography>{label}</Typography>
+            </Box>
+          )}
+        </React.Fragment>
       ))}
     </Box>
   )

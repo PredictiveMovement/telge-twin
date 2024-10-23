@@ -22,35 +22,37 @@ function read({ fleets }) {
       activeMunicipalities.some((name) => namn.startsWith(name))
     ),
     map((municipality) => {
+      const municipalityName = municipality.namn
       return {
         ...municipality,
-        fleets: fleets[municipality.namn]?.fleets?.length
-          ? fleets[municipality.namn].fleets
-          : [],
+        fleets: fleets[municipalityName]?.fleets || [],
+        settings: fleets[municipalityName]?.settings || {},
       }
     }),
-    mergeMap(async ({ geometry, namn: name, address, kod, fleets }) => {
-      const searchQuery = address || name.split(' ')[0]
+    mergeMap(
+      async ({ geometry, namn: name, address, kod, fleets, settings }) => {
+        const searchQuery = address || name.split(' ')[0]
 
-      const searchResult = await Pelias.searchOne(searchQuery)
-      if (!searchQuery || !searchResult || !searchResult.position) {
-        throw new Error(
-          `No valid address or name found for municipality: ${name}. Please check parameters.json and add address or position for this municipality. ${searchQuery}`
-        )
+        const searchResult = await Pelias.searchOne(searchQuery)
+        if (!searchQuery || !searchResult || !searchResult.position) {
+          throw new Error(
+            `No valid address or name found for municipality: ${name}. Please check parameters.json and add address or position for this municipality. ${searchQuery}`
+          )
+        }
+        const { position: center } = searchResult
+        info(`creating municipality ${name}`)
+        const municipality = new Municipality({
+          geometry,
+          name,
+          id: kod,
+          fleetsConfig: fleets,
+          bookings: bookings[name],
+          center,
+          settings,
+        })
+        return municipality
       }
-      const { position: center } = searchResult
-      info(`creating municipality ${name}`)
-
-      const municipality = new Municipality({
-        geometry,
-        name,
-        id: kod,
-        fleetsConfig: fleets,
-        bookings: bookings[name],
-        center,
-      })
-      return municipality
-    }),
+    ),
     share()
   )
 }
