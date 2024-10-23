@@ -149,21 +149,21 @@ const Map = ({
   }
 
   const ICON_MAPPING = {
-    hemsortering: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    hushållsavfall: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    matavfall: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    skåpbil: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    frontlastare: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    baklastare: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    ready: { x: 40, y: 0, width: 40, height: 40, mask: false },
+    default: { x: 0, y: 0, width: 40, height: 40, mask: false },
   }
 
+  console.log(cars)
   const carIconLayer = new IconLayer({
     id: 'car-icon-layer',
     data: cars,
     pickable: true,
-    iconAtlas: '/delivery-truck-svgrepo-com.png',
+    iconAtlas: '/combined_truck_icons.png',
     iconMapping: ICON_MAPPING,
-    getIcon: (d) => d.fleet.toLowerCase(),
+    getIcon: (d) => {
+      const status = d.status.toLowerCase()
+      return ICON_MAPPING.hasOwnProperty(status) ? status : 'default'
+    },
     sizeScale: 7,
     getPosition: (d) => d.position,
     getSize: (d) => 5,
