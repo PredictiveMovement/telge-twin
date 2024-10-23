@@ -153,7 +153,6 @@ const Map = ({
     default: { x: 0, y: 0, width: 40, height: 40, mask: false },
   }
 
-  console.log(cars)
   const carIconLayer = new IconLayer({
     id: 'car-icon-layer',
     data: cars,
