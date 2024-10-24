@@ -1,7 +1,7 @@
 const path = require('path')
 const fs = require('fs')
 
-const dataDir = path.join(__dirname, '..', 'config')
+const dataDir = process.env['CACHE_DIR'] || path.join(__dirname, '..', 'config')
 const paramsFileName = 'parameters.json'
 
 // Saves a json parameter object to a parameter file in the data directory
