@@ -36,6 +36,7 @@ class VirtualTime {
       ),
       shareReplay(1)
     )
+    this._now = startDate
   }
 
   getTimeStream() {
@@ -46,12 +47,17 @@ class VirtualTime {
     return this.currentTime.pipe(
       map(getUnixTime),
       map((e) => e * 1000),
+      tap((time) => (this._now = time)),
       distinctUntilChanged()
     )
   }
 
   getTimeInMillisecondsAsPromise() {
     return firstValueFrom(this.getTimeInMilliseconds())
+  }
+
+  now() {
+    return this._now
   }
 
   play() {
