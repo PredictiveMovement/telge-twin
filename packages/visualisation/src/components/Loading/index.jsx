@@ -10,15 +10,19 @@ import {
 } from '@mui/material'
 
 const Wrapper = styled.div`
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.4);
+  width: 50vh;
+  height: 50vh;
+  background-color: rgba(0, 0, 0, 0.5);
   z-index: 3;
   position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   justify-content: center;
   align-items: center;
   flex-direction: column;
+  border-radius: 20px;
 `
 
 const pulseAnimation = keyframes`
