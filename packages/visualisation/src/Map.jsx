@@ -26,6 +26,8 @@ const BOOKING_COLORS = {
   ORD: [124, 167, 255],
   MAT: [255, 132, 87],
   BLB: [251, 144, 201],
+  HUSHSORT: [50, 90, 100],
+  BPAPP: [255, 100, 100],
   DELIVERED: [113, 120, 153],
   PICKED_UP: [173, 177, 199],
 }
@@ -129,25 +131,6 @@ const Map = ({
     return [...(BOOKING_COLORS[bookingType] || [254, 254, 254]), opacity]
   }
 
-  const getColorBasedOnCar = ({ id }) => {
-    const [carrier, type, car, order] = id.split('-')
-    const opacity = Math.round((4 / 5) * 255)
-    const colors = [
-      [205, 127, 50, opacity],
-      [99, 20, 145, opacity],
-      [189, 197, 129, opacity],
-      [249, 202, 36, opacity],
-      [57, 123, 184, opacity],
-      [235, 77, 75, opacity],
-      [232, 67, 147, opacity],
-      [119, 155, 172, opacity],
-      [34, 166, 179, opacity],
-      [255, 255, 0, opacity],
-      [254, 254, 254, opacity],
-    ]
-    return colors[parseInt(car) % colors.length]
-  }
-
   const ICON_MAPPING = {
     ready: { x: 40, y: 0, width: 40, height: 40, mask: false },
     default: { x: 0, y: 0, width: 40, height: 40, mask: false },
@@ -249,18 +232,22 @@ const Map = ({
     },
   })
 
-  const destinationLayer = new ScatterplotLayer({
+  // Add this constant for the icon mapping
+  const DESTINATION_ICON_MAPPING = {
+    marker: { x: 0, y: 0, width: 40, height: 40, mask: false },
+  }
+
+  // Replace the existing destinationLayer with this new IconLayer
+  const destinationLayer = new IconLayer({
     id: 'destination-layer',
     data: [bookings.find((b) => b.destination)].filter(Boolean),
-    opacity: 1,
-    stroked: false,
-    filled: true,
-    radiusScale: 3,
-    radiusUnits: 'pixels',
-    getPosition: (b) => b.destination,
-    getRadius: () => 4,
-    getFillColor: [255, 140, 0, 200],
     pickable: true,
+    iconAtlas: '/base-big.png', // Make sure this image exists in your public folder
+    iconMapping: DESTINATION_ICON_MAPPING,
+    getIcon: (d) => 'marker',
+    sizeScale: 7,
+    getPosition: (b) => b.destination,
+    getSize: (d) => 5,
     onHover: ({ object, x, y, viewport }) => {
       if (!object) return setHoverInfo(null)
       setHoverInfo({
