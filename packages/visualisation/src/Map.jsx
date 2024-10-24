@@ -13,7 +13,6 @@ import MunicipalityStatisticsBox from './components/MunicipalityStatisticsBox'
 import TimeProgressBar from './components/TimeProgressBar'
 import LayersMenu from './components/LayersMenu/index.jsx'
 import HoverInfoBox from './components/HoverInfoBox'
-import { Typography, Box, Button } from '@mui/material'
 import BookingLegend from './components/BookingLegend'
 import { BOOKING_COLORS, groupedColors } from './constants'
 
