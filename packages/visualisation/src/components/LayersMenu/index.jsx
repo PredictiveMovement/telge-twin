@@ -137,19 +137,6 @@ export default function LayersMenu({
           />
         </MenuItem>
         <Divider />
-        <MenuItem onClick={() => setShowEditExperimentModal((on) => !on)}>
-          <ListItemIcon>
-            <ContentPaste fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Redigera experiment</ListItemText>
-        </MenuItem>
-        <MenuItem>
-          <ListItemIcon>
-            <Info fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Experiment: {experimentId}</ListItemText>
-        </MenuItem>
-        <Divider />
         <MenuItem>
           <ListItemIcon>
             <DirectionsCarIcon fontSize="small" />
@@ -192,6 +179,19 @@ export default function LayersMenu({
             }
             label="Visa färgförklaring för bokningar"
           />
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => setShowEditExperimentModal((on) => !on)}>
+          <ListItemIcon>
+            <ContentPaste fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Redigera experiment</ListItemText>
+        </MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <Info fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Experiment: {experimentId}</ListItemText>
         </MenuItem>
       </Menu>
     </React.Fragment>

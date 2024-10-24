@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { StaticMap } from 'react-map-gl'
 import DeckGL, {
   PolygonLayer,
@@ -13,7 +13,8 @@ import MunicipalityStatisticsBox from './components/MunicipalityStatisticsBox'
 import TimeProgressBar from './components/TimeProgressBar'
 import LayersMenu from './components/LayersMenu/index.jsx'
 import HoverInfoBox from './components/HoverInfoBox'
-import { Typography, Box } from '@mui/material'
+import BookingLegend from './components/BookingLegend'
+import { BOOKING_COLORS, groupedColors } from './constants'
 
 const transitionInterpolator = new LinearInterpolator(['bearing'])
 
@@ -101,62 +102,34 @@ const Map = ({
     }
   }
 
-  const getColorBasedOnType = ({ id }) => {
-    const [carrier, type, car, order] = id.split('-')
-    const types = ['HEM', 'KRA', '2FA', 'SOP', 'ORD', 'MAT', 'BLB']
-
+  const getColorBasedOnType = ({ id, status, recyclingType }) => {
     const opacity = Math.round((4 / 5) * 255)
-    const colors = [
-      [205, 127, 50, opacity],
-      [99, 20, 145, opacity],
-      [189, 197, 129, opacity],
-      [249, 202, 36, opacity],
-      [57, 123, 184, opacity],
-      [235, 77, 75, opacity],
-      [232, 67, 147, opacity],
-      [119, 155, 172, opacity],
-      [34, 166, 179, opacity],
-      [255, 255, 0, opacity],
-      [254, 254, 254, opacity],
-    ]
-    return colors[types.indexOf(type.slice(0, 3)) % colors.length]
-  }
 
-  const getColorBasedOnCar = ({ id }) => {
-    const [carrier, type, car, order] = id.split('-')
-    const opacity = Math.round((4 / 5) * 255)
-    const colors = [
-      [205, 127, 50, opacity],
-      [99, 20, 145, opacity],
-      [189, 197, 129, opacity],
-      [249, 202, 36, opacity],
-      [57, 123, 184, opacity],
-      [235, 77, 75, opacity],
-      [232, 67, 147, opacity],
-      [119, 155, 172, opacity],
-      [34, 166, 179, opacity],
-      [255, 255, 0, opacity],
-      [254, 254, 254, opacity],
-    ]
-    return colors[parseInt(car) % colors.length]
+    if (status === 'Delivered') {
+      return [...BOOKING_COLORS.DELIVERED, 55] // Lower opacity for delivered
+    }
+    if (status === 'Picked up') {
+      return [...BOOKING_COLORS.PICKED_UP, 128]
+    }
+
+    return [...(BOOKING_COLORS[recyclingType] || [254, 254, 254]), opacity]
   }
 
   const ICON_MAPPING = {
-    hemsortering: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    hushållsavfall: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    matavfall: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    skåpbil: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    frontlastare: { x: 0, y: 0, width: 640, height: 640, mask: true },
-    baklastare: { x: 0, y: 0, width: 640, height: 640, mask: true },
+    ready: { x: 40, y: 0, width: 40, height: 40, mask: false },
+    default: { x: 0, y: 0, width: 40, height: 40, mask: false },
   }
 
   const carIconLayer = new IconLayer({
     id: 'car-icon-layer',
     data: cars,
     pickable: true,
-    iconAtlas: '/delivery-truck-svgrepo-com.png',
+    iconAtlas: '/combined_truck_icons.png',
     iconMapping: ICON_MAPPING,
-    getIcon: (d) => d.fleet.toLowerCase(),
+    getIcon: (d) => {
+      const status = d.status.toLowerCase()
+      return ICON_MAPPING.hasOwnProperty(status) ? status : 'default'
+    },
     sizeScale: 7,
     getPosition: (d) => d.position,
     getSize: (d) => 5,
@@ -217,52 +190,62 @@ const Map = ({
     },
   })
 
-  const bookingLayer = new ScatterplotLayer({
-    id: 'booking-layer',
-    data: bookings.filter((b) => b.type === 'recycle'), //.filter((b) => !b.assigned), // TODO: revert change
-    opacity: 1,
-    stroked: false,
-    filled: true,
-    radiusScale: 1,
-    radiusUnits: 'pixels',
-    getPosition: (c) => {
-      return c.pickup
-    },
-    getRadius: () => 4,
-    // #fab
-    getFillColor: (
-      { id, status } // TODO: Different colors for IKEA & HM
-    ) =>
-      status === 'Delivered'
-        ? [170, 187, 255, 55]
-        : status === 'Picked up'
-        ? [170, 255, 187, 128] // Set opacity to around 50 for delivered items
-        : getColorBasedOnType({ id }),
-    pickable: true,
-    onHover: ({ object, x, y, viewport }) => {
-      if (!object) return setHoverInfo(null)
-      setHoverInfo({
-        id: object.id,
-        type: 'booking',
-        x,
-        y,
-        viewport,
-      })
-    },
-  })
+  const [activeFilter, setActiveFilter] = useState(null)
 
-  const destinationLayer = new ScatterplotLayer({
+  const filteredBookings = useMemo(() => {
+    return activeFilter
+      ? bookings.filter((b) =>
+          groupedColors[activeFilter].includes(b.recyclingType)
+        )
+      : bookings
+  }, [bookings, activeFilter])
+
+  const bookingLayer = useMemo(
+    () =>
+      new ScatterplotLayer({
+        id: 'booking-layer',
+        data: filteredBookings.filter((b) => b.type === 'recycle'),
+        opacity: 1,
+        stroked: false,
+        filled: true,
+        radiusScale: 1,
+        radiusUnits: 'pixels',
+        getPosition: (c) => {
+          return c.pickup
+        },
+        getRadius: () => 4,
+        getFillColor: (booking) => getColorBasedOnType(booking),
+        pickable: true,
+        onHover: ({ object, x, y, viewport }) => {
+          if (!object) return setHoverInfo(null)
+          setHoverInfo({
+            id: object.id,
+            type: 'booking',
+            x,
+            y,
+            viewport,
+          })
+        },
+      }),
+    [filteredBookings]
+  )
+
+  // Add this constant for the icon mapping
+  const DESTINATION_ICON_MAPPING = {
+    marker: { x: 0, y: 0, width: 40, height: 40, mask: false },
+  }
+
+  // Replace the existing destinationLayer with this new IconLayer
+  const destinationLayer = new IconLayer({
     id: 'destination-layer',
     data: [bookings.find((b) => b.destination)].filter(Boolean),
-    opacity: 1,
-    stroked: false,
-    filled: true,
-    radiusScale: 3,
-    radiusUnits: 'pixels',
-    getPosition: (b) => b.destination,
-    getRadius: () => 4,
-    getFillColor: [255, 140, 0, 200],
     pickable: true,
+    iconAtlas: '/base-big.png', // Make sure this image exists in your public folder
+    iconMapping: DESTINATION_ICON_MAPPING,
+    getIcon: (d) => 'marker',
+    sizeScale: 7,
+    getPosition: (b) => b.destination,
+    getSize: (d) => 5,
     onHover: ({ object, x, y, viewport }) => {
       if (!object) return setHoverInfo(null)
       setHoverInfo({
@@ -278,38 +261,38 @@ const Map = ({
   const [showAssignedBookings, setShowAssignedBookings] = useState(false)
   const [showActiveDeliveries, setShowActiveDeliveries] = useState(false)
 
-  const routesData =
-    (showActiveDeliveries || showAssignedBookings) &&
-    bookings
+  const routesData = useMemo(() => {
+    if (!(showActiveDeliveries || showAssignedBookings)) return []
+
+    return bookings
+      .filter(
+        (booking) =>
+          !activeFilter ||
+          groupedColors[activeFilter].includes(booking.recyclingType)
+      )
       .map((booking) => {
         if (!cars) return null
         const car = cars.find((car) => car.id === booking.carId)
         if (car === undefined) return null
 
+        const bookingColor = getColorBasedOnType(booking)
+
         switch (booking.status) {
           case 'Picked up':
             return (
               showActiveDeliveries && {
-                inbound: [169, 178, 237, 55],
-                outbound: getColorBasedOnCar(booking),
+                inbound: bookingColor,
+                outbound: bookingColor,
                 from: car.position,
                 to: booking.destination,
               }
             )
           case 'Assigned':
-            return (
-              showAssignedBookings && {
-                inbound: getColorBasedOnCar(booking),
-                outbound: getColorBasedOnCar(booking),
-                from: car.position,
-                to: booking.pickup,
-              }
-            )
           case 'Queued':
             return (
               showAssignedBookings && {
-                inbound: getColorBasedOnCar(booking),
-                outbound: getColorBasedOnCar(booking),
+                inbound: bookingColor,
+                outbound: bookingColor,
                 from: car.position,
                 to: booking.pickup,
               }
@@ -319,14 +302,37 @@ const Map = ({
 
           default:
             return {
-              inbound: [255, 255, 255, 200],
-              outbound: [255, 255, 255, 100],
+              inbound: bookingColor,
+              outbound: bookingColor,
               from: booking.pickup,
               to: booking.destination,
             }
         }
       })
       .filter((b) => b) // remove null values
+  }, [
+    bookings,
+    cars,
+    showActiveDeliveries,
+    showAssignedBookings,
+    activeFilter,
+    getColorBasedOnType,
+  ])
+
+  const routesLayer = useMemo(
+    () =>
+      new ArcLayer({
+        id: 'routesLayer',
+        data: routesData,
+        pickable: true,
+        getWidth: 0.5,
+        getSourcePosition: (d) => d.from,
+        getTargetPosition: (d) => d.to,
+        getSourceColor: (d) => d.inbound,
+        getTargetColor: (d) => d.outbound,
+      }),
+    [routesData]
+  )
 
   const arcData = cars
     .map((car) => {
@@ -351,17 +357,6 @@ const Map = ({
     getTargetColor: (d) => d.outbound,
   })
 
-  const routesLayer = new ArcLayer({
-    id: 'routesLayer',
-    data: routesData,
-    pickable: true,
-    getWidth: 0.5,
-    getSourcePosition: (d) => d.from,
-    getTargetPosition: (d) => d.to,
-    getSourceColor: (d) => d.inbound,
-    getTargetColor: (d) => d.outbound,
-  })
-
   useEffect(() => {
     if (!cars.length) return
     if (!activeCar) return
@@ -376,47 +371,6 @@ const Map = ({
   }, [activeCar, cars])
 
   const map = useRef()
-
-  const BookingLegend = () => (
-    <Box
-      sx={{
-        position: 'absolute',
-        bottom: '150px',
-        left: '20px',
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-        padding: '10px',
-        borderRadius: '5px',
-      }}
-    >
-      <Typography variant="h6">Bokningar</Typography>
-      {[
-        { color: 'rgb(170, 187, 255)', label: 'Levererad' },
-        { color: 'rgb(170, 255, 187)', label: 'Upphämtad' },
-        { color: 'rgb(205, 127, 50)', label: 'HEM' },
-        { color: 'rgb(99, 20, 145)', label: 'KRA' },
-        { color: 'rgb(189, 197, 129)', label: '2FA' },
-        { color: 'rgb(249, 202, 36)', label: 'SOP' },
-        { color: 'rgb(57, 123, 184)', label: 'ORD' },
-        { color: 'rgb(235, 77, 75)', label: 'MAT' },
-        { color: 'rgb(232, 67, 147)', label: 'BLB' },
-      ].map(({ color, label }) => (
-        <Box
-          key={label}
-          sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}
-        >
-          <Box
-            sx={{
-              width: '20px',
-              height: '20px',
-              backgroundColor: color,
-              marginRight: '10px',
-            }}
-          />
-          <Typography>{label}</Typography>
-        </Box>
-      ))}
-    </Box>
-  )
 
   return (
     <DeckGL
@@ -507,7 +461,12 @@ const Map = ({
       {/* Municipality stats. */}
       {municipalityInfo && <MunicipalityStatisticsBox {...municipalityInfo} />}
 
-      {activeLayers.showBookingLegend && <BookingLegend />}
+      {activeLayers.showBookingLegend && (
+        <BookingLegend
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+        />
+      )}
     </DeckGL>
   )
 }

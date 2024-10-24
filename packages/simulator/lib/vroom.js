@@ -42,6 +42,7 @@ const vroom = (module.exports = {
             ]
           : undefined,
       },
+      service: 30,
     }
     return shipment
   },

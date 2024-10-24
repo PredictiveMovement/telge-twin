@@ -79,6 +79,7 @@ const App = () => {
     console.log('Reset experiment')
     setPreviousExperimentId(experimentParameters.id)
     setShowExperimentDoneModal(true)
+    socket.emit('experimentParameters', experimentParameters)
   })
 
   function upsert(array, object, idProperty = 'id', deep = false) {
@@ -253,7 +254,6 @@ const App = () => {
           bookings={bookings.length}
           municipalities={municipalities.length}
           lineShapes={lineShapes.length}
-          parameters={currentParameters}
         />
       )}
 
@@ -274,6 +274,7 @@ const App = () => {
         setShow={setShowEditExperimentModal}
         restartSimulation={restartSimulation}
         saveFleets={saveFleets}
+        settings={currentParameters.settings}
       />
 
       {/* Experiment done modal. */}
