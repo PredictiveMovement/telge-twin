@@ -1,5 +1,5 @@
 const { save } = require('./elastic')
-const virtualTime = require('./virtualTime')
+const { virtualTime } = require('./virtualTime')
 
 const collectExperimentMetadata = (experiment) => {
   return save(experiment, experiment.id, 'experiments')
