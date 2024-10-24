@@ -79,6 +79,7 @@ const App = () => {
     console.log('Reset experiment')
     setPreviousExperimentId(experimentParameters.id)
     setShowExperimentDoneModal(true)
+    socket.emit('experimentParameters', experimentParameters)
   })
 
   function upsert(array, object, idProperty = 'id', deep = false) {

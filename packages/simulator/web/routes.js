@@ -36,7 +36,6 @@ function start(socket, io) {
       .then(() => {
         io.emit('reset')
         info('Experiment finished. Restarting...')
-        process.exit(0)
       })
   }
   socket.data.experiment = experiment
