@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { StaticMap } from 'react-map-gl'
 import DeckGL, {
   PolygonLayer,
@@ -13,68 +13,11 @@ import MunicipalityStatisticsBox from './components/MunicipalityStatisticsBox'
 import TimeProgressBar from './components/TimeProgressBar'
 import LayersMenu from './components/LayersMenu/index.jsx'
 import HoverInfoBox from './components/HoverInfoBox'
-import { Typography, Box } from '@mui/material'
+import { Typography, Box, Button } from '@mui/material'
+import BookingLegend from './components/BookingLegend'
+import { BOOKING_COLORS, groupedColors } from './constants'
 
 const transitionInterpolator = new LinearInterpolator(['bearing'])
-
-// Update this constant at the top of the file, outside of the Map component
-const BOOKING_COLORS = {
-  // Household waste
-  HUSHSORT: [254, 97, 0], // Orange
-  HEMSORT: [254, 97, 0], // Orange
-  BRÄNN: [254, 97, 0], // Orange
-
-  // Organic waste
-  MATAVF: [255, 132, 87], // Light Orange
-  TRÄDGÅRD: [255, 132, 87], // Light Orange
-
-  // Recyclables
-  TEXTIL: [176, 96, 255], // Purple
-  METFÖRP: [176, 96, 255], // Purple
-  PLASTFÖRP: [176, 96, 255], // Purple
-  PAPPFÖRP: [176, 96, 255], // Purple
-  RETURPAPP: [176, 96, 255], // Purple
-  WELLPAPP: [176, 96, 255], // Purple
-  GLFÄ: [176, 96, 255], // Purple
-  GLOF: [176, 96, 255], // Purple
-  BMETFÖRP: [176, 96, 255], // Purple
-  BPLASTFÖRP: [176, 96, 255], // Purple
-  BPAPPFÖRP: [176, 96, 255], // Purple
-  BRETURPAPP: [176, 96, 255], // Purple
-  BGLFÄ: [176, 96, 255], // Purple
-  BGLOF: [176, 96, 255], // Purple
-
-  // Hazardous waste
-  FA: [254, 254, 98], // Yellow
-  ELAVF: [254, 254, 98], // Yellow
-  TRÄIMP: [254, 254, 98], // Yellow
-
-  // Bulky waste
-  BLANDAVF: [124, 167, 255], // Light Blue
-  TRÄ: [124, 167, 255], // Light Blue
-  HÖGSMTRL: [124, 167, 255], // Light Blue
-  BRÄNNKL2: [124, 167, 255], // Light Blue
-
-  // Special waste
-  FETT: [251, 144, 201], // Pink
-  SLAM: [251, 144, 201], // Pink
-  LATRIN: [251, 144, 201], // Pink
-  HAVREASKA: [251, 144, 201], // Pink
-  ANJORD: [251, 144, 201], // Pink
-
-  // Other
-  DUMP: [50, 90, 100], // Dark Teal
-  DEP: [50, 90, 100], // Dark Teal
-
-  // Lastväxlare
-  Liftdumper: [1, 161, 147], // Teal
-  Rullflak: [1, 161, 147], // Teal
-  komprimatorer: [1, 161, 147], // Teal
-
-  // Statuses
-  DELIVERED: [113, 120, 153],
-  PICKED_UP: [173, 177, 199],
-}
 
 const Map = ({
   activeLayers,
@@ -248,31 +191,45 @@ const Map = ({
     },
   })
 
-  const bookingLayer = new ScatterplotLayer({
-    id: 'booking-layer',
-    data: bookings.filter((b) => b.type === 'recycle'),
-    opacity: 1,
-    stroked: false,
-    filled: true,
-    radiusScale: 1,
-    radiusUnits: 'pixels',
-    getPosition: (c) => {
-      return c.pickup
-    },
-    getRadius: () => 4,
-    getFillColor: (booking) => getColorBasedOnType(booking),
-    pickable: true,
-    onHover: ({ object, x, y, viewport }) => {
-      if (!object) return setHoverInfo(null)
-      setHoverInfo({
-        id: object.id,
-        type: 'booking',
-        x,
-        y,
-        viewport,
-      })
-    },
-  })
+  const [activeFilter, setActiveFilter] = useState(null)
+
+  const filteredBookings = useMemo(() => {
+    return activeFilter
+      ? bookings.filter((b) =>
+          groupedColors[activeFilter].includes(b.recyclingType)
+        )
+      : bookings
+  }, [bookings, activeFilter])
+
+  const bookingLayer = useMemo(
+    () =>
+      new ScatterplotLayer({
+        id: 'booking-layer',
+        data: filteredBookings.filter((b) => b.type === 'recycle'),
+        opacity: 1,
+        stroked: false,
+        filled: true,
+        radiusScale: 1,
+        radiusUnits: 'pixels',
+        getPosition: (c) => {
+          return c.pickup
+        },
+        getRadius: () => 4,
+        getFillColor: (booking) => getColorBasedOnType(booking),
+        pickable: true,
+        onHover: ({ object, x, y, viewport }) => {
+          if (!object) return setHoverInfo(null)
+          setHoverInfo({
+            id: object.id,
+            type: 'booking',
+            x,
+            y,
+            viewport,
+          })
+        },
+      }),
+    [filteredBookings]
+  )
 
   // Add this constant for the icon mapping
   const DESTINATION_ICON_MAPPING = {
@@ -305,9 +262,15 @@ const Map = ({
   const [showAssignedBookings, setShowAssignedBookings] = useState(false)
   const [showActiveDeliveries, setShowActiveDeliveries] = useState(false)
 
-  const routesData =
-    (showActiveDeliveries || showAssignedBookings) &&
-    bookings
+  const routesData = useMemo(() => {
+    if (!(showActiveDeliveries || showAssignedBookings)) return []
+
+    return bookings
+      .filter(
+        (booking) =>
+          !activeFilter ||
+          groupedColors[activeFilter].includes(booking.recyclingType)
+      )
       .map((booking) => {
         if (!cars) return null
         const car = cars.find((car) => car.id === booking.carId)
@@ -348,6 +311,29 @@ const Map = ({
         }
       })
       .filter((b) => b) // remove null values
+  }, [
+    bookings,
+    cars,
+    showActiveDeliveries,
+    showAssignedBookings,
+    activeFilter,
+    getColorBasedOnType,
+  ])
+
+  const routesLayer = useMemo(
+    () =>
+      new ArcLayer({
+        id: 'routesLayer',
+        data: routesData,
+        pickable: true,
+        getWidth: 0.5,
+        getSourcePosition: (d) => d.from,
+        getTargetPosition: (d) => d.to,
+        getSourceColor: (d) => d.inbound,
+        getTargetColor: (d) => d.outbound,
+      }),
+    [routesData]
+  )
 
   const arcData = cars
     .map((car) => {
@@ -372,17 +358,6 @@ const Map = ({
     getTargetColor: (d) => d.outbound,
   })
 
-  const routesLayer = new ArcLayer({
-    id: 'routesLayer',
-    data: routesData,
-    pickable: true,
-    getWidth: 0.5,
-    getSourcePosition: (d) => d.from,
-    getTargetPosition: (d) => d.to,
-    getSourceColor: (d) => d.inbound,
-    getTargetColor: (d) => d.outbound,
-  })
-
   useEffect(() => {
     if (!cars.length) return
     if (!activeCar) return
@@ -397,103 +372,6 @@ const Map = ({
   }, [activeCar, cars])
 
   const map = useRef()
-
-  const BookingLegend = () => {
-    const groupedColors = {
-      Hushållsavfall: ['HUSHSORT', 'HEMSORT', 'BRÄNN'],
-      'Organiskt avfall': ['MATAVF', 'TRÄDGÅRD'],
-      Återvinningsbart: [
-        'TEXTIL',
-        'METFÖRP',
-        'PLASTFÖRP',
-        'PAPPFÖRP',
-        'RETURPAPP',
-        'WELLPAPP',
-        'GLFÄ',
-        'GLOF',
-        'BMETFÖRP',
-        'BPLASTFÖRP',
-        'BPAPPFÖRP',
-        'BRETURPAPP',
-        'BGLFÄ',
-        'BGLOF',
-      ],
-      'Farligt avfall': ['FA', 'ELAVF', 'TRÄIMP'],
-      Grovavfall: ['BLANDAVF', 'TRÄ', 'HÖGSMTRL', 'BRÄNNKL2'],
-      Specialavfall: ['FETT', 'SLAM', 'LATRIN', 'HAVREASKA', 'ANJORD'],
-      Övrigt: ['DUMP', 'DEP'],
-      Lastväxlare: ['Liftdumper', 'Rullflak', 'komprimatorer'],
-    }
-
-    return (
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: '150px',
-          left: '20px',
-          backgroundColor: 'rgba(69, 69, 69, 0.8)',
-          padding: '20px',
-          borderRadius: '5px',
-          color: '#FFFFFF',
-          maxHeight: '70vh',
-          overflowY: 'auto',
-          width: '200px',
-        }}
-      >
-        <Typography variant="h6">Bokningar</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
-          <Box
-            sx={{
-              width: '20px',
-              height: '20px',
-              backgroundColor: `rgb(${BOOKING_COLORS.DELIVERED.join(',')})`,
-              marginRight: '10px',
-              borderRadius: '50%',
-            }}
-          />
-          <Typography>Levererad</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
-          <Box
-            sx={{
-              width: '20px',
-              height: '20px',
-              backgroundColor: `rgb(${BOOKING_COLORS.PICKED_UP.join(',')})`,
-              marginRight: '10px',
-              borderRadius: '50%',
-            }}
-          />
-          <Typography>Upphämtad</Typography>
-        </Box>
-        <Box
-          sx={{
-            height: '1px',
-            backgroundColor: 'rgba(255, 255, 255, 0.3)',
-            margin: '10px 0',
-          }}
-        />
-        {Object.entries(groupedColors).map(([groupName, types]) => (
-          <Box
-            key={groupName}
-            sx={{ marginTop: '10px', display: 'flex', alignItems: 'center' }}
-          >
-            <Box
-              sx={{
-                width: '20px',
-                height: '20px',
-                backgroundColor: `rgb(${
-                  BOOKING_COLORS[types[0]] || BOOKING_COLORS.DELIVERED.join(',')
-                })`,
-                marginRight: '10px',
-                borderRadius: '50%',
-              }}
-            />
-            <Typography variant="subtitle1">{groupName}</Typography>
-          </Box>
-        ))}
-      </Box>
-    )
-  }
 
   return (
     <DeckGL
@@ -584,7 +462,12 @@ const Map = ({
       {/* Municipality stats. */}
       {municipalityInfo && <MunicipalityStatisticsBox {...municipalityInfo} />}
 
-      {activeLayers.showBookingLegend && <BookingLegend />}
+      {activeLayers.showBookingLegend && (
+        <BookingLegend
+          activeFilter={activeFilter}
+          setActiveFilter={setActiveFilter}
+        />
+      )}
     </DeckGL>
   )
 }
