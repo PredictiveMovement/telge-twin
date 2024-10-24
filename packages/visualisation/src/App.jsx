@@ -240,7 +240,6 @@ const App = () => {
     setExperimentParameters({ ...experimentParameters, fleets: updatedJson })
   }
 
-  console.log('currentParameters', currentParameters)
   return (
     <>
       <Logo />

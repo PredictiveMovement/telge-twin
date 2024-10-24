@@ -36,7 +36,7 @@ function start(socket, io) {
       .then(() => {
         io.emit('reset')
         info('Experiment finished. Restarting...')
-        process.kill(process.pid, 'SIGUSR2')
+        process.exit(0)
       })
   }
   socket.data.experiment = experiment
@@ -84,14 +84,6 @@ function register(io) {
     })
 
     socket.emit('parameters', socket.data.experiment.parameters)
-
-    process.on('SIGINT', () => {
-      console.log('Server is shutting down')
-      io.close(() => {
-        console.log('All sockets closed')
-        process.exit(0)
-      })
-    })
     /* 
     
     This code is used to shut down the experiment if the client disconnects. it is currently disabled.

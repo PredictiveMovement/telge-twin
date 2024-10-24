@@ -17,17 +17,61 @@ import { Typography, Box } from '@mui/material'
 
 const transitionInterpolator = new LinearInterpolator(['bearing'])
 
-// Add this constant at the top of the file, outside of the Map component
+// Update this constant at the top of the file, outside of the Map component
 const BOOKING_COLORS = {
-  HEM: [254, 97, 0],
-  KRA: [176, 96, 255],
-  '2FA': [1, 161, 147],
-  SOP: [254, 254, 98],
-  ORD: [124, 167, 255],
-  MAT: [255, 132, 87],
-  BLB: [251, 144, 201],
-  HUSHSORT: [50, 90, 100],
-  BPAPP: [255, 100, 100],
+  // Household waste
+  HUSHSORT: [254, 97, 0], // Orange
+  HEMSORT: [254, 97, 0], // Orange
+  BRÄNN: [254, 97, 0], // Orange
+
+  // Organic waste
+  MATAVF: [255, 132, 87], // Light Orange
+  TRÄDGÅRD: [255, 132, 87], // Light Orange
+
+  // Recyclables
+  TEXTIL: [176, 96, 255], // Purple
+  METFÖRP: [176, 96, 255], // Purple
+  PLASTFÖRP: [176, 96, 255], // Purple
+  PAPPFÖRP: [176, 96, 255], // Purple
+  RETURPAPP: [176, 96, 255], // Purple
+  WELLPAPP: [176, 96, 255], // Purple
+  GLFÄ: [176, 96, 255], // Purple
+  GLOF: [176, 96, 255], // Purple
+  BMETFÖRP: [176, 96, 255], // Purple
+  BPLASTFÖRP: [176, 96, 255], // Purple
+  BPAPPFÖRP: [176, 96, 255], // Purple
+  BRETURPAPP: [176, 96, 255], // Purple
+  BGLFÄ: [176, 96, 255], // Purple
+  BGLOF: [176, 96, 255], // Purple
+
+  // Hazardous waste
+  FA: [254, 254, 98], // Yellow
+  ELAVF: [254, 254, 98], // Yellow
+  TRÄIMP: [254, 254, 98], // Yellow
+
+  // Bulky waste
+  BLANDAVF: [124, 167, 255], // Light Blue
+  TRÄ: [124, 167, 255], // Light Blue
+  HÖGSMTRL: [124, 167, 255], // Light Blue
+  BRÄNNKL2: [124, 167, 255], // Light Blue
+
+  // Special waste
+  FETT: [251, 144, 201], // Pink
+  SLAM: [251, 144, 201], // Pink
+  LATRIN: [251, 144, 201], // Pink
+  HAVREASKA: [251, 144, 201], // Pink
+  ANJORD: [251, 144, 201], // Pink
+
+  // Other
+  DUMP: [50, 90, 100], // Dark Teal
+  DEP: [50, 90, 100], // Dark Teal
+
+  // Lastväxlare
+  Liftdumper: [1, 161, 147], // Teal
+  Rullflak: [1, 161, 147], // Teal
+  komprimatorer: [1, 161, 147], // Teal
+
+  // Statuses
   DELIVERED: [113, 120, 153],
   PICKED_UP: [173, 177, 199],
 }
@@ -116,7 +160,7 @@ const Map = ({
     }
   }
 
-  const getColorBasedOnType = ({ id, status }) => {
+  const getColorBasedOnType = ({ id, status, recyclingType }) => {
     const opacity = Math.round((4 / 5) * 255)
 
     if (status === 'Delivered') {
@@ -126,9 +170,7 @@ const Map = ({
       return [...BOOKING_COLORS.PICKED_UP, 128]
     }
 
-    const [carrier, type] = id.split('-')
-    const bookingType = type.slice(0, 3)
-    return [...(BOOKING_COLORS[bookingType] || [254, 254, 254]), opacity]
+    return [...(BOOKING_COLORS[recyclingType] || [254, 254, 254]), opacity]
   }
 
   const ICON_MAPPING = {
@@ -356,56 +398,102 @@ const Map = ({
 
   const map = useRef()
 
-  const BookingLegend = () => (
-    <Box
-      sx={{
-        position: 'absolute',
-        bottom: '150px',
-        left: '20px',
-        backgroundColor: 'rgba(69, 69, 69, 0.8)',
-        padding: '20px',
-        borderRadius: '5px',
-        color: '#FFFFFF',
-      }}
-    >
-      <Typography variant="h6">Bokningar</Typography>
-      {[
-        { color: BOOKING_COLORS.DELIVERED, label: 'Levererad' },
-        { color: BOOKING_COLORS.PICKED_UP, label: 'Upphämtad' },
-        { type: 'divider' },
-        ...Object.entries(BOOKING_COLORS)
-          .filter(([key]) => !['DELIVERED', 'PICKED_UP'].includes(key))
-          .map(([key, color]) => ({ color, label: key })),
-      ].map(({ color, label, type }, index) => (
-        <React.Fragment key={label || index}>
-          {type === 'divider' ? (
+  const BookingLegend = () => {
+    const groupedColors = {
+      Hushållsavfall: ['HUSHSORT', 'HEMSORT', 'BRÄNN'],
+      'Organiskt avfall': ['MATAVF', 'TRÄDGÅRD'],
+      Återvinningsbart: [
+        'TEXTIL',
+        'METFÖRP',
+        'PLASTFÖRP',
+        'PAPPFÖRP',
+        'RETURPAPP',
+        'WELLPAPP',
+        'GLFÄ',
+        'GLOF',
+        'BMETFÖRP',
+        'BPLASTFÖRP',
+        'BPAPPFÖRP',
+        'BRETURPAPP',
+        'BGLFÄ',
+        'BGLOF',
+      ],
+      'Farligt avfall': ['FA', 'ELAVF', 'TRÄIMP'],
+      Grovavfall: ['BLANDAVF', 'TRÄ', 'HÖGSMTRL', 'BRÄNNKL2'],
+      Specialavfall: ['FETT', 'SLAM', 'LATRIN', 'HAVREASKA', 'ANJORD'],
+      Övrigt: ['DUMP', 'DEP'],
+      Lastväxlare: ['Liftdumper', 'Rullflak', 'komprimatorer'],
+    }
+
+    return (
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: '150px',
+          left: '20px',
+          backgroundColor: 'rgba(69, 69, 69, 0.8)',
+          padding: '20px',
+          borderRadius: '5px',
+          color: '#FFFFFF',
+          maxHeight: '70vh',
+          overflowY: 'auto',
+          width: '200px',
+        }}
+      >
+        <Typography variant="h6">Bokningar</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
+          <Box
+            sx={{
+              width: '20px',
+              height: '20px',
+              backgroundColor: `rgb(${BOOKING_COLORS.DELIVERED.join(',')})`,
+              marginRight: '10px',
+              borderRadius: '50%',
+            }}
+          />
+          <Typography>Levererad</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
+          <Box
+            sx={{
+              width: '20px',
+              height: '20px',
+              backgroundColor: `rgb(${BOOKING_COLORS.PICKED_UP.join(',')})`,
+              marginRight: '10px',
+              borderRadius: '50%',
+            }}
+          />
+          <Typography>Upphämtad</Typography>
+        </Box>
+        <Box
+          sx={{
+            height: '1px',
+            backgroundColor: 'rgba(255, 255, 255, 0.3)',
+            margin: '10px 0',
+          }}
+        />
+        {Object.entries(groupedColors).map(([groupName, types]) => (
+          <Box
+            key={groupName}
+            sx={{ marginTop: '10px', display: 'flex', alignItems: 'center' }}
+          >
             <Box
               sx={{
-                height: '1px',
-                backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                margin: '10px 0',
+                width: '20px',
+                height: '20px',
+                backgroundColor: `rgb(${
+                  BOOKING_COLORS[types[0]] || BOOKING_COLORS.DELIVERED.join(',')
+                })`,
+                marginRight: '10px',
+                borderRadius: '50%',
               }}
             />
-          ) : (
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}
-            >
-              <Box
-                sx={{
-                  width: '20px',
-                  height: '20px',
-                  backgroundColor: `rgb(${color.join(',')})`,
-                  marginRight: '10px',
-                  borderRadius: '50%',
-                }}
-              />
-              <Typography>{label}</Typography>
-            </Box>
-          )}
-        </React.Fragment>
-      ))}
-    </Box>
-  )
+            <Typography variant="subtitle1">{groupName}</Typography>
+          </Box>
+        ))}
+      </Box>
+    )
+  }
 
   return (
     <DeckGL
