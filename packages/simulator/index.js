@@ -70,10 +70,6 @@ const engine = {
       )
     )
 
-    experiment.subscriptions.push(
-      experiment.cars.subscribe((car) => statistics.collectCar(car, parameters))
-    )
-
     // TODO: Rename to vehicleUpdates
     experiment.carUpdates = merge(
       // experiment.buses,
@@ -84,6 +80,12 @@ const engine = {
       catchError((err) => error('car updates err', err)),
 
       share()
+    )
+
+    experiment.subscriptions.push(
+      experiment.cars
+        .pipe(mergeMap((car) => car.statusEvents))
+        .subscribe((car) => statistics.collectCar(car, parameters))
     )
 
     return experiment
