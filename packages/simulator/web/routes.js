@@ -63,17 +63,12 @@ function register(io) {
 
     socket.emit('parameters', socket.data.experiment.parameters)
 
-    socket.on('reset', () => {
-      experiment = null
-      start(socket, io)
-    })
-
     socket.data.emitCars = defaultEmitters.includes('cars')
 
     socket.emit('init')
     socket.on('reset', () => {
-      socket.data.experiment.subscriptions.map((e) => e.unsubscribe())
-      start(socket)
+      // TODO: handle reset better by separating all experiments in isolated domains / processes
+      process.kill(process.pid, 'SIGUSR2')
     })
 
     socket.on('carLayer', (val) => (socket.data.emitCars = val))
