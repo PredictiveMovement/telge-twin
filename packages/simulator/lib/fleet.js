@@ -85,7 +85,7 @@ class Fleet {
     municipality,
     vehicleTypes,
     recyclingTypes,
-    optimizedRoutes,
+    settings,
   }) {
     this.id = id
     this.name = name
@@ -94,7 +94,7 @@ class Fleet {
     this.municipality = municipality
     this.recyclingTypes = recyclingTypes
     this.vehiclesCount = 0
-    this.optimizedRoutes = optimizedRoutes
+    this.settings = settings
 
     this.cars = this.createCars(vehicleTypes)
     this.unhandledBookings = new ReplaySubject()
@@ -121,7 +121,6 @@ class Fleet {
             fleet: this,
             position: new Position(offsetPosition),
             recyclingTypes: this.recyclingTypes,
-            optimizedRoutes: this.optimizedRoutes,
           })
         })
       }),
