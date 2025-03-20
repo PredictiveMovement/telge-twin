@@ -1,5 +1,3 @@
-// municipality.js
-
 const {
   from,
   shareReplay,
@@ -7,17 +5,14 @@ const {
   mergeMap,
   catchError,
   tap,
-  of,
   toArray,
   find,
   ReplaySubject,
   filter,
   map,
-  mergeAll,
 } = require('rxjs')
 const Fleet = require('./fleet')
 const { error, info } = require('./log')
-const { dispatch } = require('./dispatch/dispatchCentral')
 
 class Municipality {
   constructor({

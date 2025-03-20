@@ -1,15 +1,8 @@
 const { findBestRouteToPickupBookings } = require('../dispatch/truckDispatch')
-const { info, warn, debug } = require('../log')
+const { warn, debug } = require('../log')
 const { clusterPositions } = require('../../lib/kmeans')
 const Vehicle = require('./vehicle')
-const {
-  firstValueFrom,
-  merge,
-  from,
-  mergeMap,
-  mergeAll,
-  toArray,
-} = require('rxjs')
+const { firstValueFrom, from, mergeMap, mergeAll, toArray } = require('rxjs')
 
 class Truck extends Vehicle {
   constructor(args) {

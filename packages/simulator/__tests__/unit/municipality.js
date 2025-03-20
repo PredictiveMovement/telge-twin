@@ -1,4 +1,4 @@
-const Municipality = require('../../lib/Municipality')
+const Municipality = require('../../lib/municipality')
 const { from } = require('rxjs')
 const { first, map } = require('rxjs/operators')
 const Booking = require('../../lib/booking')

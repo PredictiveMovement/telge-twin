@@ -1,6 +1,4 @@
-// fleet.js
-
-const { from, of, ReplaySubject, merge, firstValueFrom } = require('rxjs')
+const { from, of, ReplaySubject } = require('rxjs')
 const {
   shareReplay,
   mergeMap,
@@ -12,11 +10,7 @@ const {
   map,
   filter,
   tap,
-  groupBy,
-  find,
-  share,
 } = require('rxjs/operators')
-const RecycleTruck = require('./vehicles/recycleTruck')
 const Truck = require('./vehicles/truck')
 const Position = require('./models/position')
 const { error, debug, info } = require('./log')
