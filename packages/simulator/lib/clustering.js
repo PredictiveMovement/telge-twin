@@ -1,20 +1,6 @@
-// lib/clustering.js
-
 const { from, pipe, of } = require('rxjs')
-const {
-  map,
-  mergeMap,
-  groupBy,
-  toArray,
-  bufferCount,
-  bufferTime,
-} = require('rxjs/operators')
-const {
-  plan,
-  bookingToShipment,
-  truckToVehicle,
-  bookingToJob,
-} = require('./vroom')
+const { map, mergeMap, groupBy, toArray } = require('rxjs/operators')
+const { plan, truckToVehicle, bookingToJob } = require('./vroom')
 
 // Calculate the center of each cluster of bookings
 function calculateCenters(groups) {
