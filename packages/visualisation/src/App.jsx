@@ -34,6 +34,8 @@ const App = () => {
   const [showEditExperimentModal, setShowEditExperimentModal] = useState(false)
   const [showExperimentDoneModal, setShowExperimentDoneModal] = useState(false)
   const [previousExperimentId, setPreviousExperimentId] = useState(null)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [selectedDataFile, setSelectedDataFile] = useState(null)
 
   const [connected, setConnected] = useState(false)
 
@@ -159,6 +161,11 @@ const App = () => {
     })
   })
 
+  useSocket('uploadedFiles', (files) => {
+    setUploadedFiles(files)
+    console.log('Received uploaded files:', files)
+  })
+
   useSocket('parameters', (currentParameters) => {
     console.log('ExperimentId', currentParameters.id)
 
@@ -185,6 +192,10 @@ const App = () => {
 
     setFleets(currentParameters.fleets)
     setExperimentParameters(currentParameters)
+
+    if (currentParameters.selectedDataFile) {
+      setSelectedDataFile(currentParameters.selectedDataFile)
+    }
 
     console.log('Received parameters:', currentParameters)
   })
@@ -301,6 +312,10 @@ const App = () => {
           setShowEditExperimentModal={setShowEditExperimentModal}
           experimentId={currentParameters.id}
           initMapState={currentParameters.initMapState}
+          socket={socket}
+          selectedDataFile={selectedDataFile}
+          setSelectedDataFile={setSelectedDataFile}
+          uploadedFiles={uploadedFiles}
         />
       )}
 

@@ -5,8 +5,16 @@ import ListItemIcon from '@mui/material/ListItemIcon'
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
 import LayersIcon from '@mui/icons-material/Layers'
-import { FormControlLabel, ListItemText, Switch } from '@mui/material'
+import {
+  FormControlLabel,
+  ListItemText,
+  Switch,
+  Select,
+  FormControl,
+} from '@mui/material'
 import ContentPaste from '@mui/icons-material/ContentPaste'
+import FolderIcon from '@mui/icons-material/Folder'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 
 import { Hail, Info, Map, Person } from '@mui/icons-material'
 import RouteIcon from '@mui/icons-material/Route'
@@ -23,6 +31,10 @@ export default function LayersMenu({
   setShowAssignedBookings,
   setShowEditExperimentModal,
   experimentId,
+  socket,
+  selectedDataFile,
+  setSelectedDataFile,
+  uploadedFiles,
 }) {
   const [anchorEl, setAnchorEl] = React.useState(null)
   const open = Boolean(anchorEl)
@@ -32,6 +44,54 @@ export default function LayersMenu({
   const handleClose = () => {
     setAnchorEl(null)
   }
+
+  const handleFileSelect = (event) => {
+    const filename = event.target.value
+    setSelectedDataFile(filename)
+    socket.emit('selectDataFile', filename)
+    socket.emit('saveDataFileSelection', filename)
+    socket.emit('resetDataFileRequired')
+  }
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0]
+    if (file) {
+      console.log('Försöker ladda upp fil:', file.name)
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      console.log('Laddar upp fil...')
+
+      const apiUrl = 'http://localhost:4000/api/upload'
+
+      fetch(apiUrl, {
+        method: 'POST',
+        body: formData,
+      })
+        .then((response) => {
+          console.log('Upload status:', response.status)
+          if (!response.ok) {
+            throw new Error(
+              `Upload failed with status ${response.status}: ${response.statusText}`
+            )
+          }
+          return response.json()
+        })
+        .then((data) => {
+          console.log('Upload success:', data)
+          if (data.success) {
+            socket.emit('getUploadedFiles')
+            setSelectedDataFile(file.name)
+          }
+        })
+        .catch((error) => {
+          console.error('Error uploading file:', error)
+          alert(`Filuppladdning misslyckades: ${error.message}`)
+        })
+    }
+  }
+
   return (
     <React.Fragment>
       <IconButton
@@ -180,6 +240,48 @@ export default function LayersMenu({
             label="Visa färgförklaring för bokningar"
           />
         </MenuItem>
+        <Divider />
+
+        <MenuItem
+          sx={{ flexDirection: 'column', alignItems: 'flex-start', py: 2 }}
+        >
+          <ListItemIcon
+            sx={{ minWidth: 'auto', mr: 1, display: 'inline-flex' }}
+          >
+            <FolderIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Välj datafil" sx={{ mb: 1 }} />
+
+          <FormControl fullWidth size="small">
+            <Select
+              value={selectedDataFile || ''}
+              onChange={handleFileSelect}
+              displayEmpty
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value="" disabled>
+                Välj datafil
+              </MenuItem>
+              {uploadedFiles &&
+                uploadedFiles.map((file) => (
+                  <MenuItem key={file} value={file}>
+                    {file}
+                  </MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+
+          <IconButton component="label" size="small" sx={{ mt: 1 }}>
+            <UploadFileIcon fontSize="small" />
+            <input
+              type="file"
+              hidden
+              accept=".json"
+              onChange={handleFileChange}
+            />
+          </IconButton>
+        </MenuItem>
+
         <Divider />
         <MenuItem onClick={() => setShowEditExperimentModal((on) => !on)}>
           <ListItemIcon>

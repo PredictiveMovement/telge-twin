@@ -1,13 +1,29 @@
 const engine = require('../index')
-const { save } = require('../config')
+const { save, read } = require('../config')
 const { info } = require('../lib/log')
 const { emitters, ignoreWelcomeMessage } = require('../config')
 const cookie = require('cookie')
 const moment = require('moment')
+const fs = require('fs')
+const path = require('path')
 
 const defaultEmitters = emitters()
 
 let experiment
+
+function getUploadedFiles() {
+  const uploadsDir = path.join(__dirname, '..', 'uploads')
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true })
+  }
+
+  try {
+    return fs.readdirSync(uploadsDir).filter((file) => file.endsWith('.json'))
+  } catch (error) {
+    console.error('Error reading uploads directory:', error)
+    return []
+  }
+}
 
 function subscribe(experiment, socket) {
   return [
@@ -77,7 +93,28 @@ function register(io) {
       socket.emit('init')
     })
 
+    socket.on('selectDataFile', (filename) => {
+      info('Selected data file: ', filename)
+      socket.data.selectedDataFile = filename
+    })
+
+    socket.on('saveDataFileSelection', (filename) => {
+      info('Saving data file selection: ', filename)
+      const params = read()
+      params.selectedDataFile = filename
+      save(params)
+      socket.emit('parameters', params)
+    })
+
+    socket.on('getUploadedFiles', () => {
+      const files = getUploadedFiles()
+      socket.emit('uploadedFiles', files)
+    })
+
     socket.emit('parameters', socket.data.experiment.parameters)
+
+    const files = getUploadedFiles()
+    socket.emit('uploadedFiles', files)
     /* 
     
     This code is used to shut down the experiment if the client disconnects. it is currently disabled.

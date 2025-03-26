@@ -29,6 +29,10 @@ const Map = ({
   setShowEditExperimentModal,
   experimentId,
   initMapState,
+  socket,
+  selectedDataFile,
+  setSelectedDataFile,
+  uploadedFiles,
 }) => {
   const [mapState, setMapState] = useState({
     bearing: 0,
@@ -418,6 +422,10 @@ const Map = ({
           setShowAssignedBookings={setShowAssignedBookings}
           setShowEditExperimentModal={setShowEditExperimentModal}
           experimentId={experimentId}
+          socket={socket}
+          selectedDataFile={selectedDataFile}
+          setSelectedDataFile={setSelectedDataFile}
+          uploadedFiles={uploadedFiles}
         />
       </div>
       <StaticMap
