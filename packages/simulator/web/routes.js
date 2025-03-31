@@ -101,9 +101,15 @@ function register(io) {
     socket.on('saveDataFileSelection', (filename) => {
       info('Saving data file selection: ', filename)
       const params = read()
+
       params.selectedDataFile = filename
       save(params)
       socket.emit('parameters', params)
+
+      info('Data file changed, recreating experiment')
+      experiment = null
+      start(socket, io)
+      socket.emit('init')
     })
 
     socket.on('getUploadedFiles', () => {
