@@ -6,6 +6,7 @@
     "bookings",
     "cars"
   ],
+  "selectedDataFile": "ruttdata_2024-09-03.json",
   "fleets": {
     "Södertälje kommun": {
       "settings": {
