@@ -45,10 +45,20 @@ class Truck extends Vehicle {
     }
     //If no more jobs, set position to start position
     if (this.plan.length === 0) {
+      if (
+        this.status === 'end' &&
+        this.position.distanceTo(this.startPosition) < 100
+      ) {
+        this.position = this.startPosition
+        this.status = 'parked'
+        this.statusEvents.next(this)
+        this.movedEvents.next(this)
+        return
+      }
+
       this.status = 'end'
       this.statusEvents.next(this)
-      this.position = this.startPosition
-      this.movedEvents.next(this)
+      return this.navigateTo(this.startPosition)
     } else {
       this.pickNextInstructionFromPlan()
     }
