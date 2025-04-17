@@ -12,7 +12,7 @@ spec:
       http:
         paths:
           - path: /socket.io
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: simulator
