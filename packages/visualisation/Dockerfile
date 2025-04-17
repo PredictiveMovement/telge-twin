@@ -1,9 +1,9 @@
 FROM node:16-slim AS builder
 
 WORKDIR /app
-COPY ./package-lock.json .
-COPY ./package.json .
-RUN npm ci
+
+COPY package.json package-lock.json ./
+RUN npm ci --production
 
 COPY public/ ./public
 COPY src/ ./src
@@ -15,8 +15,8 @@ COPY index.html .
 ARG VITE_MAPBOX_ACCESS_TOKEN
 ARG VITE_SIMULATOR_URL
 
-ENV VITE_MAPBOX_ACCESS_TOKEN $VITE_MAPBOX_ACCESS_TOKEN
-ENV VITE_SIMULATOR_URL $VITE_SIMULATOR_URL
+ENV VITE_MAPBOX_ACCESS_TOKEN=$VITE_MAPBOX_ACCESS_TOKEN
+ENV VITE_SIMULATOR_URL=$VITE_SIMULATOR_URL
 
 RUN npm run build
 
