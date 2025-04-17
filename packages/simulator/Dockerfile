@@ -4,9 +4,9 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-COPY packages/simulator ./packages/simulator
+COPY . .
 
-RUN npm ci --workspace=packages/simulator --production
+RUN npm ci --production
 
 WORKDIR /app/packages/simulator
 
