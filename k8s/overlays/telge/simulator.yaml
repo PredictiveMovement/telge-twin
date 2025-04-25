@@ -11,7 +11,7 @@ spec:
     - host: telge.iteam.pub
       http:
         paths:
-          - path: /socket.io
+          - path: /socket.io/
             pathType: Prefix
             backend:
               service:
