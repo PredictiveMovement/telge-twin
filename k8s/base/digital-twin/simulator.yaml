@@ -58,7 +58,6 @@ metadata:
     kubernetes.io/ingress.class: "nginx"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.org/websocket-services: "simulator"
 spec:
   tls:
     - hosts:
