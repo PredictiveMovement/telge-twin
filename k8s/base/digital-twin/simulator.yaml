@@ -32,6 +32,8 @@ spec:
           ports:
             - containerPort: 4000
           env:
+            - name: LOG_LEVEL
+              value: DEBUG
             - name: VROOM_URL
               value: http://vroom.vroom.svc.cluster.local:3000
             - name: ELASTICSEARCH_URL
