@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: simulator
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.55
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.53
           # resources:
           #   requests:
           #     cpu: "1"
