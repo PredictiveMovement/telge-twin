@@ -24,20 +24,19 @@ spec:
     spec:
       containers:
         - name: simulator
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.58 # {"$imagepolicy": "flux-system:simulator"}
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.55
           # resources:
           #   requests:
           #     cpu: "1"
-          #     memory: "1Gi"
+          # {"$imagepolicy": "flux-system:simulator"}
+          #     memory: "1Gi" 
           ports:
             - containerPort: 4000
           env:
-            - name: LOG_LEVEL
-              value: DEBUG
             - name: VROOM_URL
               value: http://vroom.vroom.svc.cluster.local:3000
-            #- name: ELASTICSEARCH_URL
-            #  value: http://elastic-elasticsearch.elasticsearch.svc.cluster.local:9200
+            - name: ELASTICSEARCH_URL
+              value: http://elastic-elasticsearch.elasticsearch.svc.cluster.local:9200
             - name: PELIAS_URL
               value: http://pelias-api.pelias.svc.cluster.local:3100
             - name: STREAMS_URL
