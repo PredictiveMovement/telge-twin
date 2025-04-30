@@ -24,12 +24,11 @@ spec:
     spec:
       containers:
         - name: simulator
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.53
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.52 # {"$imagepolicy": "flux-system:simulator"}
           # resources:
           #   requests:
           #     cpu: "1"
-          # {"$imagepolicy": "flux-system:simulator"}
-          #     memory: "1Gi" 
+          #     memory: "1Gi"
           ports:
             - containerPort: 4000
           env:
@@ -59,6 +58,7 @@ metadata:
     kubernetes.io/ingress.class: "nginx"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.org/websocket-services: "simulator"
 spec:
   tls:
     - hosts:
@@ -69,7 +69,7 @@ spec:
       http:
         paths:
           - path: /socket.io
-            pathType: ImplementationSpecific
+            pathType: Prefix
             backend:
               service:
                 name: simulator

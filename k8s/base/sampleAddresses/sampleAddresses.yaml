@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: sample-address
-          image: ghcr.io/predictivemovement/telge-twin-sample:2.6.58 # {"$imagepolicy": "flux-system:sample"}
+          image: ghcr.io/predictivemovement/telge-twin-sample:2.6.52 # {"$imagepolicy": "flux-system:sample"}
           ports:
             - containerPort: 4001
           resources:
@@ -56,7 +56,7 @@ spec:
       http:
         paths:
           - path: /addresses/(.*)
-            pathType: ImplementationSpecific
+            pathType: Prefix
             backend:
               service:
                 name: sample-address
