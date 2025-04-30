@@ -6,8 +6,7 @@ const cookie = require('cookie')
 const moment = require('moment')
 const fs = require('fs')
 const path = require('path')
-
-const defaultEmitters = emitters()
+const { virtualTime } = require('../lib/virtualTime')
 
 let experiment
 
@@ -26,16 +25,17 @@ function getUploadedFiles() {
 }
 
 function subscribe(experiment, socket) {
+  const currentEmitters = emitters()
   return [
-    defaultEmitters.includes('bookings') &&
+    currentEmitters.includes('bookings') &&
       require('./routes/bookings').register(experiment, socket),
-    defaultEmitters.includes('cars') &&
+    currentEmitters.includes('cars') &&
       require('./routes/cars').register(experiment, socket),
-    defaultEmitters.includes('municipalities') &&
+    currentEmitters.includes('municipalities') &&
       require('./routes/municipalities').register(experiment, socket),
-    defaultEmitters.includes('passengers') &&
+    currentEmitters.includes('passengers') &&
       require('./routes/passengers').register(experiment, socket),
-    defaultEmitters.includes('postombud') &&
+    currentEmitters.includes('postombud') &&
       require('./routes/postombud').register(experiment, socket),
     require('./routes/time').register(experiment, socket),
     require('./routes/log').register(experiment, socket),
@@ -45,8 +45,9 @@ function subscribe(experiment, socket) {
 }
 
 function start(socket, io) {
+  const currentEmitters = emitters()
   if (!experiment) {
-    experiment = engine.createExperiment({ defaultEmitters })
+    experiment = engine.createExperiment({ defaultEmitters: currentEmitters })
     experiment.virtualTime
       .waitUntil(moment().endOf('day').valueOf())
       .then(() => {
@@ -55,7 +56,10 @@ function start(socket, io) {
       })
   }
   socket.data.experiment = experiment
-  subscribe(experiment, socket)
+  if (socket.data.subscriptions) {
+    socket.data.subscriptions.forEach((sub) => sub.unsubscribe())
+  }
+  socket.data.subscriptions = subscribe(experiment, socket)
 }
 
 function register(io) {
@@ -78,18 +82,34 @@ function register(io) {
 
     socket.emit('parameters', socket.data.experiment.parameters)
 
-    socket.data.emitCars = defaultEmitters.includes('cars')
+    socket.data.emitCars = emitters().includes('cars')
 
     socket.emit('init')
     socket.on('reset', () => {
-      // TODO: handle reset better by separating all experiments in isolated domains / processes
-      process.kill(process.pid, 'SIGUSR2')
+      info(
+        'Manual reset of simulation, resetting time and recreating experiment'
+      )
+      virtualTime.reset()
+      experiment = null
+      start(socket, io)
+      socket.emit('init')
+      const params = read()
+      socket.emit('parameters', params)
     })
 
     socket.on('carLayer', (val) => (socket.data.emitCars = val))
     socket.on('experimentParameters', (value) => {
       info('New expiriment settings: ', value)
       save(value)
+      const params = read()
+      socket.emit('parameters', params)
+
+      info(
+        'Experiment settings changed, resetting simulation time and recreating experiment'
+      )
+      virtualTime.reset()
+      experiment = null
+      start(socket, io)
       socket.emit('init')
     })
 
@@ -106,7 +126,8 @@ function register(io) {
       save(params)
       socket.emit('parameters', params)
 
-      info('Data file changed, recreating experiment')
+      info('Data file changed, resetting time and recreating experiment')
+      virtualTime.reset()
       experiment = null
       start(socket, io)
       socket.emit('init')

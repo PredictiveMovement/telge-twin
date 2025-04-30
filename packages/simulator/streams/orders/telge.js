@@ -14,9 +14,10 @@ const { nearest } = require('../../lib/pelias')
 const fs = require('fs')
 const path = require('path')
 const LERHAGA_POSITION = new Position({ lat: 59.135449, lon: 17.571239 })
-const parameters = require('../../config/parameters.json')
+const { read: readConfig } = require('../../config')
 
-function read() {
+function createBookingStream() {
+  const parameters = readConfig()
   const dataFile = parameters.selectedDataFile || 'ruttdata_2024-09-03.json'
 
   const processData = (source) => {
@@ -124,4 +125,4 @@ function read() {
   )
 }
 
-module.exports = read()
+module.exports = createBookingStream

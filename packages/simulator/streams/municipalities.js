@@ -11,7 +11,7 @@ const { info } = require('../lib/log.js')
 
 const activeMunicipalities = municipalities()
 
-const bookings = {
+const bookingFactories = {
   'Södertälje kommun': require('./orders/telge.js'),
 }
 
@@ -46,7 +46,7 @@ function read({ fleets }) {
           name,
           id: kod,
           fleetsConfig: fleets,
-          bookings: bookings[name],
+          bookings: bookingFactories[name](),
           center,
           settings,
         })

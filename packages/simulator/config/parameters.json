@@ -1,12 +1,11 @@
 {
-  "id": "5zgw-7PvG",
-  "startDate": "2024-10-24T09:42:34.391Z",
+  "id": "6YZn-Q6Gf",
+  "startDate": "2025-04-30T16:31:29.198Z",
   "fixedRoute": 100,
   "emitters": [
     "bookings",
     "cars"
   ],
-  "selectedDataFile": "ruttdata_sample.json",
   "fleets": {
     "Södertälje kommun": {
       "settings": {
@@ -171,5 +170,6 @@
     "latitude": 65.0964472642777,
     "longitude": 17.112050188704504,
     "zoom": 5
-  }
+  },
+  "selectedDataFile": "ruttdata_sample.json"
 }
