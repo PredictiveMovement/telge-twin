@@ -7,8 +7,10 @@ const moment = require('moment')
 const fs = require('fs')
 const path = require('path')
 const { virtualTime } = require('../lib/virtualTime')
+const { filter, take } = require('rxjs/operators')
 
 let experiment
+let endOfDaySubscription = null
 
 function getUploadedFiles() {
   const uploadsDir = path.join(__dirname, '..', 'uploads')
@@ -48,11 +50,19 @@ function start(socket, io) {
   const currentEmitters = emitters()
   if (!experiment) {
     experiment = engine.createExperiment({ defaultEmitters: currentEmitters })
-    experiment.virtualTime
-      .waitUntil(moment().endOf('day').valueOf())
-      .then(() => {
+    if (endOfDaySubscription) {
+      endOfDaySubscription.unsubscribe()
+    }
+    endOfDaySubscription = experiment.virtualTime
+      .getTimeStream()
+      .pipe(
+        filter((time) => time >= moment().endOf('day').valueOf()),
+        take(1)
+      )
+      .subscribe(() => {
         io.emit('reset')
         info('Experiment finished. Restarting...')
+        if (endOfDaySubscription) endOfDaySubscription.unsubscribe()
       })
   }
   socket.data.experiment = experiment
