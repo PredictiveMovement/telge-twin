@@ -62,7 +62,9 @@ export default function LayersMenu({
 
       console.log('Laddar upp fil...')
 
-      const apiUrl = 'http://localhost:4000/api/upload'
+      const apiUrl = `${
+        import.meta.env.VITE_SIMULATOR_URL || 'http://localhost:4000'
+      }/api/upload`
 
       fetch(apiUrl, {
         method: 'POST',
