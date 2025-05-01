@@ -75,3 +75,10 @@ spec:
                 name: simulator
                 port:
                   number: 4000
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: simulator
+                port:
+                  number: 4000
