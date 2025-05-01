@@ -89,10 +89,10 @@ function register(io) {
       )
       virtualTime.reset()
       experiment = null
-      start(socket, io)
-      socket.emit('init')
+      io.sockets.sockets.forEach((s) => start(s, io))
+      io.emit('init')
       const params = read()
-      socket.emit('parameters', params)
+      io.emit('parameters', params)
     })
 
     socket.on('carLayer', (val) => (socket.data.emitCars = val))
@@ -100,15 +100,15 @@ function register(io) {
       info('New expiriment settings: ', value)
       save(value)
       const params = read()
-      socket.emit('parameters', params)
+      io.emit('parameters', params)
 
       info(
         'Experiment settings changed, resetting simulation time and recreating experiment'
       )
       virtualTime.reset()
       experiment = null
-      start(socket, io)
-      socket.emit('init')
+      io.sockets.sockets.forEach((s) => start(s, io))
+      io.emit('init')
     })
 
     socket.on('selectDataFile', (filename) => {
@@ -122,13 +122,13 @@ function register(io) {
 
       params.selectedDataFile = filename
       save(params)
-      socket.emit('parameters', params)
+      io.emit('parameters', params)
 
       info('Data file changed, resetting time and recreating experiment')
       virtualTime.reset()
       experiment = null
-      start(socket, io)
-      socket.emit('init')
+      io.sockets.sockets.forEach((s) => start(s, io))
+      io.emit('init')
     })
 
     socket.on('getUploadedFiles', () => {
