@@ -80,8 +80,6 @@ function register(io) {
       zoom: parseInt(process.env.ZOOM) || 5,
     }
 
-    socket.emit('parameters', socket.data.experiment.parameters)
-
     socket.data.emitCars = emitters().includes('cars')
 
     socket.emit('init')

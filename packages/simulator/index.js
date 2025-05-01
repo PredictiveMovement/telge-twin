@@ -30,6 +30,7 @@ const engine = {
       fixedRoute: savedParams.fixedRoute || 100,
       emitters: defaultEmitters,
       fleets: savedParams.fleets,
+      selectedDataFile: savedParams.selectedDataFile,
     }
     statistics.collectExperimentMetadata(parameters)
     const experiment = {

@@ -163,7 +163,6 @@ const App = () => {
 
   useSocket('uploadedFiles', (files) => {
     setUploadedFiles(files)
-    console.log('Received uploaded files:', files)
   })
 
   useSocket('parameters', (currentParameters) => {
@@ -194,6 +193,7 @@ const App = () => {
     setExperimentParameters(currentParameters)
 
     if (currentParameters.selectedDataFile) {
+      console.log('Selected data file:', currentParameters.selectedDataFile)
       setSelectedDataFile(currentParameters.selectedDataFile)
     }
 

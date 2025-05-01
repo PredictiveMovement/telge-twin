@@ -1,6 +1,6 @@
 {
-  "id": "6YZn-Q6Gf",
-  "startDate": "2025-04-30T16:31:29.198Z",
+  "id": "AZEM-KAtM",
+  "startDate": "2025-05-01T09:23:00.501Z",
   "fixedRoute": 100,
   "emitters": [
     "bookings",
@@ -166,10 +166,10 @@
       ]
     }
   },
+  "selectedDataFile": "ruttdata_sample.json",
   "initMapState": {
     "latitude": 65.0964472642777,
     "longitude": 17.112050188704504,
     "zoom": 5
-  },
-  "selectedDataFile": "ruttdata_sample.json"
+  }
 }

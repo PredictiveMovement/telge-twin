@@ -50,7 +50,6 @@ export default function LayersMenu({
     setSelectedDataFile(filename)
     socket.emit('selectDataFile', filename)
     socket.emit('saveDataFileSelection', filename)
-    socket.emit('resetDataFileRequired')
   }
 
   const handleFileChange = (event) => {
