@@ -1,5 +1,5 @@
 const fetch = require('node-fetch')
-const { info, error, write } = require('./log')
+const { info, error, write, warn } = require('./log')
 const Position = require('./models/position')
 const peliasUrl = process.env.PELIAS_URL || 'https://pelias.telge.iteam.pub'
 const queue = require('./queueSubject')
@@ -34,6 +34,7 @@ async function getFromCache(cacheKey) {
 }
 
 async function saveToCache(cacheKey, data) {
+  if (data === undefined || data === null) return // don't cache empty results to avoid fs errors
   try {
     const cacheFile = path.join(CACHE_DIR, `${cacheKey}.json`)
     await fs.writeFile(cacheFile, JSON.stringify(data))
@@ -101,7 +102,8 @@ const nearest = (position, layers = 'address,venue') => {
       )
       .catch((e) => {
         const err = new Error().stack
-        error(`Error in pelias nearest\n${err}\n${e}\n\n`)
+        warn(`Pelias nearest failed\n${e}`)
+        return null // propagate graceful failure so callers can filter it
       })
   )
 }

@@ -1,34 +1,33 @@
-const { interval, firstValueFrom } = require('rxjs')
-const {
+import { interval, firstValueFrom } from 'rxjs'
+import {
   scan,
   shareReplay,
   map,
   filter,
   distinctUntilChanged,
   tap,
-} = require('rxjs/operators')
-const {
-  addMilliseconds,
-  startOfDay,
-  addHours,
-  getUnixTime,
-} = require('date-fns')
+} from 'rxjs/operators'
+import { addMilliseconds, startOfDay, addHours, getUnixTime } from 'date-fns'
 
-class VirtualTime {
+export class VirtualTime {
+  private startHour: number
+  private timeMultiplier: number
+  private internalTimeScale = 1
+  private currentTime: any
+  private _now!: number
+
   constructor(timeMultiplier = 1, startHour = 6.8) {
     this.startHour = startHour
     this.timeMultiplier = timeMultiplier
-    this.startHour = startHour
-    this.internalTimeScale = 1
     this.reset()
   }
 
-  reset() {
-    const startDate = addHours(startOfDay(new Date()), this.startHour)
+  reset(): void {
+    const startDate: Date = addHours(startOfDay(new Date()), this.startHour)
     const msUpdateFrequency = 100
     this.currentTime = interval(msUpdateFrequency).pipe(
       scan(
-        (acc) =>
+        (acc: Date) =>
           addMilliseconds(
             acc,
             msUpdateFrequency * this.timeMultiplier * this.internalTimeScale
@@ -37,7 +36,7 @@ class VirtualTime {
       ),
       shareReplay(1)
     )
-    this._now = startDate
+    this._now = startDate.getTime()
   }
 
   getTimeStream() {
@@ -47,47 +46,54 @@ class VirtualTime {
   getTimeInMilliseconds() {
     return this.currentTime.pipe(
       map(getUnixTime),
-      map((e) => e * 1000),
-      tap((time) => (this._now = time)),
+      map((e: number) => e * 1000),
+      tap((time: number) => (this._now = time)),
       distinctUntilChanged()
     )
   }
 
-  getTimeInMillisecondsAsPromise() {
+  getTimeInMillisecondsAsPromise(): Promise<number> {
     return firstValueFrom(this.getTimeInMilliseconds())
   }
 
-  now() {
+  now(): number {
     return this._now
   }
 
-  play() {
+  play(): void {
     this.internalTimeScale = 1
   }
 
-  pause() {
+  pause(): void {
     this.internalTimeScale = 0
   }
 
-  async waitUntil(time) {
+  async waitUntil(time: number): Promise<any> {
     if (this.timeMultiplier === 0) return // don't wait when time is stopped
     if (this.timeMultiplier === Infinity) return // return directly if time is set to infinity
     const waitUntil = time
-    return firstValueFrom(this.currentTime.pipe(filter((e) => e >= waitUntil)))
+    return firstValueFrom(
+      this.getTimeInMilliseconds().pipe(filter((t: number) => t >= waitUntil))
+    )
   }
 
-  async wait(ms) {
+  async wait(ms: number): Promise<any> {
     const now = await this.getTimeInMillisecondsAsPromise()
     return this.waitUntil(now + ms)
   }
 
   // Set the speed in which time should advance
-  setTimeMultiplier(timeMultiplier) {
+  setTimeMultiplier(timeMultiplier: number): void {
     this.timeMultiplier = timeMultiplier
   }
 }
 
-module.exports = {
-  VirtualTime,
-  virtualTime: new VirtualTime(), // Export an instance directly
+export const virtualTime = new VirtualTime()
+
+// CJS fallback
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  module.exports = { VirtualTime, virtualTime }
 }

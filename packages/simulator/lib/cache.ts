@@ -1,40 +1,45 @@
-const fs = require('fs')
-const path = require('path')
-const crypto = require('crypto')
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
 
 const cacheDir = path.join(__dirname, '../.cache')
 
-// Create cache directory if it doesn't exist
+// Ensure cache directory exists
 if (!fs.existsSync(cacheDir)) {
   fs.mkdirSync(cacheDir)
 }
 
-function createHash(object) {
+function createHash(object: unknown): string {
   const hash = crypto.createHash('sha1')
   hash.update(JSON.stringify(object))
   return hash.digest('hex')
 }
 
-async function getFromCache(object) {
+export async function getFromCache<T = unknown>(
+  object: unknown
+): Promise<T | null> {
   const hash = createHash(object)
   const filePath = path.join(cacheDir, hash)
 
   return new Promise((resolve, reject) => {
     fs.readFile(filePath, 'utf8', (err, data) => {
       if (err) {
-        if (err.code === 'ENOENT') {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
           resolve(null)
         } else {
           reject(err)
         }
       } else {
-        resolve(JSON.parse(data))
+        resolve(JSON.parse(data) as T)
       }
     })
   })
 }
 
-async function updateCache(object, result) {
+export async function updateCache<T = unknown>(
+  object: unknown,
+  result: T
+): Promise<T> {
   const hash = createHash(object)
   const filePath = path.join(cacheDir, hash)
 
@@ -49,7 +54,17 @@ async function updateCache(object, result) {
   })
 }
 
-module.exports = {
+export default {
   getFromCache,
   updateCache,
+}
+
+// CommonJS compatibility
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') {
+  module.exports = {
+    getFromCache,
+    updateCache,
+  }
 }

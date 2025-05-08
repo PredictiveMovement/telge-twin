@@ -3,11 +3,11 @@
  */
 const { from } = require('rxjs')
 const { map, filter, mergeMap, share } = require('rxjs/operators')
-const Municipality = require('../lib/municipality.js')
+const Municipality = require('../lib/municipality')
 const data = require('../data/municipalities.json')
-const Pelias = require('../lib/pelias.js')
-const { municipalities } = require('../config/index.js')
-const { info } = require('../lib/log.js')
+const Pelias = require('../lib/pelias')
+const { municipalities } = require('../config/index')
+const { info } = require('../lib/log')
 
 const activeMunicipalities = municipalities()
 
