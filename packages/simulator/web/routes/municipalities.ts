@@ -1,4 +1,4 @@
-const {
+import {
   pipe,
   map,
   filter,
@@ -8,26 +8,28 @@ const {
   startWith,
   combineLatest,
   throttleTime,
-} = require('rxjs')
+} from 'rxjs'
+import type { Socket } from 'socket.io'
 
-const count = () => pipe(scan((acc) => acc + 1, 0))
+const count = () => pipe(scan((acc: number) => acc + 1, 0))
 
-const register = (experiment, socket) => {
+export function register(experiment: any, socket: Socket) {
   return [
     experiment.municipalities
       .pipe(
-        tap(({ id, name, geometry, co2 }) =>
+        tap(({ id, name, geometry, co2 }: any) =>
           socket.emit('municipality', { id, name, geometry, co2 })
         ),
-        mergeMap(({ id, dispatchedBookings, name, cars }) => {
+        mergeMap(({ id, dispatchedBookings, name, cars }: any) => {
+          // Passenger delivery stats
           const passengerDeliveryStatistics = dispatchedBookings.pipe(
-            mergeMap((booking) => booking.deliveredEvents),
-            filter((booking) => booking.type === 'passenger'),
-            filter((b) => b.cost),
+            mergeMap((booking: any) => booking.deliveredEvents),
+            filter((booking: any) => booking.type === 'passenger'),
+            filter((b: any) => b.cost),
             scan(
               (
-                { total, deliveryTimeTotal, totalCost },
-                { deliveryTime, cost }
+                { total, deliveryTimeTotal, totalCost }: any,
+                { deliveryTime, cost }: any
               ) => ({
                 total: total + 1,
                 totalCost: totalCost + cost,
@@ -39,17 +41,20 @@ const register = (experiment, socket) => {
             map(({ total, totalCost, deliveryTimeTotal }) => ({
               totalDelivered: total,
               totalCost,
-              averagePassengerCost: totalCost / total,
-              averagePassengerDeliveryTime: deliveryTimeTotal / total / 60 / 60,
+              averagePassengerCost: total ? totalCost / total : 0,
+              averagePassengerDeliveryTime: total
+                ? deliveryTimeTotal / total / 60 / 60
+                : 0,
             }))
           )
 
+          // Parcel delivery stats
           const parcelDeliveryStatistics = dispatchedBookings.pipe(
-            mergeMap((booking) => booking.deliveredEvents),
+            mergeMap((booking: any) => booking.deliveredEvents),
             scan(
               (
-                { total, deliveryTimeTotal, totalCost },
-                { deliveryTime, cost }
+                { total, deliveryTimeTotal, totalCost }: any,
+                { deliveryTime, cost }: any
               ) => ({
                 total: total + 1,
                 totalCost: totalCost + cost,
@@ -61,23 +66,25 @@ const register = (experiment, socket) => {
             map(({ total, totalCost, deliveryTimeTotal }) => ({
               totalDelivered: total,
               totalCost,
-              averageParcelCost: totalCost / total,
-              averageParcelDeliveryTime: deliveryTimeTotal / total / 60 / 60,
+              averageParcelCost: total ? totalCost / total : 0,
+              averageParcelDeliveryTime: total
+                ? deliveryTimeTotal / total / 60 / 60
+                : 0,
             }))
           )
 
           const averageUtilization = cars.pipe(
-            mergeMap((car) => car.cargoEvents),
-            scan((acc, car) => ({ ...acc, [car.id]: car }), {}),
-            map((cars) =>
-              Object.values(cars).reduce(
-                (acc, car) => ({
+            mergeMap((car: any) => car.cargoEvents),
+            scan((acc: any, car: any) => ({ ...acc, [car.id]: car }), {}),
+            map((carsObj: Record<string, any>) =>
+              Object.values(carsObj).reduce(
+                (acc: any, car: any) => ({
                   totalCargo: acc.totalCargo + car.cargo.length,
                   totalParcelCapacity:
                     acc.totalParcelCapacity + (car.parcelCapacity || 0),
                   totalPassengerCapacity:
                     acc.totalPassengerCapacity + (car.passengerCapacity || 0),
-                  totalCo2: (acc.totalCo2 += car.co2),
+                  totalCo2: acc.totalCo2 + car.co2,
                 }),
                 {
                   totalCargo: 0,
@@ -97,9 +104,13 @@ const register = (experiment, socket) => {
                 totalCargo,
                 totalParcelCapacity,
                 totalPassengerCapacity,
-                averagePassengerLoad: totalCargo / totalPassengerCapacity,
-                averageParcelLoad: totalCargo / totalParcelCapacity,
-                totalCo2: totalCo2,
+                averagePassengerLoad: totalPassengerCapacity
+                  ? totalCargo / totalPassengerCapacity
+                  : 0,
+                averageParcelLoad: totalParcelCapacity
+                  ? totalCargo / totalParcelCapacity
+                  : 0,
+                totalCo2,
               })
             ),
             startWith({
@@ -115,14 +126,14 @@ const register = (experiment, socket) => {
           const totalCars = cars.pipe(count(), startWith(0))
 
           const totalPassengerCapacity = cars.pipe(
-            filter((car) => car.passengerCapacity),
-            scan((a, car) => a + car.passengerCapacity, 0),
+            filter((car: any) => car.passengerCapacity),
+            scan((a: number, car: any) => a + car.passengerCapacity, 0),
             startWith(0)
           )
 
           const totalParcelCapacity = cars.pipe(
-            filter((car) => car.parcelCapacity),
-            scan((a, car) => a + car.parcelCapacity, 0),
+            filter((car: any) => car.parcelCapacity),
+            scan((a: number, car: any) => a + car.parcelCapacity, 0),
             startWith(0)
           )
 
@@ -134,53 +145,63 @@ const register = (experiment, socket) => {
             totalPassengerCapacity,
             totalParcelCapacity,
           ]).pipe(
-            map(
-              ([
-                totalCars,
-                {
-                  totalCargo,
-                  totalCo2,
-                  averagePassengerLoad,
-                  averageParcelLoad,
-                },
-                { averagePassengerDeliveryTime, averagePassengerCost },
-                {
-                  averageParcelDeliveryTime,
-                  averageParcelCost,
-                  totalDelivered,
-                },
-                totalPassengerCapacity,
-                totalParcelCapacity,
-              ]) => ({
-                id,
-                name,
-                totalCars,
+            map((values: any[]) => {
+              const [
+                totalCarsVal,
+                util,
+                passStats,
+                parcelStats,
+                totalPassengerCapacityVal,
+                totalParcelCapacityVal,
+              ] = values
+
+              const {
                 totalCargo,
                 totalCo2,
-                totalPassengerCapacity,
-                totalParcelCapacity,
-                totalDelivered,
+                averagePassengerLoad,
+                averageParcelLoad,
+              } = util
 
+              const { averagePassengerDeliveryTime, averagePassengerCost } =
+                passStats
+
+              const {
+                averageParcelDeliveryTime,
+                averageParcelCost,
+                totalDelivered,
+              } = parcelStats
+
+              return {
+                id,
+                name,
+                totalCars: totalCarsVal,
+                totalCargo,
+                totalCo2,
+                totalPassengerCapacity: totalPassengerCapacityVal,
+                totalParcelCapacity: totalParcelCapacityVal,
+                totalDelivered,
                 averagePassengerDeliveryTime,
                 averagePassengerCost,
                 averagePassengerLoad,
                 averageParcelLoad,
                 averageParcelDeliveryTime,
                 averageParcelCost,
-              })
-            ),
-            // Do not emit more than 1 event per municipality per second
+              }
+            }),
             throttleTime(1000)
           )
         }),
-        filter(({ totalCars }) => totalCars > 0)
+        filter(({ totalCars }: any) => totalCars > 0)
       )
-      .subscribe((municipality) => {
+      .subscribe((municipality: unknown) => {
         socket.emit('municipality', municipality)
       }),
   ]
 }
 
-module.exports = {
-  register,
-}
+export default { register }
+
+// CJS fallback
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') module.exports = { register }

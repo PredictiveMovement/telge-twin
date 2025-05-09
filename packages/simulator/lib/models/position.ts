@@ -1,18 +1,27 @@
 import { haversine } from '../distance'
 import { PositionLike } from '../distance'
 
+function isTuple(
+  pos: PositionLike | [number, number]
+): pos is [number, number] {
+  return Array.isArray(pos)
+}
+
 function convertPosition(pos: PositionLike | [number, number]): {
   lon: number
   lat: number
 } {
-  return {
-    lon:
-      (pos as any).longitude ??
-      (pos as any).lon ??
-      (pos as any).lng ??
-      (pos as any)[0],
-    lat: (pos as any).latitude ?? (pos as any).lat ?? (pos as any)[1],
+  let lon: number | undefined
+  let lat: number | undefined
+
+  if (isTuple(pos)) {
+    ;[lon, lat] = pos
+  } else {
+    lon = pos.longitude ?? pos.lon ?? pos.lng
+    lat = pos.latitude ?? pos.lat
   }
+
+  return { lon: Number(lon ?? 0), lat: Number(lat ?? 0) }
 }
 
 export class Position {
@@ -34,7 +43,7 @@ export class Position {
   }
 
   distanceTo(position: PositionLike | Position): number {
-    return haversine(this, position as any)
+    return haversine(this, position as PositionLike)
   }
 
   toObject() {

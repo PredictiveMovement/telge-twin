@@ -8,29 +8,38 @@ export interface PositionLike {
   1?: number
 }
 
+function isTuple(
+  pos: PositionLike | [number, number]
+): pos is [number, number] {
+  return Array.isArray(pos)
+}
+
 function convertPosition(pos: PositionLike | [number, number]): {
   lon: number
   lat: number
 } {
-  const lonVal =
-    (pos as any).longitude ??
-    (pos as any).lon ??
-    (pos as any).lng ??
-    (pos as any)[0]
-  const latVal = (pos as any).latitude ?? (pos as any).lat ?? (pos as any)[1]
+  let lon: number | undefined
+  let lat: number | undefined
+
+  if (isTuple(pos)) {
+    ;[lon, lat] = pos
+  } else {
+    // Object-like
+    lon = pos.longitude ?? pos.lon ?? pos.lng
+    lat = pos.latitude ?? pos.lat
+  }
+
+  // Fallback to 0 if still undefined to avoid NaN later (should not happen in valid data)
   return {
-    lon: Number(lonVal),
-    lat: Number(latVal),
+    lon: Number(lon ?? 0),
+    lat: Number(lat ?? 0),
   }
 }
 
 function pythagoras(fromInput: PositionLike, toInput: PositionLike): number {
   const from = convertPosition(fromInput)
   const to = convertPosition(toInput)
-  return Math.sqrt(
-    Math.pow(Math.abs(from.lat - to.lat), 2) +
-      Math.pow(Math.abs(from.lon - to.lon), 2)
-  )
+  return Math.hypot(from.lat - to.lat, from.lon - to.lon)
 }
 
 function rad(x: number): number {

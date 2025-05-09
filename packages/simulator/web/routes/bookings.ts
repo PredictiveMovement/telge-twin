@@ -1,10 +1,10 @@
-const { pipe, map, bufferTime, filter } = require('rxjs')
+import { pipe, map, bufferTime, filter } from 'rxjs'
+import type { Socket } from 'socket.io'
 
 const cleanBookings = () =>
-  // TODO: Replace cleanBookings with .toObject() on Booking
   pipe(
-    map(
-      ({
+    map((booking: any) => {
+      const {
         pickup,
         destination,
         assigned,
@@ -18,7 +18,9 @@ const cleanBookings = () =>
         car,
         type,
         recyclingType,
-      }) => ({
+      } = booking as Record<string, any>
+
+      return {
         id,
         pickup: pickup.position,
         assigned,
@@ -32,34 +34,33 @@ const cleanBookings = () =>
         carId: car?.id,
         type,
         recyclingType,
-      })
-    )
+      }
+    })
   )
 
-const register = (experiment, socket) => {
+export function register(experiment: any, socket: Socket) {
   return [
     experiment.dispatchedBookings
       .pipe(
         cleanBookings(),
         bufferTime(100),
-        filter((e) => e.length)
+        filter((e: unknown[]) => e.length > 0)
       )
-      .subscribe((bookings) => {
-        socket.emit('bookings', bookings)
-      }),
+      .subscribe((bookings: unknown[]) => socket.emit('bookings', bookings)),
 
     experiment.bookingUpdates
       .pipe(
         cleanBookings(),
         bufferTime(100),
-        filter((e) => e.length)
+        filter((e: unknown[]) => e.length > 0)
       )
-      .subscribe((bookings) => {
-        socket.emit('bookings', bookings)
-      }),
+      .subscribe((bookings: unknown[]) => socket.emit('bookings', bookings)),
   ]
 }
 
-module.exports = {
-  register,
-}
+export default { register }
+
+// CJS fallback
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') module.exports = { register }

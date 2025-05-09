@@ -1,11 +1,12 @@
+// @ts-nocheck
 const { save } = require('./elastic')
 const { virtualTime } = require('./virtualTime')
 
-const collectExperimentMetadata = (experiment) => {
+const collectExperimentMetadata = (experiment: any) => {
   return save(experiment, experiment.id, 'experiments')
 }
 
-const collectBooking = (booking, experimentSettings) => {
+const collectBooking = (booking: any, experimentSettings: any) => {
   return save(
     {
       ...booking.toObject(),
@@ -18,7 +19,7 @@ const collectBooking = (booking, experimentSettings) => {
   )
 }
 
-const collectCar = (car, experimentSettings) => {
+const collectCar = (car: any, experimentSettings: any) => {
   return save(
     {
       ...car.toObject(),

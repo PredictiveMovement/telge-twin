@@ -1,5 +1,5 @@
 /* Ported from vehicle.js */
-import { ReplaySubject } from 'rxjs'
+import { ReplaySubject, Subscription } from 'rxjs'
 import { scan } from 'rxjs/operators'
 import moment from 'moment'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -8,7 +8,7 @@ const osrm = require('../osrm')
 const { haversine, bearing } = require('../distance')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const interpolate = require('../interpolate')
-import Booking from '../models/booking'
+import Booking, { Place } from '../models/booking'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { safeId } = require('../id')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -26,9 +26,57 @@ export interface RoutePoint {
   lat: number
 }
 
+export interface VehicleOptions {
+  id?: string
+  position: Position
+  status?: string
+  parcelCapacity?: number
+  passengerCapacity?: number
+  weight?: number
+  fleet?: unknown
+  co2PerKmKg?: number
+}
+
 export default class Vehicle {
-  // Public props (keep as any for now)
-  [key: string]: any
+  id: string
+  position: Position
+  origin: Position
+  queue: Booking[]
+  cargo: Booking[]
+  delivered: Booking[]
+  parcelCapacity?: number
+  passengerCapacity?: number
+  weight: number
+  costPerHour: number
+  co2: number
+  distance: number
+  status: string
+  fleet: any // will be typed later
+  created: Promise<number>
+  co2PerKmKg: number
+  vehicleType: string
+  recyclingTypes?: string[]
+
+  // dynamic during route
+  destination?: Position
+  route?: any // TODO: type OSRM Route
+  booking?: Booking
+  speed?: number
+  bearing?: number
+  ema?: number
+  eta?: number
+
+  // other optional flags
+  isPrivateCar?: boolean
+  plan?: unknown[]
+
+  // Event subjects
+  movedEvents: ReplaySubject<Vehicle>
+  cargoEvents: ReplaySubject<Vehicle>
+  statusEvents: ReplaySubject<Vehicle>
+
+  private _disposed: boolean
+  private movementSubscription?: Subscription
 
   constructor({
     id = 'v-' + safeId(),
@@ -39,7 +87,7 @@ export default class Vehicle {
     weight = 10000,
     fleet,
     co2PerKmKg = 0.013 / 1000,
-  }: Record<string, any> = {}) {
+  }: VehicleOptions) {
     this.id = id
     this.position = position
     this.origin = position
@@ -58,9 +106,9 @@ export default class Vehicle {
     this.co2PerKmKg = co2PerKmKg
     this.vehicleType = 'default'
 
-    this.movedEvents = new ReplaySubject<any>()
-    this.cargoEvents = new ReplaySubject<any>()
-    this.statusEvents = new ReplaySubject<any>()
+    this.movedEvents = new ReplaySubject<Vehicle>()
+    this.cargoEvents = new ReplaySubject<Vehicle>()
+    this.statusEvents = new ReplaySubject<Vehicle>()
 
     // Initialize optional internals
     this._disposed = false
@@ -68,21 +116,18 @@ export default class Vehicle {
     this.movementSubscription = undefined
   }
 
-  // Declare internal properties for TypeScript strict mode
   private _lastUpdateTime?: number
-  private _disposed: boolean
-  private movementSubscription: any
 
-  dispose() {
+  dispose(): void {
     this.simulate(false)
     this._disposed = true
   }
 
-  time() {
+  time(): Promise<number> {
     return virtualTime.getTimeInMillisecondsAsPromise()
   }
 
-  simulate(route: any) {
+  simulate(route: { started: number } | false): void {
     if (this.movementSubscription) {
       this.movementSubscription.unsubscribe()
     }
@@ -113,11 +158,11 @@ export default class Vehicle {
       .subscribe(() => null)
   }
 
-  navigateTo(destination: any) {
+  navigateTo(destination: Position): Promise<Position> {
     this.destination = destination
     if (this.position.distanceTo(destination) < 5) {
       this.stopped()
-      return destination
+      return Promise.resolve(destination)
     }
     return osrm
       .route(this.position, this.destination)
@@ -135,14 +180,15 @@ export default class Vehicle {
       )
   }
 
-  // Methods handleBooking, waitAtPickup, pickup, dropOff etc kept same but typed any for brevity
-  async handleBooking(booking: Booking): Promise<any> {
+  async handleBooking(booking: Booking): Promise<Booking> {
     if (!this.booking) {
       this.booking = booking
       booking.assign(this)
       this.status = 'toPickup'
       this.statusEvents.next(this)
-      this.navigateTo(booking.pickup.position)
+      if (booking.pickup?.position) {
+        await this.navigateTo(booking.pickup.position)
+      }
     } else {
       this.queue.push(booking)
       booking.assign(this)
@@ -151,9 +197,11 @@ export default class Vehicle {
     return booking
   }
 
-  async waitAtPickup() {
+  async waitAtPickup(): Promise<void> {
+    if (!this.booking?.pickup?.departureTime) return
+
     const departure = moment(
-      this.booking.pickup.departureTime,
+      this.booking.pickup!.departureTime!,
       'hh:mm:ss'
     ).valueOf()
     const waitingtime =
@@ -163,8 +211,6 @@ export default class Vehicle {
       await virtualTime.waitUntil(departure)
     }
   }
-
-  // ... rest of methods trimmed for brevity, unchanged logic but types any
 
   toObject() {
     return {
@@ -325,7 +371,9 @@ export default class Vehicle {
     // Navigate to destination
     this.status = 'toDestination'
     this.statusEvents.next(this)
-    this.navigateTo(this.booking.destination.position)
+    if (this.booking.destination?.position) {
+      await this.navigateTo(this.booking.destination.position)
+    }
   }
 
   /**
@@ -342,7 +390,7 @@ export default class Vehicle {
     this.delivered.push(this.booking)
 
     // Clear active booking
-    this.booking = null
+    this.booking = undefined
 
     // Handle queued bookings
     if (this.queue.length) {
@@ -353,7 +401,9 @@ export default class Vehicle {
         this.booking = next
         this.status = 'toPickup'
         this.statusEvents.next(this)
-        this.navigateTo(next.pickup.position)
+        if (next.pickup?.position) {
+          await this.navigateTo(next.pickup.position)
+        }
         return
       }
     } else {
@@ -368,3 +418,6 @@ export default class Vehicle {
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 if (typeof module !== 'undefined') module.exports = Vehicle
+
+// export interface
+export { Vehicle as BaseVehicle } // for importing if needed

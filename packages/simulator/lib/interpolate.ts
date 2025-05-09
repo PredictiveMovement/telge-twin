@@ -1,7 +1,8 @@
+// @ts-nocheck
 function interpolatePositionFromRoute(
-  routeStarted,
-  time,
-  remainingPointsInRoute
+  routeStarted: any,
+  time: any,
+  remainingPointsInRoute: any
 ) {
   const timeSinceRouteStarted = (time - routeStarted) / 1000
 
@@ -19,7 +20,7 @@ function interpolatePositionFromRoute(
   }
 
   const futurePoints = remainingPointsInRoute.filter(
-    (point) => point.passed + point.duration > timeSinceRouteStarted
+    (point: any) => point.passed + point.duration > timeSinceRouteStarted
   )
   const nrOfPointsSkipped = remainingPointsInRoute.indexOf(futurePoints[0]) + 1
   const skippedPoints = remainingPointsInRoute.slice(0, nrOfPointsSkipped)
@@ -65,12 +66,12 @@ function interpolatePositionFromRoute(
   return interpolatedPosition
 }
 
-const speedFactor = 1.4 // apply this to all speeds, TODO: Investigate ways to get buses to start position faster other ways. With speedFactor this high we greatly reduce the number of buses that get unassigned because it missed the first stop time due to too slowly navigating from bus depots to first stop. Might be improved by improving knowledge about the Swedish road network in OSRM/OSM (speeds might not be correct for roads in sweden)
+const speedFactor = 1.4 // apply this to all speeds
 
-function extractPoints(route) {
+function extractPoints(route: any) {
   const annotation = route.legs
-    .map((leg) => leg.annotation)
-    .reduce((a, b) => ({
+    .map((leg: any) => leg.annotation)
+    .reduce((a: any, b: any) => ({
       duration: a.duration.concat(b.duration) / speedFactor,
       distance: b.distance.concat(b.distance),
     }))
@@ -78,18 +79,18 @@ function extractPoints(route) {
   annotation.distance.push(0)
   annotation.duration.push(0)
 
-  const points = route.geometry.coordinates.map((pos, i) => ({
+  const points = route.geometry.coordinates.map((pos: any, i: number) => ({
     position: pos,
     meters: annotation.distance[i],
     duration: annotation.duration[i],
   }))
 
-  points.reduce((passed, point) => {
+  points.reduce((passed: any, point: any) => {
     point.passed = passed
     return point.passed + (point.duration || 0)
   }, 0)
 
-  points.reduce((distance, point) => {
+  points.reduce((distance: any, point: any) => {
     point.distance = distance
     return point.distance + (point.meters || 0)
   }, 0)

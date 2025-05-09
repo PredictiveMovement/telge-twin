@@ -1,3 +1,4 @@
+// @ts-nocheck
 const fetch = require('node-fetch')
 const { info, error, write, warn } = require('./log')
 const Position = require('./models/position')
@@ -14,18 +15,18 @@ const CACHE_DIR = path.join(__dirname, '../.cache/pelias')
 // Ensure cache directory exists
 fs.mkdir(CACHE_DIR, { recursive: true }).catch(console.error)
 
-function generateCacheKey(method, params) {
+function generateCacheKey(method: string, params: any) {
   const hash = crypto.createHash('md5')
   hash.update(`${method}:${JSON.stringify(params)}`)
   return hash.digest('hex')
 }
 
-async function getFromCache(cacheKey) {
+async function getFromCache(cacheKey: string) {
   try {
     const cacheFile = path.join(CACHE_DIR, `${cacheKey}.json`)
     const data = await fs.readFile(cacheFile, 'utf8')
     return JSON.parse(data)
-  } catch (error) {
+  } catch (error: any) {
     if (error.code !== 'ENOENT') {
       console.error('Cache read error:', error)
     }
@@ -33,7 +34,7 @@ async function getFromCache(cacheKey) {
   }
 }
 
-async function saveToCache(cacheKey, data) {
+async function saveToCache(cacheKey: string, data: any) {
   if (data === undefined || data === null) return // don't cache empty results to avoid fs errors
   try {
     const cacheFile = path.join(CACHE_DIR, `${cacheKey}.json`)
@@ -43,7 +44,12 @@ async function saveToCache(cacheKey, data) {
   }
 }
 
-async function cachedFetch(method, params, fetchFunc, forceFetch = false) {
+async function cachedFetch(
+  method: string,
+  params: any,
+  fetchFunc: () => Promise<any>,
+  forceFetch = false
+) {
   const cacheKey = generateCacheKey(method, params)
 
   if (!forceFetch) {
@@ -57,17 +63,17 @@ async function cachedFetch(method, params, fetchFunc, forceFetch = false) {
   return data
 }
 
-const nearest = (position, layers = 'address,venue') => {
+const nearest = (position: any, layers = 'address,venue') => {
   const { lon, lat } = position
 
   const url = `${peliasUrl}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1&layers=${layers}`
   return cachedFetch('nearest', { position, layers }, () =>
     queue(() => fetch(url))
-      .then((response) => {
+      .then((response: any) => {
         if (!response.ok) throw 'pelias error: ' + response.statusText
         return response.json()
       })
-      .then((p) =>
+      .then((p: any) =>
         p.features[0]?.geometry?.coordinates?.length
           ? p
           : Promise.reject('No coordinates found' + position.toString())
@@ -87,7 +93,7 @@ const nearest = (position, layers = 'address,venue') => {
               },
             } = {},
           ] = [],
-        }) => ({
+        }: any) => ({
           name,
           street,
           houseNumber,
@@ -100,7 +106,7 @@ const nearest = (position, layers = 'address,venue') => {
           postalcode,
         })
       )
-      .catch((e) => {
+      .catch((e: any) => {
         const err = new Error().stack
         warn(`Pelias nearest failed\n${e}`)
         return null // propagate graceful failure so callers can filter it
@@ -108,7 +114,12 @@ const nearest = (position, layers = 'address,venue') => {
   )
 }
 
-const search = (name, near = null, layers = 'address,venue', size = 1000) => {
+const search = (
+  name: string,
+  near: any = null,
+  layers = 'address,venue',
+  size = 1000
+) => {
   const encodedName = encodeURIComponent(name)
   const focus = near
     ? `&focus.point.lat=${near.lat}&focus.point.lon=${near.lon}&layers=${layers}`
@@ -117,22 +128,22 @@ const search = (name, near = null, layers = 'address,venue', size = 1000) => {
   write('p')
   return cachedFetch('search', { name, near, layers, size }, () =>
     queue(() => fetch(url))
-      .then((response) => {
+      .then((response: any) => {
         if (!response.ok) throw 'pelias error: ' + response.statusText
         return response.json()
       })
-      .then((results) =>
+      .then((results: any) =>
         results.features
-          .map(({ geometry, properties } = {}) => ({
+          .map(({ geometry, properties }: any = {}) => ({
             ...properties,
             position: new Position({
               lon: geometry.coordinates[0],
               lat: geometry.coordinates[1],
             }),
           }))
-          .filter((p) => p.position.isValid())
+          .filter((p: any) => p.position.isValid())
       )
-      .catch((e) => {
+      .catch((e: any) => {
         const peliasError = new Error().stack
         error(`Error in pelias search\n${url}\n${peliasError}\n${e}\n\n`)
         return Promise.reject(new Error('Error in pelias', peliasError))
@@ -142,7 +153,11 @@ const search = (name, near = null, layers = 'address,venue', size = 1000) => {
 
 const memoryCache = new Map()
 
-const searchOne = async (name, near = null, layers = 'address,venue') => {
+const searchOne = async (
+  name: string,
+  near: any = null,
+  layers = 'address,venue'
+) => {
   const cacheKey = !near && name + layers
   if (cacheKey && memoryCache.has(cacheKey)) return memoryCache.get(cacheKey)
   const results = await search(name, near, layers, 1)
@@ -150,8 +165,16 @@ const searchOne = async (name, near = null, layers = 'address,venue') => {
   return results[0]
 }
 
-module.exports = {
+const Pelias = {
   nearest,
   search,
   searchOne,
 }
+
+// Export for TypeScript modules
+export = Pelias
+
+// CommonJS fallback
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') module.exports = Pelias

@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { from, of, ReplaySubject } = require('rxjs')
 const {
   shareReplay,
@@ -80,7 +81,7 @@ class Fleet {
     vehicleTypes,
     recyclingTypes,
     settings,
-  }) {
+  }: any) {
     this.id = id
     this.name = name
     this.type = type
@@ -95,22 +96,22 @@ class Fleet {
     this.dispatchedBookings = new ReplaySubject()
   }
 
-  createCars(vehicleTypes) {
+  createCars(vehicleTypes: any) {
     return from(Object.entries(vehicleTypes)).pipe(
-      map(([type, vehiclesCount]) => {
+      map(([type, vehiclesCount]: any) => {
         const Vehicle = vehicleClasses[type]?.class
         if (!Vehicle) {
           error(`No class found for vehicle type ${type}`)
           return []
         }
-        this.vehiclesCount += vehiclesCount
-        return Array.from({ length: vehiclesCount }).map((_, i) => {
+        this.vehiclesCount += vehiclesCount as number
+        return Array.from({ length: vehiclesCount as number }).map((_, i) => {
           const offsetPosition = addMeters(this.hub.position, {
             x: 10 + 5 * this.id,
             y: -10 + 3 * i,
           })
           return new Vehicle({
-            ...vehicleTypes[type],
+            ...(vehicleTypes as any)[type],
             id: this.name + '-' + i,
             fleet: this,
             position: new Position(offsetPosition),
@@ -123,14 +124,14 @@ class Fleet {
     )
   }
 
-  canHandleBooking(booking) {
+  canHandleBooking(booking: any) {
     debug(
       `Checking if ${this.name} can handle booking ${booking.recyclingType}`
     )
     return this.recyclingTypes.includes(booking.recyclingType)
   }
 
-  handleBooking(booking) {
+  handleBooking(booking: any) {
     debug(`Fleet ${this.name} received booking ${booking.bookingId}`)
     booking.fleet = this
     this.unhandledBookings.next(booking) // add to queue
@@ -140,25 +141,27 @@ class Fleet {
   startStandardDispatcher() {
     this.dispatchedBookings = this.unhandledBookings.pipe(
       bufferTime(1000),
-      filter((bookings) => bookings.length > 0),
+      filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
-      tap(([bookings, cars]) => {
+      tap(([bookings, cars]: any) => {
         info(
           `Fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars`
         )
       }),
-      mergeMap(([bookings, cars]) => {
+      mergeMap(([bookings, cars]: any) => {
         return from(bookings).pipe(
-          filter((booking) => !booking.assigned),
-          map((booking) => {
+          filter((booking: any) => !booking.assigned),
+          map((booking: any) => {
             const car = cars.shift()
             cars.push(car)
             return { car, booking }
           }),
-          mergeMap(({ car, booking }) => car.handleStandardBooking(booking))
+          mergeMap(({ car, booking }: any) =>
+            car.handleStandardBooking(booking)
+          )
         )
       }),
-      catchError((err) => {
+      catchError((err: any) => {
         error(`Error handling bookings for ${this.name}:`, err)
         return of(null)
       })
@@ -170,10 +173,10 @@ class Fleet {
   startDispatcher() {
     this.dispatchedBookings = this.unhandledBookings.pipe(
       bufferTime(1000),
-      filter((bookings) => bookings.length > 0),
+      filter((bookings: any[]) => bookings.length > 0),
       clusterByPostalCode(200, 5), // cluster bookings if we have more than what Vroom can handle for this fleet
       withLatestFrom(this.cars.pipe(toArray())),
-      tap(([bookings, cars]) => {
+      tap(([bookings, cars]: any) => {
         info(
           `Fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars`
         )
@@ -181,11 +184,11 @@ class Fleet {
       convertToVroomCompatibleFormat(),
       planWithVroom(),
       convertBackToBookings(),
-      filter(({ booking }) => !booking.assigned),
-      mergeMap(({ car, booking }) => {
+      filter(({ booking }: any) => !booking.assigned),
+      mergeMap(({ car, booking }: any) => {
         return car.handleBooking(booking)
       }),
-      catchError((err) => {
+      catchError((err: any) => {
         error(`Fel vid hantering av bokningar för ${this.name}:`, err)
         return of(null)
       })

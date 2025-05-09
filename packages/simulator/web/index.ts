@@ -8,10 +8,7 @@ import fs from 'fs'
 import cors from 'cors'
 import http from 'http'
 import { Server } from 'socket.io'
-
-// Importing CommonJS module
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const routes = require('./routes')
+import routes from './routes'
 
 const port = env.PORT || 4000
 
@@ -21,10 +18,18 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 const storage = multer.diskStorage({
-  destination: function (_req: any, _file: any, cb: any) {
+  destination: function (
+    _req: unknown,
+    _file: Express.Multer.File,
+    cb: (err: Error | null, destination: string) => void
+  ) {
     cb(null, uploadsDir)
   },
-  filename: function (_req: any, file: any, cb: any) {
+  filename: function (
+    _req: unknown,
+    file: Express.Multer.File,
+    cb: (err: Error | null, filename: string) => void
+  ) {
     cb(null, file.originalname)
   },
 })
@@ -35,7 +40,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-app.post('/api/upload', upload.single('file'), (req: any, res) => {
+app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file uploaded' })
   }
@@ -51,8 +56,7 @@ app.use('/uploads', express.static(uploadsDir))
 
 // Default response for other routes
 app.get('/', (_req, res) => {
-  res.writeHead(200)
-  res.end('PM Digital Twin Engine. Status: OK')
+  res.status(200).send('PM Digital Twin Engine. Status: OK')
 })
 
 const server = http.createServer(app)

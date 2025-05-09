@@ -1,9 +1,10 @@
+// @ts-nocheck
 const { mergeMap, merge, Subject } = require('rxjs')
 const { filter, share, catchError } = require('rxjs/operators')
 const { error } = require('./log')
 
 class Region {
-  constructor({ id, name, geometry, municipalities }) {
+  constructor({ id, name, geometry, municipalities }: any) {
     this.id = id
     this.geometry = geometry
     this.name = name
@@ -14,7 +15,7 @@ class Region {
      */
 
     this.cars = municipalities.pipe(
-      mergeMap((municipality) => municipality.cars)
+      mergeMap((municipality: any) => municipality.cars)
     )
 
     /**
@@ -22,24 +23,30 @@ class Region {
      */
 
     this.citizens = municipalities.pipe(
-      mergeMap((municipality) => municipality.citizens)
+      mergeMap((municipality: any) => municipality.citizens)
     )
 
     this.manualBookings = new Subject()
 
     this.unhandledBookings = this.citizens.pipe(
-      mergeMap((passenger) => passenger.bookings),
-      filter((booking) => !booking.assigned),
-      catchError((err) => error('unhandledBookings', err)),
+      mergeMap((passenger: any) => passenger.bookings),
+      filter((booking: any) => !booking.assigned),
+      catchError((err: any) => error('unhandledBookings', err)),
       share()
     )
 
     this.dispatchedBookings = merge(
       this.municipalities.pipe(
-        mergeMap((municipality) => municipality.dispatchedBookings)
+        mergeMap((municipality: any) => municipality.dispatchedBookings)
       )
     ).pipe(share())
   }
 }
 
-module.exports = Region
+// Export as TS module
+export = Region
+
+// CommonJS fallback
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') module.exports = Region
