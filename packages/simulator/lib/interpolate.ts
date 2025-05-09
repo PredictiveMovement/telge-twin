@@ -1,4 +1,3 @@
-// @ts-nocheck
 function interpolatePositionFromRoute(
   routeStarted: any,
   time: any,

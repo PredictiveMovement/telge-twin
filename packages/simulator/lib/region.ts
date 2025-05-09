@@ -1,9 +1,18 @@
-// @ts-nocheck
 const { mergeMap, merge, Subject } = require('rxjs')
 const { filter, share, catchError } = require('rxjs/operators')
 const { error } = require('./log')
 
 class Region {
+  public id: any
+  public geometry: any
+  public name: any
+  public municipalities: any
+  public cars: any
+  public citizens: any
+  public manualBookings: any
+  public unhandledBookings: any
+  public dispatchedBookings: any
+
   constructor({ id, name, geometry, municipalities }: any) {
     this.id = id
     this.geometry = geometry

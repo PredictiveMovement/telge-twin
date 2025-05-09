@@ -1,4 +1,3 @@
-// @ts-nocheck
 const { from, of, ReplaySubject } = require('rxjs')
 const {
   shareReplay,
@@ -72,6 +71,18 @@ const vehicleClasses = {
 }
 
 class Fleet {
+  public id: any
+  public name: any
+  public type: any
+  public hub: any
+  public municipality: any
+  public recyclingTypes: any
+  public vehiclesCount: number
+  public settings: any
+  public cars: any
+  public unhandledBookings: any
+  public dispatchedBookings: any
+
   constructor({
     id,
     name,
@@ -99,7 +110,7 @@ class Fleet {
   createCars(vehicleTypes: any) {
     return from(Object.entries(vehicleTypes)).pipe(
       map(([type, vehiclesCount]: any) => {
-        const Vehicle = vehicleClasses[type]?.class
+        const Vehicle = (vehicleClasses as any)[type]?.class
         if (!Vehicle) {
           error(`No class found for vehicle type ${type}`)
           return []
@@ -197,4 +208,10 @@ class Fleet {
   }
 }
 
-module.exports = Fleet
+// Export as TS module
+export = Fleet
+
+// CommonJS fallback
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if (typeof module !== 'undefined') module.exports = Fleet

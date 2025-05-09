@@ -1,4 +1,5 @@
-// @ts-nocheck
+export {}
+
 const { save } = require('./elastic')
 const { virtualTime } = require('./virtualTime')
 

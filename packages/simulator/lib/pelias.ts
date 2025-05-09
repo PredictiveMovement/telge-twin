@@ -1,5 +1,4 @@
-// @ts-nocheck
-const fetch = require('node-fetch')
+const nodeFetch = require('node-fetch')
 const { info, error, write, warn } = require('./log')
 const Position = require('./models/position')
 const peliasUrl = process.env.PELIAS_URL || 'https://pelias.telge.iteam.pub'
@@ -68,7 +67,7 @@ const nearest = (position: any, layers = 'address,venue') => {
 
   const url = `${peliasUrl}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1&layers=${layers}`
   return cachedFetch('nearest', { position, layers }, () =>
-    queue(() => fetch(url))
+    queue(() => nodeFetch(url))
       .then((response: any) => {
         if (!response.ok) throw 'pelias error: ' + response.statusText
         return response.json()
@@ -127,7 +126,7 @@ const search = (
   const url = `${peliasUrl}/v1/search?text=${encodedName}${focus}&size=${size}`
   write('p')
   return cachedFetch('search', { name, near, layers, size }, () =>
-    queue(() => fetch(url))
+    queue(() => nodeFetch(url))
       .then((response: any) => {
         if (!response.ok) throw 'pelias error: ' + response.statusText
         return response.json()
@@ -146,7 +145,7 @@ const search = (
       .catch((e: any) => {
         const peliasError = new Error().stack
         error(`Error in pelias search\n${url}\n${peliasError}\n${e}\n\n`)
-        return Promise.reject(new Error('Error in pelias', peliasError))
+        return Promise.reject(new Error(`Error in pelias: ${peliasError}`))
       })
   )
 }

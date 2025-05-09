@@ -1,4 +1,3 @@
-// @ts-nocheck
 const kmeans = require('node-kmeans')
 const assert = require('assert')
 const { write } = require('./log')

@@ -166,7 +166,7 @@
       ]
     }
   },
-  "selectedDataFile": "ruttdata_2024-09-03.json",
+  "selectedDataFile": "ruttdata_sample.json",
   "initMapState": {
     "latitude": 65.0964472642777,
     "longitude": 17.112050188704504,

@@ -1,9 +1,8 @@
-// @ts-nocheck
-const fetch = require('node-fetch')
+const nodeFetch = require('node-fetch')
 const polyline = require('polyline')
 const fs = require('fs').promises
 const path = require('path')
-const crypto = require('crypto')
+const nodeCrypto = require('crypto')
 
 const osrmUrl =
   // eslint-disable-next-line no-undef
@@ -30,7 +29,7 @@ const CACHE_DIR = path.join(__dirname, '../.cache/osrm')
 fs.mkdir(CACHE_DIR, { recursive: true }).catch(console.error)
 
 function generateCacheKey(method: string, params: any) {
-  const hash = crypto.createHash('md5')
+  const hash = nodeCrypto.createHash('md5')
   hash.update(`${method}:${JSON.stringify(params)}`)
   return hash.digest('hex')
 }
@@ -83,7 +82,7 @@ module.exports = {
 
     return cachedFetch('route', { from, to }, () =>
       queue(() =>
-        fetch(
+        nodeFetch(
           `${osrmUrl}/route/v1/driving/${coordinates}?steps=true&alternatives=false&overview=full&annotations=true`
         )
           .then(
@@ -113,7 +112,7 @@ module.exports = {
     write('n')
 
     return cachedFetch('nearest', { position }, () =>
-      fetch(url).then(
+      nodeFetch(url).then(
         (response: any) => response.json(),
         (err: any) => {
           warn('OSRM fetch err', err.message, url)
@@ -133,7 +132,7 @@ module.exports = {
     write('m')
 
     return cachedFetch('match', { positions }, () =>
-      fetch(
+      nodeFetch(
         `${osrmUrl}/match/v1/driving/${coordinates}?timestamps=${timestamps}&geometries=geojson&annotations=true&overview=full`
       )
         .then((response: any) => response.json())

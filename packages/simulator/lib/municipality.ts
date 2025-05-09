@@ -1,4 +1,3 @@
-// @ts-nocheck
 const {
   from,
   shareReplay,
@@ -16,6 +15,23 @@ const Fleet = require('./fleet')
 const { error, info } = require('./log')
 
 class Municipality {
+  public squares: any
+  public geometry: any
+  public name: any
+  public id: any
+  public center: any
+  public bookings: any
+  public privateCars: any
+  public unhandledBookings: any
+  public nrOfBookings: number
+  public co2: any
+  public citizens: any
+  public fleetsConfig: any
+  public settings: any
+  public fleets: any
+  public cars: any
+  public dispatchedBookings: any
+
   constructor({
     geometry,
     name,
