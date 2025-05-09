@@ -8,7 +8,7 @@
     "test": "jest __tests__",
     "test:clustering": "jest __tests__/unit/clustering.test.js",
     "watch": "jest --watch __tests__",
-    "preboot": "node preboot.js",
+    "preboot": "node dist/preboot.js",
     "start": "node dist/web/index.js",
     "build": "tsc -p ."
   },
@@ -57,14 +57,15 @@
     ]
   },
   "devDependencies": {
+    "@types/cookie": "^0.6.0",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.7",
+    "@types/node": "^20.8.9",
+    "@types/node-fetch": "^2.6.2",
     "eslint-plugin-rxjs": "^5.0.3",
     "nodemon": "^2.0.20",
     "prettier": "^2.8.7",
-    "typescript": "^5.3.2",
     "ts-node": "^10.9.1",
-    "@types/node": "^20.8.9",
-    "@types/express": "^4.17.21",
-    "@types/multer": "^1.4.7",
-    "@types/node-fetch": "^2.6.2"
+    "typescript": "^5.3.2"
   }
 }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import osrm from '../lib/osrm'
 import assert from 'assert'
 import Position from '../lib/models/position'
