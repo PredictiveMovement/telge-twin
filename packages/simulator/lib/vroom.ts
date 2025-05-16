@@ -2,7 +2,7 @@ import fetch, { Response } from 'node-fetch'
 import moment from 'moment'
 import { debug, error, info } from './log'
 import { getFromCache, updateCache } from './cache'
-import { queue } from './queueSubject'
+import queue from './queueSubject'
 
 // eslint-disable-next-line no-undef
 const vroomUrl: string =

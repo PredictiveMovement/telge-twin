@@ -1,93 +1,83 @@
-/* Ported from vehicle.js */
-import { ReplaySubject, Subscription } from 'rxjs'
-import { scan } from 'rxjs/operators'
-import moment from 'moment'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+export {}
+
+const { ReplaySubject } = require('rxjs')
+const { scan } = require('rxjs/operators')
+const moment = require('moment')
+const { assert: consoleAssert } = require('console')
+
 const osrm = require('../osrm')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { haversine, bearing } = require('../distance')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const interpolate = require('../interpolate')
-import Booking, { Place } from '../models/booking'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Booking = require('../models/booking')
 const { safeId } = require('../id')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { error } = require('../log')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { virtualTime } = require('../virtualTime')
-import Position from '../models/position'
+const Position = require('../models/position')
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export interface RoutePoint {
-  meters: number
-  duration: number
-  lon: number
-  lat: number
-}
-
-export interface VehicleOptions {
+interface VehicleConstructorArgs {
   id?: string
-  position: Position
+  position: any // Position type
   status?: string
   parcelCapacity?: number
   passengerCapacity?: number
-  weight?: number
-  fleet?: unknown
-  co2PerKmKg?: number
+  weight?: number // Will be non-optional on class
+  fleet?: any
+  co2PerKmKg?: number // Will be non-optional on class
+  recyclingTypes?: any[]
 }
 
-export default class Vehicle {
+class Vehicle {
   id: string
-  position: Position
-  origin: Position
-  queue: Booking[]
-  cargo: Booking[]
-  delivered: Booking[]
+  position: any // Position type
+  origin: any // Should be Position instance
+  queue: any[] // Array of Bookings
+  cargo: any[] // Array of Bookings
+  delivered: any[] // Array of Bookings
   parcelCapacity?: number
   passengerCapacity?: number
-  weight: number
+  weight: number // Changed to non-optional
   costPerHour: number
   co2: number
   distance: number
   status: string
-  fleet: any // will be typed later
+  fleet?: any // Type for fleet?
   created: Promise<number>
-  co2PerKmKg: number
+  co2PerKmKg: number // Changed to non-optional
   vehicleType: string
-  recyclingTypes?: string[]
+  recyclingTypes?: any[] // Added
 
-  // dynamic during route
-  destination?: Position
-  route?: any // TODO: type OSRM Route
-  booking?: Booking
+  movedEvents: any // ReplaySubject
+  cargoEvents: any // ReplaySubject
+  statusEvents: any // ReplaySubject
+
+  _disposed?: boolean
+  movementSubscription?: any // RxJS Subscription
+  destination?: any // Should be Position
+  route?: any // OSRM route object
+  booking?: any // Should be Booking instance
+  lastPositionUpdate: number // Changed: will be initialized
+  pointsPassedSinceLastUpdate?: any[]
   speed?: number
+  ema?: number // Estimated moving average?
   bearing?: number
-  ema?: number
-  eta?: number
+  eta?: number // TODO: No declaration or assignment found for eta, but used in toObject. Added here for completeness.
+  passengers?: any[] // Used in updatePosition
 
-  // other optional flags
-  isPrivateCar?: boolean
-  plan?: unknown[]
-
-  // Event subjects
-  movedEvents: ReplaySubject<Vehicle>
-  cargoEvents: ReplaySubject<Vehicle>
-  statusEvents: ReplaySubject<Vehicle>
-
-  private _disposed: boolean
-  private movementSubscription?: Subscription
-
-  constructor({
-    id = 'v-' + safeId(),
-    position,
-    status = 'ready',
-    parcelCapacity,
-    passengerCapacity,
-    weight = 10000,
-    fleet,
-    co2PerKmKg = 0.013 / 1000,
-  }: VehicleOptions) {
+  constructor(
+    {
+      id = 'v-' + safeId(),
+      position,
+      status = 'ready',
+      parcelCapacity,
+      passengerCapacity,
+      weight = 10000,
+      fleet,
+      co2PerKmKg = 0.013 / 1000,
+      recyclingTypes, // Added
+    }: VehicleConstructorArgs = {} as VehicleConstructorArgs
+  ) {
     this.id = id
     this.position = position
     this.origin = position
@@ -96,29 +86,24 @@ export default class Vehicle {
     this.delivered = []
     this.parcelCapacity = parcelCapacity
     this.passengerCapacity = passengerCapacity
-    this.weight = weight
-    this.costPerHour = 3000 / 12
+    this.weight = weight // Always assigned
+    this.costPerHour = 3000 / 12 // ?
     this.co2 = 0
     this.distance = 0
     this.status = status
     this.fleet = fleet
     this.created = this.time()
-    this.co2PerKmKg = co2PerKmKg
+    this.co2PerKmKg = co2PerKmKg // Always assigned
     this.vehicleType = 'default'
+    this.recyclingTypes = recyclingTypes // Added
+    this.lastPositionUpdate = 0 // Initialize, or use this.time() if appropriate at construction
 
-    this.movedEvents = new ReplaySubject<Vehicle>()
-    this.cargoEvents = new ReplaySubject<Vehicle>()
-    this.statusEvents = new ReplaySubject<Vehicle>()
-
-    // Initialize optional internals
-    this._disposed = false
-    this._lastUpdateTime = undefined
-    this.movementSubscription = undefined
+    this.movedEvents = new ReplaySubject()
+    this.cargoEvents = new ReplaySubject()
+    this.statusEvents = new ReplaySubject()
   }
 
-  private _lastUpdateTime?: number
-
-  dispose(): void {
+  dispose() {
     this.simulate(false)
     this._disposed = true
   }
@@ -127,30 +112,35 @@ export default class Vehicle {
     return virtualTime.getTimeInMillisecondsAsPromise()
   }
 
-  simulate(route: { started: number } | false): void {
+  async simulate(route: any) {
     if (this.movementSubscription) {
       this.movementSubscription.unsubscribe()
     }
     if (!route) return
 
     if (virtualTime.timeMultiplier === Infinity) {
-      return this.updatePosition(route)
+      return this.updatePosition(route, [], await this.time())
     }
 
     this.movementSubscription = virtualTime
       .getTimeInMilliseconds()
       .pipe(
-        scan((prev: RoutePoint[], currentTimeInMs: number) => {
-          if (!prev.length) {
+        scan((prevRemainingPointsInRoute: any, currentTimeInMs: any) => {
+          if (!prevRemainingPointsInRoute.length) {
             this.stopped()
             return []
           }
-          const res =
-            interpolate.route(route.started, currentTimeInMs, prev) ??
-            this.destination
-          const { skippedPoints, remainingPoints, ...position } = res as any
+
+          const { skippedPoints, remainingPoints, ...position } =
+            interpolate.route(
+              route.started,
+              currentTimeInMs,
+              prevRemainingPointsInRoute
+            ) ?? this.destination
           const newPosition = new Position(position)
-          if (route.started > currentTimeInMs) return []
+          if (route.started > currentTimeInMs) {
+            return []
+          }
           this.updatePosition(newPosition, skippedPoints, currentTimeInMs)
           return remainingPoints
         }, interpolate.points(route))
@@ -158,58 +148,277 @@ export default class Vehicle {
       .subscribe(() => null)
   }
 
-  navigateTo(destination: Position): Promise<Position> {
+  navigateTo(destination: any /* Position */) {
     this.destination = destination
+
     if (this.position.distanceTo(destination) < 5) {
+      // Do not route if we are close enough.
+
       this.stopped()
-      return Promise.resolve(destination)
+      return destination
     }
+
     return osrm
       .route(this.position, this.destination)
       .then(async (route: any) => {
         route.started = await this.time()
         this.route = route
-        if (!route.legs) throw new Error('Route not found')
+        if (!route.legs)
+          throw new Error(
+            `Route not found from: ${JSON.stringify(
+              this.position
+            )} to: ${JSON.stringify(this.destination)} from: ${JSON.stringify(
+              this.position
+            )}`
+          )
         this.simulate(this.route)
         return this.destination
       })
       .catch(
         (err: any) =>
-          error('Route error, retrying...', err) ||
+          error('Route error, retrying in 1s...', err) ||
           wait(1000).then(() => this.navigateTo(destination))
       )
   }
 
-  async handleBooking(booking: Booking): Promise<Booking> {
+  async handleBooking(booking: any /* Booking */) {
+    consoleAssert(
+      booking instanceof Booking, // This check will be more meaningful with proper types
+      'Booking needs to be of type Booking'
+    )
+
     if (!this.booking) {
       this.booking = booking
       booking.assign(this)
       this.status = 'toPickup'
       this.statusEvents.next(this)
-      if (booking.pickup?.position) {
-        await this.navigateTo(booking.pickup.position)
-      }
+
+      this.navigateTo(booking.pickup.position)
     } else {
+      // TODO: switch places with current booking if it makes more sense to pick this package up before picking up current
       this.queue.push(booking)
+      // TODO: use vroom to optimize the queue
       booking.assign(this)
+
       booking.queued(this)
     }
     return booking
   }
 
-  async waitAtPickup(): Promise<void> {
-    if (!this.booking?.pickup?.departureTime) return
-
+  async waitAtPickup() {
+    if (!this.booking || !this.booking.pickup) return // Guard added
     const departure = moment(
-      this.booking.pickup!.departureTime!,
+      this.booking.pickup.departureTime, // Potential type issue if booking.pickup.departureTime is not string
       'hh:mm:ss'
     ).valueOf()
-    const waitingtime =
-      departure - (await virtualTime.getTimeInMillisecondsAsPromise())
+    const waitingtime = moment(departure).diff(
+      moment(await virtualTime.getTimeInMillisecondsAsPromise())
+    )
+
     if (waitingtime > 0) {
-      this.simulate(false)
+      this.simulate(false) // pause interpolation while we wait
       await virtualTime.waitUntil(departure)
     }
+  }
+  async pickup() {
+    if (this._disposed) return
+
+    await this.waitAtPickup()
+
+    setImmediate(() => {
+      if (this.booking && this.booking.pickedUp) {
+        this.booking.pickedUp(this.position)
+      }
+      if (this.booking) {
+        this.cargo.push(this.booking)
+      }
+
+      this.queue
+        .filter(
+          (b: any /* Booking */) =>
+            b.pickup &&
+            b.pickup.position &&
+            this.position.distanceTo(b.pickup.position) < 200
+        )
+        .forEach((booking: any /* Booking */) => {
+          this.cargo.push(booking)
+          if (booking.pickedUp) booking.pickedUp(this.position)
+          this.cargoEvents.next(this)
+        })
+
+      if (
+        this.booking &&
+        this.booking.destination &&
+        this.booking.destination.position
+      ) {
+        if (this.booking.pickedUp) this.booking.pickedUp(this.position)
+        this.status = 'toDelivery'
+        this.statusEvents.next(this)
+
+        if (
+          this.queue.length > 0 &&
+          this.queue[0].pickup &&
+          this.queue[0].pickup.position &&
+          haversine(this.queue[0].pickup.position, this.position) <
+            haversine(this.booking.destination.position, this.position)
+        ) {
+          this.navigateTo(this.queue[0].pickup.position)
+        } else {
+          this.navigateTo(this.booking.destination.position)
+        }
+      }
+    })
+  }
+
+  dropOff() {
+    if (this.booking) {
+      this.booking.delivered(this.position)
+      this.delivered.push(this.booking)
+      this.booking = null
+    }
+    this.statusEvents.next(this)
+
+    this.pickNextFromCargo()
+  }
+
+  pickNextFromCargo() {
+    this.cargo.sort((a: any /* Booking */, b: any /* Booking */) => {
+      if (
+        a.destination &&
+        a.destination.position &&
+        b.destination &&
+        b.destination.position
+      ) {
+        return (
+          haversine(this.position, a.destination.position) -
+          haversine(this.position, b.destination.position)
+        )
+      }
+      return 0
+    })
+    const booking = this.cargo.shift()
+    this.cargoEvents.next(this)
+
+    if (booking && booking.destination && booking.destination.position) {
+      this.navigateTo(booking.destination.position)
+    } else {
+      if (this.queue.length > 0) {
+        this.queue.sort((a: any, b: any) => {
+          if (
+            a.destination &&
+            a.destination.position &&
+            b.destination &&
+            b.destination.position
+          ) {
+            return (
+              haversine(this.position, a.destination.position) -
+              haversine(this.position, b.destination.position)
+            )
+          }
+          return 0
+        })
+        const nextBooking = this.queue.shift()
+        if (nextBooking) {
+          this.handleBooking(nextBooking)
+        } else {
+          this.status = 'ready'
+          this.navigateTo(this.origin)
+        }
+      } else {
+        this.status = 'ready'
+        this.navigateTo(this.origin)
+      }
+    }
+    return booking
+  }
+
+  cargoWeight() {
+    return this.cargo.reduce(
+      (total, booking: any /* Booking */) => total + booking.weight,
+      0
+    )
+  }
+
+  async updatePosition(
+    position: any /* Position */,
+    pointsPassedSinceLastUpdate: any[],
+    time: number
+  ) {
+    //console.count(`updatePosition${this.id}`)
+    const lastPosition = this.position || position
+    const timeDiff = time - this.lastPositionUpdate
+
+    const metersMoved =
+      pointsPassedSinceLastUpdate.reduce(
+        (acc, { meters }) => acc + meters,
+        0
+      ) || haversine(lastPosition, position)
+
+    const seconds = pointsPassedSinceLastUpdate.reduce(
+      (acc, { duration }) => acc + duration,
+      0
+    )
+
+    const [km, h] = [metersMoved / 1000, seconds / 60 / 60]
+
+    const co2 = this.updateCarbonDioxide(km)
+
+    // TODO: Find which municipality the vehicle is moving in now and add the co2 for this position change to that municipality
+
+    this.distance += km
+    this.pointsPassedSinceLastUpdate = pointsPassedSinceLastUpdate
+    this.speed = Math.round(km / h || 0)
+    this.position = position
+    this.lastPositionUpdate = time
+    this.ema = haversine(this.destination, this.position)
+    if (metersMoved > 0) {
+      this.bearing = bearing(lastPosition, position) || 0
+      this.movedEvents.next(this)
+      // NOTE: cargo is passengers or packages.
+      // eslint-disable-next-line no-unexpected-multiline
+      const cargoAndPassengers = [...this.cargo, ...(this.passengers || [])]
+      cargoAndPassengers.map((booking: any /* Booking */) => {
+        booking.moved(
+          this.position,
+          metersMoved,
+          co2 / (this.cargo.length + 1), // TODO: Why do we do +1 here? Because we have one active booking + cargo
+          (h * this.costPerHour) / (this.cargo.length + 1),
+          timeDiff
+        )
+      })
+    }
+  }
+
+  // start -> toPickup -> pickup -> toDelivery -> delivery -> start
+
+  stopped() {
+    this.speed = 0
+    this.statusEvents.next(this)
+    if (this.booking) {
+      this.simulate(false)
+      if (this.status === 'toPickup') return this.pickup()
+      if (this.status === 'toDelivery') return this.dropOff()
+    }
+  }
+
+  /**
+   * Add carbon dioxide emissions to this vehicle according to the distance traveled.
+   * @param {number} Distance The distance traveled in km
+   * @returns {number} The amount of carbon dioxide emitted
+   */
+  updateCarbonDioxide(distance: number): number {
+    let co2: number
+
+    switch (this.vehicleType) {
+      case 'car':
+        co2 = distance * this.co2PerKmKg
+        break
+      default:
+        co2 = (this.weight + this.cargoWeight()) * distance * this.co2PerKmKg
+    }
+
+    this.co2 += co2
+    return co2
   }
 
   toObject() {
@@ -229,195 +438,10 @@ export default class Vehicle {
       queue: this.queue.length,
       parcelCapacity: this.parcelCapacity,
       vehicleType: this.vehicleType,
-      recyclingTypes: this.recyclingTypes,
+      recyclingTypes: this.recyclingTypes, // Added to class, now this should be fine
       delivered: this.delivered.length,
-    }
-  }
-
-  /**
-   * Update the current position of the vehicle.
-   *
-   * There are two main call-sites for this function:
-   *  1. When virtualTime.timeMultiplier === Infinity (i.e. we want to fast-forward). In this
-   *     scenario `posOrRoute` will actually be the calculated OSRM route and we simply move the
-   *     vehicle to its final destination immediately.
-   *  2. When the simulation is running in "real" (virtual) time. In this scenario `posOrRoute`
-   *     will be the next interpolated Position generated in `simulate()`.
-   */
-  updatePosition(
-    posOrRoute: any,
-    skippedPoints: any[] = [],
-    currentTimeInMs?: number
-  ) {
-    // Guard against dispose
-    if (this._disposed) return
-
-    // Keep track of previous position & timestamp so we can calculate deltas
-    const previousPosition: Position = this.position
-    const previousTimestamp: number | undefined = this._lastUpdateTime
-
-    let newPosition: Position
-
-    // Case 1 – posOrRoute is an OSRM route (when we fast-forward the simulation)
-    if (posOrRoute && posOrRoute.geometry && posOrRoute.geometry.coordinates) {
-      const coords = posOrRoute.geometry.coordinates
-      const last = coords[coords.length - 1]
-      newPosition = new Position({
-        lon: last.lon ?? last[0],
-        lat: last.lat ?? last[1],
-      })
-    } else {
-      // Case 2 – Already a Position instance or plain object with lon/lat
-      newPosition =
-        posOrRoute instanceof Position ? posOrRoute : new Position(posOrRoute)
-    }
-
-    // If for some reason the position is invalid – skip this update
-    if (!newPosition.isValid()) return
-
-    // Calculate distance moved since previous update
-    const metersMoved = previousPosition
-      ? haversine(previousPosition, newPosition)
-      : 0
-
-    // Calculate bearing (direction)
-    this.bearing = previousPosition
-      ? bearing(previousPosition, newPosition)
-      : this.bearing
-
-    // Calculate speed if we have a timestamp difference
-    if (currentTimeInMs && previousTimestamp) {
-      const diffSeconds = (currentTimeInMs - previousTimestamp) / 1000
-      this.speed =
-        diffSeconds > 0 ? Math.round((metersMoved / diffSeconds) * 3.6) : 0 // km/h
-    }
-
-    // Update vehicle aggregates
-    this.distance += metersMoved
-    const co2Delta = (metersMoved / 1000) * (this.co2PerKmKg || 0)
-    this.co2 += co2Delta
-
-    // Move vehicle
-    this.position = newPosition
-
-    // Inform listeners that the vehicle moved
-    this.movedEvents.next(this)
-
-    // Update bookings currently onboard (cargo)
-    if (Array.isArray(this.cargo)) {
-      const costDelta = this.costPerHour
-        ? ((currentTimeInMs && previousTimestamp
-            ? currentTimeInMs - previousTimestamp
-            : 0) /
-            3600000) *
-          this.costPerHour
-        : 0
-      this.cargo.forEach((booking: any) => {
-        if (typeof booking.moved === 'function') {
-          booking.moved(newPosition, metersMoved, co2Delta, costDelta)
-        }
-      })
-    }
-
-    // When we are close to destination we consider ourselves stopped
-    if (this.destination && this.position.distanceTo(this.destination) < 5) {
-      this.stopped()
-    }
-
-    // Save timestamp for next iteration
-    this._lastUpdateTime = currentTimeInMs ?? Date.now()
-  }
-
-  /**
-   * Called once a vehicle has reached its destination (pickup or drop-off).
-   */
-  stopped() {
-    // Reset speed when stationary
-    this.speed = 0
-
-    if (this.status === 'toPickup' && this.booking) {
-      // We have arrived at pickup point
-      this.status = 'pickup'
-      this.statusEvents.next(this)
-      this.pickup()
-      return
-    }
-
-    if (this.status === 'toDestination' && this.booking) {
-      // Arrived at destination
-      this.status = 'dropOff'
-      this.statusEvents.next(this)
-      this.dropOff()
-      return
-    }
-
-    // Generic idle state
-    this.status = 'idle'
-    this.statusEvents.next(this)
-  }
-
-  /**
-   * Handles picking up the current assigned booking.
-   */
-  async pickup() {
-    if (!this.booking) return
-
-    await this.waitAtPickup()
-
-    // Move booking into cargo
-    this.cargo.push(this.booking)
-    await this.booking.pickedUp(this.position)
-
-    // Navigate to destination
-    this.status = 'toDestination'
-    this.statusEvents.next(this)
-    if (this.booking.destination?.position) {
-      await this.navigateTo(this.booking.destination.position)
-    }
-  }
-
-  /**
-   * Handles dropping off the current booking.
-   */
-  async dropOff() {
-    if (!this.booking) return
-
-    await this.booking.delivered(this.position)
-
-    // Remove booking from cargo and move to delivered list
-    const idx = this.cargo.indexOf(this.booking)
-    if (idx !== -1) this.cargo.splice(idx, 1)
-    this.delivered.push(this.booking)
-
-    // Clear active booking
-    this.booking = undefined
-
-    // Handle queued bookings
-    if (this.queue.length) {
-      const next: Booking | undefined = this.queue.shift()
-      if (next) {
-        // Skip re-assignment if already assigned earlier
-        if (!next.assigned) await next.assign(this)
-        this.booking = next
-        this.status = 'toPickup'
-        this.statusEvents.next(this)
-        if (next.pickup?.position) {
-          await this.navigateTo(next.pickup.position)
-        }
-        return
-      }
-    } else {
-      // No more work – ready for new assignments
-      this.status = 'ready'
-      this.statusEvents.next(this)
     }
   }
 }
 
-// CommonJS fallback
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-if (typeof module !== 'undefined') module.exports = Vehicle
-
-// export interface
-export { Vehicle as BaseVehicle } // for importing if needed
+export default Vehicle
