@@ -36,6 +36,7 @@ const App = () => {
   const [previousExperimentId, setPreviousExperimentId] = useState(null)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [selectedDataFile, setSelectedDataFile] = useState(null)
+  const [bookingAndVehicleStats, setBookingAndVehicleStats] = useState(null)
 
   const [connected, setConnected] = useState(false)
 
@@ -165,6 +166,10 @@ const App = () => {
     setUploadedFiles(files)
   })
 
+  useSocket('bookingsAndVehiclesData', (data) => {
+    console.log('bookingsAndVehiclesData', data)
+  })
+
   useSocket('parameters', (currentParameters) => {
     console.log('ExperimentId', currentParameters.id)
 
@@ -237,6 +242,10 @@ const App = () => {
     setActiveCar(null)
   }
 
+  const requestBookingsAndVehicles = () => {
+    socket.emit('getBookingsAndVehicles')
+  }
+
   socket.on('disconnect', () => {
     setConnected(false)
   })
@@ -277,6 +286,34 @@ const App = () => {
 
       {/* Reset experiment button. */}
       <ResetExperiment resetSimulation={resetSimulation} />
+
+      {/* Stats button */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '120px',
+          right: '10px',
+          backgroundColor: '#fff',
+          borderRadius: '4px',
+          padding: '8px',
+          zIndex: 1000,
+          boxShadow: '0 0 10px rgba(0,0,0,0.2)',
+        }}
+      >
+        <button
+          onClick={requestBookingsAndVehicles}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#1976d2',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          Get Stats
+        </button>
+      </div>
 
       {/* Edit experiment modal. */}
       <EditExperimentModal

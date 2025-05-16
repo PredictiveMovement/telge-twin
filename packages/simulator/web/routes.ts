@@ -3,11 +3,19 @@ import fs from 'fs'
 import cookie from 'cookie'
 import moment from 'moment'
 import { Server, Socket } from 'socket.io'
-import { filter, take } from 'rxjs/operators'
+import { filter, take, toArray, map } from 'rxjs/operators'
 import { emitters } from '../config'
 import { save, read } from '../config'
 import { info } from '../lib/log'
 import { virtualTime } from '../lib/virtualTime'
+import { firstValueFrom } from 'rxjs'
+
+// Data collectors for stats
+const collectedData = {
+  bookings: new Set(),
+  vehicles: new Set(),
+  lastReset: Date.now(),
+}
 
 // CJS engine import to keep compatibility
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -36,7 +44,7 @@ function getUploadedFiles(): string[] {
 // Dynamic sub-route registration
 // -----------------------------------------------------------------------------
 
-function subscribe(experiment: unknown, socket: Socket): Array<unknown> {
+function subscribe(experiment: any, socket: Socket): Array<unknown> {
   const currentEmitters = emitters()
 
   // Import sub-routes lazily to avoid circular deps during compile
@@ -44,11 +52,36 @@ function subscribe(experiment: unknown, socket: Socket): Array<unknown> {
 
   if (currentEmitters.includes('bookings')) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    routes.push(require('./routes/bookings.ts').register(experiment, socket))
+    const bookingsRoute = require('./routes/bookings.ts').register(
+      experiment,
+      socket
+    )
+
+    // Add a collector for bookings
+    if (experiment.dispatchedBookings) {
+      experiment.dispatchedBookings.subscribe((booking: any) => {
+        if (booking && booking.id) {
+          collectedData.bookings.add(booking.id)
+        }
+      })
+    }
+
+    routes.push(bookingsRoute)
   }
   if (currentEmitters.includes('cars')) {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    routes.push(require('./routes/cars.ts').register(experiment, socket))
+    const carsRoute = require('./routes/cars.ts').register(experiment, socket)
+
+    // Add a collector for vehicles
+    if (experiment.cars) {
+      experiment.cars.subscribe((car: any) => {
+        if (car && car.id) {
+          collectedData.vehicles.add(car.id)
+        }
+      })
+    }
+
+    routes.push(carsRoute)
   }
   if (currentEmitters.includes('municipalities')) {
     routes.push(
@@ -139,6 +172,11 @@ function register(io: Server): void {
       io.emit('init')
       const params = read()
       io.emit('parameters', params)
+
+      // Clear the collected data
+      collectedData.bookings.clear()
+      collectedData.vehicles.clear()
+      collectedData.lastReset = Date.now()
     })
 
     socket.on('carLayer', (val: boolean) => (socket.data.emitCars = val))
@@ -172,6 +210,87 @@ function register(io: Server): void {
     socket.on('getUploadedFiles', () => {
       const files = getUploadedFiles()
       socket.emit('uploadedFiles', files)
+    })
+
+    socket.on('getBookingsAndVehicles', () => {
+      const bookingsCount = collectedData.bookings.size
+      const vehiclesCount = collectedData.vehicles.size
+
+      // Get the experiment to extract detailed data
+      const experiment = socket.data.experiment
+      let bookings: any[] = []
+      let vehicles: any[] = []
+
+      if (experiment) {
+        // Get vehicles data from socket if available
+        if (socket.data.cars && socket.data.cars.length > 0) {
+          vehicles = socket.data.cars
+        }
+
+        // Get bookings data from socket if available
+        if (socket.data.bookings && socket.data.bookings.length > 0) {
+          bookings = socket.data.bookings
+        }
+
+        // If we have fleets, we can try to get data directly from them
+        if (
+          experiment.fleets &&
+          (bookings.length === 0 || vehicles.length === 0)
+        ) {
+          try {
+            // Get all the active bookings from all fleets
+            const allBookings: any[] = []
+            const allVehicles: any[] = []
+
+            Object.values(experiment.fleets).forEach((fleet: any) => {
+              // Try to get the current bookings
+              if (fleet.unhandledBookings && fleet.unhandledBookings._events) {
+                allBookings.push(...fleet.unhandledBookings._events)
+              }
+              if (
+                fleet.dispatchedBookings &&
+                fleet.dispatchedBookings._events
+              ) {
+                allBookings.push(...fleet.dispatchedBookings._events)
+              }
+
+              // Try to get the vehicles/cars
+              if (fleet.cars && fleet.cars._events) {
+                allVehicles.push(...fleet.cars._events)
+              }
+            })
+
+            if (allBookings.length > 0 && bookings.length === 0) {
+              bookings = allBookings
+            }
+
+            if (allVehicles.length > 0 && vehicles.length === 0) {
+              vehicles = allVehicles
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+
+        // If we still don't have data, convert the collected IDs to objects
+        if (bookings.length === 0 && collectedData.bookings.size > 0) {
+          bookings = Array.from(collectedData.bookings).map((id) => ({ id }))
+        }
+
+        if (vehicles.length === 0 && collectedData.vehicles.size > 0) {
+          vehicles = Array.from(collectedData.vehicles).map((id) => ({ id }))
+        }
+      }
+
+      // Send all data to the client
+      socket.emit('bookingsAndVehiclesData', {
+        bookings,
+        vehicles,
+        stats: {
+          bookingsCount,
+          vehiclesCount,
+        },
+      })
     })
 
     socket.emit('parameters', socket.data.experiment.parameters)
