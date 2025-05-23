@@ -235,5 +235,24 @@
         }
       }
     }
+  },
+  "vroom-plans": {
+    "mappings": {
+      "properties": {
+        "simulationId": {
+          "type": "keyword"
+        },
+        "planId": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "vroomResponse": {
+          "type": "object",
+          "enabled": false
+        }
+      }
+    }
   }
 }

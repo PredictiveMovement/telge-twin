@@ -11,15 +11,30 @@ import {
   Switch,
   Select,
   FormControl,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Alert,
 } from '@mui/material'
 import ContentPaste from '@mui/icons-material/ContentPaste'
 import FolderIcon from '@mui/icons-material/Folder'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
+import { Science } from '@mui/icons-material'
 
 import { Hail, Info, Map, Person } from '@mui/icons-material'
 import RouteIcon from '@mui/icons-material/Route'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
 import LegendToggleIcon from '@mui/icons-material/LegendToggle'
+
+import ExperimentList from '../ExperimentList'
+import {
+  uploadFile,
+  selectDataFile,
+  saveDataFileSelection,
+  getUploadedFiles,
+} from '../../api/simulator'
 
 export default function LayersMenu({
   activeLayers,
@@ -37,10 +52,16 @@ export default function LayersMenu({
   uploadedFiles,
 }) {
   const [anchorEl, setAnchorEl] = React.useState(null)
+  const [showExperimentsModal, setShowExperimentsModal] = React.useState(false)
+  const [selectedExperiment, setSelectedExperiment] = React.useState(null)
+  const [uploadError, setUploadError] = React.useState(null)
+
   const open = Boolean(anchorEl)
+
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget)
   }
+
   const handleClose = () => {
     setAnchorEl(null)
   }
@@ -48,49 +69,35 @@ export default function LayersMenu({
   const handleFileSelect = (event) => {
     const filename = event.target.value
     setSelectedDataFile(filename)
-    socket.emit('selectDataFile', filename)
-    socket.emit('saveDataFileSelection', filename)
+    selectDataFile(socket, filename)
+    saveDataFileSelection(socket, filename)
   }
 
-  const handleFileChange = (event) => {
+  const handleFileChange = async (event) => {
     const file = event.target.files[0]
     if (file) {
-      console.log('Försöker ladda upp fil:', file.name)
+      setUploadError(null)
+      try {
+        const data = await uploadFile(file)
 
-      const formData = new FormData()
-      formData.append('file', file)
-
-      console.log('Laddar upp fil...')
-
-      const apiUrl = `${
-        import.meta.env.VITE_SIMULATOR_URL || 'http://localhost:4000'
-      }/api/upload`
-
-      fetch(apiUrl, {
-        method: 'POST',
-        body: formData,
-      })
-        .then((response) => {
-          console.log('Upload status:', response.status)
-          if (!response.ok) {
-            throw new Error(
-              `Upload failed with status ${response.status}: ${response.statusText}`
-            )
-          }
-          return response.json()
-        })
-        .then((data) => {
-          console.log('Upload success:', data)
-          if (data.success) {
-            socket.emit('getUploadedFiles')
-            setSelectedDataFile(file.name)
-          }
-        })
-        .catch((error) => {
-          console.error('Error uploading file:', error)
-          alert(`Filuppladdning misslyckades: ${error.message}`)
-        })
+        if (data.success) {
+          getUploadedFiles(socket)
+          setSelectedDataFile(file.name)
+        }
+      } catch (error) {
+        console.error('Error uploading file:', error)
+        setUploadError(`Filuppladdning misslyckades: ${error.message}`)
+      }
     }
+  }
+
+  const handleSelectExperiment = (experiment) => {
+    setSelectedExperiment(experiment)
+  }
+
+  const handleShowExperiments = () => {
+    setShowExperimentsModal(true)
+    handleClose()
   }
 
   return (
@@ -182,7 +189,9 @@ export default function LayersMenu({
             label="Pågående leveranser"
           />
         </MenuItem>
+
         <Divider />
+
         <MenuItem>
           <ListItemIcon>
             <Map fontSize="small" />
@@ -197,7 +206,9 @@ export default function LayersMenu({
             label="Kommungränser"
           />
         </MenuItem>
+
         <Divider />
+
         <MenuItem>
           <ListItemIcon>
             <DirectionsCarIcon fontSize="small" />
@@ -226,7 +237,9 @@ export default function LayersMenu({
             label="Använd ikoner för fordon"
           />
         </MenuItem>
+
         <Divider />
+
         <MenuItem>
           <ListItemIcon>
             <LegendToggleIcon fontSize="small" />
@@ -241,6 +254,7 @@ export default function LayersMenu({
             label="Visa färgförklaring för bokningar"
           />
         </MenuItem>
+
         <Divider />
 
         <MenuItem
@@ -281,9 +295,25 @@ export default function LayersMenu({
               onChange={handleFileChange}
             />
           </IconButton>
+
+          {uploadError && (
+            <Alert severity="error" sx={{ mt: 1, width: '100%' }}>
+              {uploadError}
+            </Alert>
+          )}
         </MenuItem>
 
         <Divider />
+
+        <MenuItem onClick={handleShowExperiments}>
+          <ListItemIcon>
+            <Science fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Sparade experiment</ListItemText>
+        </MenuItem>
+
+        <Divider />
+
         <MenuItem onClick={() => setShowEditExperimentModal((on) => !on)}>
           <ListItemIcon>
             <ContentPaste fontSize="small" />
@@ -297,6 +327,21 @@ export default function LayersMenu({
           <ListItemText>Experiment: {experimentId}</ListItemText>
         </MenuItem>
       </Menu>
+
+      <Dialog
+        open={showExperimentsModal}
+        onClose={() => setShowExperimentsModal(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Sparade Experiment</DialogTitle>
+        <DialogContent>
+          <ExperimentList onSelectExperiment={handleSelectExperiment} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowExperimentsModal(false)}>Stäng</Button>
+        </DialogActions>
+      </Dialog>
     </React.Fragment>
   )
 }

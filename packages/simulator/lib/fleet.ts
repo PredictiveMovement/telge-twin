@@ -193,7 +193,7 @@ class Fleet {
         )
       }),
       convertToVroomCompatibleFormat(),
-      planWithVroom(),
+      planWithVroom(this.municipality?.name, this.name),
       convertBackToBookings(),
       filter(({ booking }: any) => !booking.assigned),
       mergeMap(({ car, booking }: any) => {

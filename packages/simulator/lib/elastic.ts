@@ -1,7 +1,6 @@
 export {}
 
 const elastic = require('@elastic/elasticsearch')
-const path = require('path')
 const mappings = require('../data/elasticsearch_mappings.json')
 const { error, info } = require('./log')
 
@@ -80,3 +79,5 @@ module.exports = {
   save,
   search,
 }
+
+export { createIndices, save, search }

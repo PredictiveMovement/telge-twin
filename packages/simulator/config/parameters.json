@@ -1,6 +1,6 @@
 {
-  "id": "9fDX-Bqhh",
-  "startDate": "2025-05-16T14:45:16.064Z",
+  "id": "UZe2-j2wX",
+  "startDate": "2025-05-23T11:19:10.141Z",
   "fixedRoute": 100,
   "emitters": [
     "bookings",
@@ -9,7 +9,7 @@
   "fleets": {
     "Södertälje kommun": {
       "settings": {
-        "optimizedRoutes": false
+        "optimizedRoutes": true
       },
       "fleets": [
         {

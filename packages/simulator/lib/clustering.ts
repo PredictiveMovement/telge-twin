@@ -1,6 +1,11 @@
 const { from, pipe, of } = require('rxjs')
 const { map, mergeMap, groupBy, toArray } = require('rxjs/operators')
 const { plan, truckToVehicle, bookingToJob } = require('./vroom')
+const { save, search } = require('./elastic')
+const { error, info } = require('./log')
+const { randomUUID } = require('crypto')
+
+const SIMULATION_ID = ''
 
 // Calculate the center of each cluster of bookings
 function calculateCenters(groups: any) {
@@ -69,10 +74,73 @@ function convertToVroomCompatibleFormat() {
   )
 }
 
+function generatePlanId(bookings: any[], cars: any[]): string {
+  return randomUUID().replace(/-/g, '')
+}
+
+async function loadPlanFromElastic(planId: string): Promise<any | null> {
+  if (!planId) return null
+
+  try {
+    const searchResult = await search({
+      index: 'vroom-plans',
+      body: {
+        query: {
+          term: { planId: planId },
+        },
+      },
+    })
+
+    if (searchResult?.body?.hits?.hits?.length > 0) {
+      info(`Loaded plan from Elasticsearch with planId: ${planId}`)
+      return searchResult.body.hits.hits[0]._source.vroomResponse
+    }
+
+    return null
+  } catch (err) {
+    error(`Error loading plan from Elasticsearch: ${err}`)
+    return null
+  }
+}
+
+async function savePlanToElastic(
+  planId: string,
+  vroomResponse: any
+): Promise<void> {
+  try {
+    await save(
+      {
+        planId: planId,
+        vroomResponse: vroomResponse,
+        timestamp: new Date().toISOString(),
+      },
+      planId,
+      'vroom-plans'
+    )
+    info(`Saved plan to Elasticsearch with planId: ${planId}`)
+  } catch (err) {
+    error(`Error saving plan to Elasticsearch: ${err}`)
+  }
+}
+
 function planWithVroom() {
   return pipe(
     mergeMap(async ({ bookings, cars, jobs, vehicles }: any) => {
+      const planId = SIMULATION_ID || generatePlanId(bookings, cars)
+
+      if (SIMULATION_ID) {
+        const cachedPlan = await loadPlanFromElastic(planId)
+        if (cachedPlan) {
+          info(`Using cached VROOM plan from Elasticsearch`)
+          return { vroomResponse: cachedPlan, cars, bookings }
+        }
+      }
+
+      info(`Calculating routes with VROOM`)
       const vroomResponse = await plan({ jobs, vehicles })
+
+      await savePlanToElastic(planId, vroomResponse)
+
       return { vroomResponse, cars, bookings }
     })
   )

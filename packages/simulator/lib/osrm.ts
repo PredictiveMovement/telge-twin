@@ -73,7 +73,7 @@ async function cachedFetch(
   return data
 }
 
-module.exports = {
+const osrm = {
   async route(from: any, to: any) {
     const coordinates = [
       [from.lon, from.lat],
@@ -143,3 +143,7 @@ module.exports = {
   decodePolyline,
   encodePolyline,
 }
+
+export = osrm
+
+if (typeof module !== 'undefined') module.exports = osrm
