@@ -83,7 +83,7 @@ async function loadPlanFromElastic(planId: string): Promise<any | null> {
 
   try {
     const searchResult = await search({
-      index: 'vroom-plans',
+      index: 'vroom-fleet-plans',
       body: {
         query: {
           term: { planId: planId },
@@ -103,43 +103,62 @@ async function loadPlanFromElastic(planId: string): Promise<any | null> {
   }
 }
 
+async function loadPlanForExperiment(experimentId: string, fleet: string) {
+  try {
+    const res = await search({
+      index: 'vroom-fleet-plans',
+      body: {
+        size: 1,
+        query: {
+          bool: {
+            must: [
+              {
+                term: {
+                  planId: experimentId,
+                },
+              },
+            ],
+          },
+        },
+        sort: [{ timestamp: { order: 'desc' } }],
+      },
+    })
+    return res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
+  } catch (e) {
+    error(`Error loading plan: ${e}`)
+    return null
+  }
+}
+
 async function savePlanToElastic(
   planId: string,
+  fleet: string,
   vroomResponse: any
 ): Promise<void> {
   try {
     await save(
       {
         planId: planId,
+        fleet: fleet,
         vroomResponse: vroomResponse,
         timestamp: new Date().toISOString(),
       },
       planId,
-      'vroom-plans'
+      'vroom-fleet-plans'
     )
-    info(`Saved plan to Elasticsearch with planId: ${planId}`)
+    info(`Saved fleet plan to Elasticsearch with planId: ${planId}`)
   } catch (err) {
     error(`Error saving plan to Elasticsearch: ${err}`)
   }
 }
 
-function planWithVroom() {
+function planWithVroom(experimentId: string, fleet: string) {
   return pipe(
     mergeMap(async ({ bookings, cars, jobs, vehicles }: any) => {
-      const planId = SIMULATION_ID || generatePlanId(bookings, cars)
-
-      if (SIMULATION_ID) {
-        const cachedPlan = await loadPlanFromElastic(planId)
-        if (cachedPlan) {
-          info(`Using cached VROOM plan from Elasticsearch`)
-          return { vroomResponse: cachedPlan, cars, bookings }
-        }
-      }
-
       info(`Calculating routes with VROOM`)
       const vroomResponse = await plan({ jobs, vehicles })
 
-      await savePlanToElastic(planId, vroomResponse)
+      await savePlanToElastic(experimentId, fleet, vroomResponse)
 
       return { vroomResponse, cars, bookings }
     })
@@ -177,4 +196,5 @@ module.exports = {
   convertToVroomCompatibleFormat,
   convertBackToBookings,
   calculateCenters,
+  loadPlanForExperiment,
 }

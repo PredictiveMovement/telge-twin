@@ -19,6 +19,7 @@ export interface FleetConfig {
 
 export interface ReadArgs {
   fleets: Record<string, FleetConfig>
+  id?: string
 }
 
 // Map of municipality name to function that returns a booking stream
@@ -32,7 +33,10 @@ const activeMunicipalities: string[] = configuredMunicipalities()
  * Create an observable stream of Municipality instances, enriched with centre
  * coordinates fetched from Pelias.
  */
-export function read({ fleets }: ReadArgs): Observable<Municipality> {
+export function read({
+  fleets,
+  id: experimentId,
+}: ReadArgs): Observable<Municipality> {
   return from(data).pipe(
     // Only include municipalities that are configured as active
     filter(({ namn }: { namn: string }) =>
@@ -50,12 +54,21 @@ export function read({ fleets }: ReadArgs): Observable<Municipality> {
         ...municipality,
         fleets: fleetConfig.fleets,
         settings: fleetConfig.settings,
+        experimentId,
       }
     }),
 
     // Resolve centre point for each municipality via Pelias
     mergeMap(
-      async ({ geometry, namn: name, address, kod, fleets, settings }) => {
+      async ({
+        geometry,
+        namn: name,
+        address,
+        kod,
+        fleets,
+        settings,
+        experimentId,
+      }) => {
         const searchQuery = address || name.split(' ')[0]
         const searchResult = await Pelias.searchOne(searchQuery)
         if (!searchQuery || !searchResult || !searchResult.position) {
@@ -74,6 +87,7 @@ export function read({ fleets }: ReadArgs): Observable<Municipality> {
           bookings: bookingFactories[name]?.() ?? createTelgeBookingStream(),
           center,
           settings,
+          experimentId,
         })
       }
     ),

@@ -63,7 +63,7 @@ app.get('/', (_req, res) => {
 app.get('/api/experiments', async (req, res) => {
   try {
     const searchResult = await search({
-      index: 'vroom-plans',
+      index: 'vroom-fleet-plans',
       body: {
         query: {
           match_all: {},
@@ -100,10 +100,10 @@ app.get('/api/experiments/:planId', async (req, res) => {
   try {
     const { planId } = req.params
     const searchResult = await search({
-      index: 'vroom-plans',
+      index: 'vroom-fleet-plans',
       body: {
         query: {
-          term: { planId: planId },
+          term: { 'planId.keyword': planId },
         },
       },
     })
@@ -116,6 +116,38 @@ app.get('/api/experiments/:planId', async (req, res) => {
     }
   } catch (error) {
     console.error('Error fetching plan by ID:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    res.status(500).json({ success: false, error: errorMessage })
+  }
+})
+
+app.get('/api/experiments/:planId/trucks', async (req, res) => {
+  try {
+    const { planId } = req.params
+    const searchResult = await search({
+      index: 'vroom-truck-plans',
+      body: {
+        query: {
+          term: { 'planId.keyword': planId },
+        },
+        _source: ['planId', 'truckId', 'fleet', 'timestamp'],
+        sort: [{ timestamp: { order: 'desc' } }],
+      },
+    })
+
+    const truckPlans =
+      searchResult?.body?.hits?.hits?.map((hit: any) => ({
+        planId: hit._source.planId,
+        truckId: hit._source.truckId,
+        fleet: hit._source.fleet,
+        timestamp: hit._source.timestamp,
+        documentId: hit._id,
+      })) || []
+
+    res.json({ success: true, data: truckPlans })
+  } catch (error) {
+    console.error('Error fetching truck plans:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred'
     res.status(500).json({ success: false, error: errorMessage })

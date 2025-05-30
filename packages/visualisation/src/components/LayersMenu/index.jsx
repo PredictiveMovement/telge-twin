@@ -23,7 +23,7 @@ import FolderIcon from '@mui/icons-material/Folder'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { Science } from '@mui/icons-material'
 
-import { Hail, Info, Map, Person } from '@mui/icons-material'
+import { Info, Map } from '@mui/icons-material'
 import RouteIcon from '@mui/icons-material/Route'
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar'
 import LegendToggleIcon from '@mui/icons-material/LegendToggle'

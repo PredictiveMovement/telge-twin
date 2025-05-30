@@ -31,6 +31,7 @@ class Municipality {
   public fleets: any
   public cars: any
   public dispatchedBookings: any
+  public experimentId: any
 
   constructor({
     geometry,
@@ -42,6 +43,7 @@ class Municipality {
     squares,
     fleetsConfig,
     settings,
+    experimentId,
   }: any) {
     this.squares = squares
     this.geometry = geometry
@@ -57,11 +59,16 @@ class Municipality {
     this.citizens = citizens
     this.fleetsConfig = fleetsConfig
     this.settings = settings
+    this.experimentId = experimentId
+    const fleetExperimentId =
+      this.settings?.replayExperiment || this.experimentId || this.id
+
     this.fleets = from(this.fleetsConfig).pipe(
       map(
         ({ name, recyclingTypes, vehicles, hubAddress }: any, i: number) =>
           new Fleet({
             id: i,
+            experimentId: fleetExperimentId,
             name: name,
             hub: this.center,
             municipality: this,
@@ -85,9 +92,6 @@ class Municipality {
 
     this.cars = this.fleets.pipe(mergeMap((fleet: any) => fleet.cars))
 
-    /**
-     * Take bookings and dispatch them to the first eligble fleet that can handle the booking
-     */
     this.dispatchedBookings = this.bookings.pipe(
       mergeMap((booking: any) =>
         this.fleets.pipe(
@@ -107,13 +111,15 @@ class Municipality {
         )
       ),
 
-      toArray(), // this forces all bookings to be done before we continue
+      toArray(),
       mergeMap((bookings: any) => {
         info('All bookings are now added to queue:', bookings.length)
         return this.fleets.pipe(
           mergeMap((fleet: any) =>
-            this.settings.optimizedRoutes
-              ? fleet.startDispatcher()
+            this.settings?.replayExperiment
+              ? fleet.startReplayDispatcher(this.settings.replayExperiment)
+              : this.settings.optimizedRoutes
+              ? fleet.startVroomDispatcher()
               : fleet.startStandardDispatcher()
           )
         )
@@ -126,10 +132,5 @@ class Municipality {
   }
 }
 
-// Export as CommonJS and TS module
 export = Municipality
-
-// CommonJS fallback for non-TS environments
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
 if (typeof module !== 'undefined') module.exports = Municipality

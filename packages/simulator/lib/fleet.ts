@@ -19,59 +19,25 @@ const {
   convertToVroomCompatibleFormat,
   planWithVroom,
   convertBackToBookings,
+  loadPlanForExperiment,
 } = require('./clustering')
 const { addMeters } = require('./distance')
 
 const vehicleClasses = {
-  recycleTruck: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  baklastare: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  fyrfack: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  matbil: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  skåpbil: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  ['2-fack']: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  latrin: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  lastväxlare: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
-  kranbil: {
-    weight: 10 * 1000,
-    parcelCapacity: 200,
-    class: Truck,
-  },
+  recycleTruck: { weight: 10000, parcelCapacity: 200, class: Truck },
+  baklastare: { weight: 10000, parcelCapacity: 200, class: Truck },
+  fyrfack: { weight: 10000, parcelCapacity: 200, class: Truck },
+  matbil: { weight: 10000, parcelCapacity: 200, class: Truck },
+  skåpbil: { weight: 10000, parcelCapacity: 200, class: Truck },
+  ['2-fack']: { weight: 10000, parcelCapacity: 200, class: Truck },
+  latrin: { weight: 10000, parcelCapacity: 200, class: Truck },
+  lastväxlare: { weight: 10000, parcelCapacity: 200, class: Truck },
+  kranbil: { weight: 10000, parcelCapacity: 200, class: Truck },
 }
 
 class Fleet {
   public id: any
+  public experimentId: any
   public name: any
   public type: any
   public hub: any
@@ -85,6 +51,7 @@ class Fleet {
 
   constructor({
     id,
+    experimentId,
     name,
     hub,
     type,
@@ -94,6 +61,7 @@ class Fleet {
     settings,
   }: any) {
     this.id = id
+    this.experimentId = experimentId
     this.name = name
     this.type = type
     this.hub = { position: new Position(hub) }
@@ -130,7 +98,7 @@ class Fleet {
           })
         })
       }),
-      mergeAll(), // platta ut arrayen
+      mergeAll(),
       shareReplay()
     )
   }
@@ -145,7 +113,7 @@ class Fleet {
   handleBooking(booking: any) {
     debug(`Fleet ${this.name} received booking ${booking.bookingId}`)
     booking.fleet = this
-    this.unhandledBookings.next(booking) // add to queue
+    this.unhandledBookings.next(booking)
     return booking
   }
 
@@ -180,12 +148,11 @@ class Fleet {
     return this.dispatchedBookings
   }
 
-  // Handle all unhandled bookings via Vroom
-  startDispatcher() {
+  startVroomDispatcher() {
     this.dispatchedBookings = this.unhandledBookings.pipe(
       bufferTime(1000),
       filter((bookings: any[]) => bookings.length > 0),
-      clusterByPostalCode(200, 5), // cluster bookings if we have more than what Vroom can handle for this fleet
+      clusterByPostalCode(200, 5),
       withLatestFrom(this.cars.pipe(toArray())),
       tap(([bookings, cars]: any) => {
         info(
@@ -193,12 +160,12 @@ class Fleet {
         )
       }),
       convertToVroomCompatibleFormat(),
-      planWithVroom(this.municipality?.name, this.name),
+      planWithVroom(this.experimentId, this.name),
       convertBackToBookings(),
       filter(({ booking }: any) => !booking.assigned),
-      mergeMap(({ car, booking }: any) => {
-        return car.handleBooking(booking)
-      }),
+      mergeMap(({ car, booking }: any) =>
+        car.handleBooking(this.experimentId, booking)
+      ),
       catchError((err: any) => {
         error(`Fel vid hantering av bokningar för ${this.name}:`, err)
         return of(null)
@@ -206,12 +173,39 @@ class Fleet {
     )
     return this.dispatchedBookings
   }
+
+  startReplayDispatcher(replayId: string) {
+    this.dispatchedBookings = this.unhandledBookings.pipe(
+      bufferTime(1000),
+      filter((bs: any[]) => bs.length > 0),
+      withLatestFrom(this.cars.pipe(toArray())),
+      mergeMap(([bookings, cars]: any) =>
+        from(loadPlanForExperiment(replayId, this.name)).pipe(
+          mergeMap((cached: any) => {
+            if (!cached) {
+              error(
+                `No cached VROOM plan for fleet ${this.name}, experiment ${replayId}`
+              )
+              return of(null)
+            }
+            return of({ vroomResponse: cached, cars, bookings }).pipe(
+              convertBackToBookings()
+            )
+          })
+        )
+      ),
+      filter((x: any) => x && !x.booking.assigned),
+      mergeMap(({ car, booking }: any) =>
+        car.handleBooking(this.experimentId, booking)
+      ),
+      catchError((err: any) => {
+        error(`Replay error for ${this.name}:`, err)
+        return of(null)
+      })
+    )
+    return this.dispatchedBookings
+  }
 }
 
-// Export as TS module
 export = Fleet
-
-// CommonJS fallback
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
 if (typeof module !== 'undefined') module.exports = Fleet

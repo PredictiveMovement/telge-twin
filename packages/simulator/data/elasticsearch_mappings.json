@@ -236,13 +236,35 @@
       }
     }
   },
-  "vroom-plans": {
+  "vroom-truck-plans": {
     "mappings": {
       "properties": {
-        "simulationId": {
+        "planId": {
           "type": "keyword"
         },
+        "truckId": {
+          "type": "keyword"
+        },
+        "fleet": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "vroomResponse": {
+          "type": "object",
+          "enabled": false
+        }
+      }
+    }
+  },
+  "vroom-fleet-plans": {
+    "mappings": {
+      "properties": {
         "planId": {
+          "type": "keyword"
+        },
+        "fleet": {
           "type": "keyword"
         },
         "timestamp": {

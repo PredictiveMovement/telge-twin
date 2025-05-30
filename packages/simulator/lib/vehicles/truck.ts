@@ -1,4 +1,7 @@
-const { findBestRouteToPickupBookings } = require('../dispatch/truckDispatch')
+const {
+  findBestRouteToPickupBookings,
+  useReplayRoute,
+} = require('../dispatch/truckDispatch')
 const { warn, debug } = require('../log')
 const { clusterPositions } = require('../../lib/kmeans')
 const Vehicle = require('./vehicle').default
@@ -135,7 +138,7 @@ class Truck extends Vehicle {
     return booking
   }
 
-  async handleBooking(booking: any) {
+  async handleBooking(experimentId: string, booking: any) {
     if (this.queue.indexOf(booking) > -1) throw new Error('Already queued')
     this.queue.push(booking)
     if (booking.assign) booking.assign(this)
@@ -160,9 +163,12 @@ class Truck extends Vehicle {
             from(clusters).pipe(
               mergeMap(
                 async (cluster: any) =>
-                  await findBestRouteToPickupBookings(this, cluster.items, [
-                    'pickup',
-                  ]),
+                  await findBestRouteToPickupBookings(
+                    experimentId,
+                    this,
+                    cluster.items,
+                    ['pickup']
+                  ),
                 1
               ),
               mergeAll(),
@@ -176,8 +182,14 @@ class Truck extends Vehicle {
             action: 'end',
           },
         ]
+      } else if (this.fleet.settings.replayExperiment) {
+        this.plan = await useReplayRoute(this, this.queue)
       } else {
-        this.plan = await findBestRouteToPickupBookings(this, this.queue)
+        this.plan = await findBestRouteToPickupBookings(
+          experimentId,
+          this,
+          this.queue
+        )
       }
       if (!this.instruction) await this.pickNextInstructionFromPlan()
     }, 2000)
