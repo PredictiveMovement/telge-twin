@@ -1,0 +1,385 @@
+// @ts-nocheck
+import React, { useState } from 'react'
+import 'jsoneditor-react/es/editor.min.css'
+import { useSocket } from '../hooks/useSocket.js'
+
+import Map from '../components/Map.jsx'
+import Loading from '../components/Loading/index.jsx'
+import PlaybackOptions from '../components/PlaybackOptions/index.jsx'
+import ResetExperiment from '../components/ResetExperiment/index.jsx'
+import EditExperimentModal from '../components/EditExperimentModal/index.jsx'
+import Logo from '../components/Logo/index.jsx'
+import ExperimentDoneModal from '../components/ExperimentDoneModal/index.jsx'
+import { Snackbar, SnackbarContent } from '@mui/material'
+
+import Slide from '@mui/material/Slide'
+import Layout from '../components/layout/Layout'
+
+const MapOverview = () => {
+  const [activeCar, setActiveCar] = useState(null)
+  const [reset, setReset] = useState(false)
+  const [speed, setSpeed] = useState(60)
+  const [time, setTime] = useState(-3600000) // 00:00
+  const [carLayer, setCarLayer] = useState(true)
+  const [useIcons, setUseIcons] = useState(false) // Add this line
+  const [showBookingLegend, setShowBookingLegend] = useState(false)
+  const [passengerLayer, setPassengerLayer] = useState(true)
+  const [postombudLayer, setPostombudLayer] = useState(false)
+  const [commercialAreasLayer, setCommercialAreasLayer] = useState(false)
+  const [busLineLayer, setBusLineLayer] = useState(true)
+  const [municipalityLayer, setMunicipalityLayer] = useState(true)
+  const [experimentParameters, setExperimentParameters] = useState({})
+  const [currentParameters, setCurrentParameters] = useState({})
+  const [fleets, setFleets] = useState({})
+  const [latestLogMessage, setLatestLogMessage] = useState('')
+  const [snackbarOpen, setSnackbarOpen] = useState(false)
+  const [showEditExperimentModal, setShowEditExperimentModal] = useState(false)
+  const [showExperimentDoneModal, setShowExperimentDoneModal] = useState(false)
+  const [previousExperimentId, setPreviousExperimentId] = useState(null)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [selectedDataFile, setSelectedDataFile] = useState(null)
+  const [bookingAndVehicleStats, setBookingAndVehicleStats] = useState(null)
+
+  const [connected, setConnected] = useState(false)
+
+  const { socket } = useSocket()
+
+  const activeLayers = {
+    carLayer,
+    setCarLayer,
+    useIcons, // Add this line
+    setUseIcons, // Add this line
+    showBookingLegend,
+    setShowBookingLegend,
+    postombudLayer,
+    setPostombudLayer,
+    passengerLayer,
+    setPassengerLayer,
+    commercialAreasLayer,
+    setCommercialAreasLayer,
+    municipalityLayer,
+    setMunicipalityLayer,
+    busLineLayer,
+    setBusLineLayer,
+  }
+
+  const restartSimulation = () => {
+    setShowEditExperimentModal(false)
+    socket.emit('experimentParameters', experimentParameters)
+  }
+
+  useSocket('init', () => {
+    console.log('Init experiment')
+    setBookings([])
+    setPassengers([])
+    setCars([])
+    setmunicipalities([])
+    setPostombud([])
+    setLineShapes([])
+    setLatestLogMessage('')
+    socket.emit('speed', speed) // reset speed on server
+  })
+
+  useSocket('reset', () => {
+    console.log('Reset experiment')
+    setPreviousExperimentId(experimentParameters.id)
+    setShowExperimentDoneModal(true)
+    socket.emit('experimentParameters', experimentParameters)
+  })
+
+  function upsert(array, object, idProperty = 'id', deep = false) {
+    const currentIndex = array.findIndex(
+      (k) => k[idProperty] === object[idProperty]
+    )
+    let new_arr = [...array]
+
+    if (currentIndex >= 0) {
+      if (deep) {
+        new_arr[currentIndex] = { ...new_arr[currentIndex], ...object }
+      } else {
+        new_arr[currentIndex] = object
+      }
+    } else {
+      new_arr.push(object)
+    }
+    return new_arr
+  }
+
+  const [cars, setCars] = React.useState([])
+  useSocket('cars', (newCars) => {
+    setReset(false)
+    setCars((cars) => [
+      ...cars.filter((car) => !newCars.some((nc) => nc.id === car.id)),
+      ...newCars,
+    ])
+  })
+
+  useSocket('time', (time) => {
+    setTime(time)
+  })
+
+  useSocket('log', (message) => {
+    setLatestLogMessage(message)
+    setSnackbarOpen(true)
+  })
+
+  const [bookings, setBookings] = React.useState([])
+  useSocket('bookings', (newBookings) => {
+    setReset(false)
+    setBookings((bookings) => [
+      ...bookings.filter(
+        (booking) => !newBookings.some((nb) => nb.id === booking.id)
+      ),
+      ...newBookings.map(({ pickup, destination, ...rest }) => ({
+        pickup: [pickup.lon, pickup.lat],
+        destination: [destination.lon, destination.lat],
+        ...rest,
+      })),
+    ])
+  })
+
+  const [postombud, setPostombud] = React.useState([])
+  useSocket('postombud', (newPostombud) => {
+    setReset(false)
+    setPostombud((current) => [
+      ...current,
+      ...newPostombud.map(({ position, ...rest }) => ({
+        position: [position.lon, position.lat],
+        ...rest,
+      })),
+    ])
+  })
+
+  const [lineShapes, setLineShapes] = React.useState([])
+  useSocket('lineShapes', (lineShapes) => {
+    setLineShapes(lineShapes)
+  })
+
+  const [municipalities, setmunicipalities] = React.useState([])
+  useSocket('municipality', (municipality) => {
+    setReset(false)
+    setmunicipalities((current) => {
+      console.log('Received municipality data:', municipality)
+      return upsert(current, municipality, 'id', true)
+    })
+  })
+
+  useSocket('uploadedFiles', (files) => {
+    setUploadedFiles(files)
+  })
+
+  useSocket('bookingsAndVehiclesData', (data) => {
+    console.log('bookingsAndVehiclesData', data)
+  })
+
+  useSocket('parameters', (currentParameters) => {
+    console.log('ExperimentId', currentParameters.id)
+
+    if (!previousExperimentId) {
+      setPreviousExperimentId(currentParameters.id)
+    }
+
+    setCurrentParameters(currentParameters)
+    const layerSetFunctions = {
+      cars: setCarLayer,
+      passengers: setPassengerLayer,
+      postombud: setPostombudLayer,
+      municipalities: setMunicipalityLayer,
+      commercialAreas: setCommercialAreasLayer,
+    }
+
+    Object.entries(layerSetFunctions).map(([emitterName, setStateFunction]) => {
+      if (currentParameters.emitters.includes(emitterName)) {
+        setStateFunction(true)
+      } else {
+        setStateFunction(false)
+      }
+    })
+
+    setFleets(currentParameters.fleets)
+    setExperimentParameters(currentParameters)
+
+    if (currentParameters.selectedDataFile) {
+      console.log('Selected data file:', currentParameters.selectedDataFile)
+      setSelectedDataFile(currentParameters.selectedDataFile)
+    }
+
+    console.log('Received parameters:', currentParameters)
+  })
+  const [passengers, setPassengers] = React.useState([])
+  useSocket('passengers', (passengers) => {
+    setPassengers((currentPassengers) => [
+      ...currentPassengers.filter(
+        (cp) => !passengers.some((p) => p.id === cp.id)
+      ),
+      ...passengers.map(({ position, ...p }) => ({
+        ...p,
+        position: [position.lon, position.lat].map((s) => parseFloat(s)),
+      })),
+    ])
+  })
+
+  const onPause = () => {
+    socket.emit('pause')
+    console.log('pause stream')
+  }
+
+  const onPlay = () => {
+    setReset(false)
+    socket.emit('play')
+    console.log('play stream')
+  }
+
+  const onSpeedChange = (value) => {
+    socket.emit('speed', value)
+    setSpeed(value)
+  }
+
+  const resetSimulation = () => {
+    setReset(true)
+    socket.emit('reset')
+    setBookings([])
+    setPassengers([])
+    setCars([])
+    setActiveCar(null)
+  }
+
+  const requestBookingsAndVehicles = () => {
+    socket.emit('getBookingsAndVehicles')
+  }
+
+  socket.on('disconnect', () => {
+    setConnected(false)
+  })
+
+  socket.on('connect', () => {
+    setConnected(true)
+  })
+
+  /**
+   * Update the fleets part of the parameters.
+   */
+  const saveFleets = (updatedJson) => {
+    setExperimentParameters({ ...experimentParameters, fleets: updatedJson })
+  }
+
+  return (
+    <Layout>
+      <Logo />
+
+      {/* Loader. */}
+      {(!connected || reset || !cars.length || !bookings.length) && (
+        <Loading
+          connected={connected}
+          passengers={passengers.length}
+          cars={cars.length}
+          bookings={bookings.length}
+          municipalities={municipalities.length}
+          lineShapes={lineShapes.length}
+        />
+      )}
+
+      {/* Playback controls. */}
+      <PlaybackOptions
+        onPause={onPause}
+        onPlay={onPlay}
+        onSpeedChange={onSpeedChange}
+      />
+
+      {/* Reset experiment button. */}
+      <ResetExperiment resetSimulation={resetSimulation} />
+
+      {/* Stats button */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '120px',
+          right: '10px',
+          backgroundColor: '#fff',
+          borderRadius: '4px',
+          padding: '8px',
+          zIndex: 1000,
+          boxShadow: '0 0 10px rgba(0,0,0,0.2)',
+        }}
+      >
+        <button
+          onClick={requestBookingsAndVehicles}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#1976d2',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          Get Stats
+        </button>
+      </div>
+
+      {/* Edit experiment modal. */}
+      <EditExperimentModal
+        fleets={fleets}
+        show={showEditExperimentModal}
+        setShow={setShowEditExperimentModal}
+        restartSimulation={restartSimulation}
+        saveFleets={saveFleets}
+        settings={currentParameters.settings}
+      />
+
+      {/* Experiment done modal. */}
+      <ExperimentDoneModal
+        experimentId={previousExperimentId}
+        show={showExperimentDoneModal}
+        setShow={setShowExperimentDoneModal}
+      />
+
+      {/* Map. */}
+      {currentParameters.initMapState && (
+        <Map
+          activeLayers={activeLayers}
+          passengers={passengers}
+          cars={cars}
+          bookings={bookings}
+          postombud={postombud}
+          municipalities={municipalities}
+          activeCar={activeCar}
+          time={time}
+          setActiveCar={setActiveCar}
+          lineShapes={lineShapes}
+          showEditExperimentModal={showEditExperimentModal}
+          setShowEditExperimentModal={setShowEditExperimentModal}
+          experimentId={currentParameters.id}
+          initMapState={currentParameters.initMapState}
+          socket={socket}
+          selectedDataFile={selectedDataFile}
+          setSelectedDataFile={setSelectedDataFile}
+          uploadedFiles={uploadedFiles}
+        />
+      )}
+
+      <Snackbar
+        sx={{ opacity: 0.8 }}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        variant="filled"
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        TransitionComponent={TransitionDown}
+        onClose={() => setSnackbarOpen(false)}
+      >
+        <SnackbarContent
+          sx={{ backgroundColor: 'black', color: 'white' }}
+          message={latestLogMessage}
+        />
+      </Snackbar>
+    </Layout>
+  )
+}
+
+function TransitionDown(props) {
+  return <Slide {...props} direction="down" />
+}
+export default MapOverview

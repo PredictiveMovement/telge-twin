@@ -3,18 +3,18 @@ import React, { useState } from 'react'
 import 'jsoneditor-react/es/editor.min.css'
 import { useSocket } from '../hooks/useSocket.js'
 
-import Map from '../components/Map.jsx'
-import Loading from '../components/Loading/index.jsx'
-import PlaybackOptions from '../components/PlaybackOptions/index.jsx'
-import ResetExperiment from '../components/ResetExperiment/index.jsx'
-import EditExperimentModal from '../components/EditExperimentModal/index.jsx'
-import Logo from '../components/Logo/index.jsx'
-import ExperimentDoneModal from '../components/ExperimentDoneModal/index.jsx'
+import Map from './Map.jsx'
+import Loading from './Loading/index.jsx'
+import PlaybackOptions from './PlaybackOptions/index.jsx'
+import ResetExperiment from './ResetExperiment/index.jsx'
+import EditExperimentModal from './EditExperimentModal/index.jsx'
+import Logo from './Logo/index.jsx'
+import ExperimentDoneModal from './ExperimentDoneModal/index.jsx'
 import { Snackbar, SnackbarContent } from '@mui/material'
 
 import Slide from '@mui/material/Slide'
 
-const MapOverview = () => {
+const MapSimulator = () => {
   const [activeCar, setActiveCar] = useState(null)
   const [reset, setReset] = useState(false)
   const [speed, setSpeed] = useState(60)
@@ -381,4 +381,4 @@ const MapOverview = () => {
 function TransitionDown(props) {
   return <Slide {...props} direction="down" />
 }
-export default MapOverview
+export default MapSimulator
