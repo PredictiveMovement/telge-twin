@@ -2,7 +2,10 @@
   "id": "VERu-BLND",
   "startDate": "2025-05-30T11:33:48.060Z",
   "fixedRoute": 100,
-  "emitters": ["bookings", "cars"],
+  "emitters": [
+    "bookings",
+    "cars"
+  ],
   "fleets": {
     "Södertälje kommun": {
       "settings": {
@@ -13,7 +16,9 @@
         {
           "name": "Hushållsavfall",
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
-          "recyclingTypes": ["HUSHSORT"],
+          "recyclingTypes": [
+            "HUSHSORT"
+          ],
           "vehicles": {
             "baklastare": 3
           },
@@ -22,7 +27,10 @@
         {
           "name": "Hemsortering",
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
-          "recyclingTypes": ["HEMSORT", "BRÄNN"],
+          "recyclingTypes": [
+            "HEMSORT",
+            "BRÄNN"
+          ],
           "vehicles": {
             "fyrfack": 10
           },
@@ -31,7 +39,9 @@
         {
           "name": "Matavfall",
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
-          "recyclingTypes": ["MATAVF"],
+          "recyclingTypes": [
+            "MATAVF"
+          ],
           "vehicles": {
             "matbil": 2
           },
@@ -40,7 +50,9 @@
         {
           "name": "Baklastare",
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
-          "recyclingTypes": ["TRÄDGÅRD"],
+          "recyclingTypes": [
+            "TRÄDGÅRD"
+          ],
           "vehicles": {
             "baklastare": 2
           },
@@ -49,7 +61,9 @@
         {
           "name": "Skåpbil",
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
-          "recyclingTypes": ["TEXTIL"],
+          "recyclingTypes": [
+            "TEXTIL"
+          ],
           "vehicles": {
             "skåpbil": 3
           },
@@ -105,7 +119,11 @@
         {
           "name": "Lastväxlare",
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
-          "recyclingTypes": ["Liftdumper", "Rullflak", "komprimatorer"],
+          "recyclingTypes": [
+            "Liftdumper",
+            "Rullflak",
+            "komprimatorer"
+          ],
           "vehicles": {
             "lastväxlare": 4
           },
@@ -113,7 +131,9 @@
         },
         {
           "name": "Kranbil",
-          "recyclingTypes": ["HEMSORT"],
+          "recyclingTypes": [
+            "HEMSORT"
+          ],
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
           "vehicles": {
             "kranbil": 3
@@ -122,7 +142,11 @@
         },
         {
           "name": "Lastväxlare",
-          "recyclingTypes": ["Liftdumper", "Rullflak", "komprimatorer"],
+          "recyclingTypes": [
+            "Liftdumper",
+            "Rullflak",
+            "komprimatorer"
+          ],
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
           "vehicles": {
             "lastväxlare": 4
@@ -131,7 +155,9 @@
         },
         {
           "name": "Baklastare",
-          "recyclingTypes": ["Externa kommuner"],
+          "recyclingTypes": [
+            "Externa kommuner"
+          ],
           "hubAddress": "LERHAGA 50, 151 66 Södertälje",
           "vehicles": {
             "baklastare": 3
