@@ -6,7 +6,6 @@ import { Server, Socket } from 'socket.io'
 import { filter, take } from 'rxjs/operators'
 import { emitters } from '../config'
 import { save, read } from '../config'
-import { info } from '../lib/log'
 import { virtualTime } from '../lib/virtualTime'
 import { safeId } from '../lib/id'
 
@@ -202,8 +201,6 @@ function register(io: Server): void {
         id: experimentId,
         emitters: currentEmitters,
       }
-
-      save(paramsToSave)
 
       globalExperiment = null
       getOrCreateGlobalExperiment()

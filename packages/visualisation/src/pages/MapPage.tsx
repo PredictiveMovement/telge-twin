@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import Layout from '@/components/layout/Layout'
+import { Car, Booking } from '@/types/map'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Map, Route, Play, Square, Activity } from 'lucide-react'
-import MapSimulator from '@/components/MapSimulator'
+import { MapIcon, Route, Play, Square, Activity } from 'lucide-react'
+import Map from '@/components/Map'
 import { useSocket } from '@/hooks/useSocket'
 import { startSimulation } from '@/api/simulator'
+import { toLonLatArray } from '@/utils/geo'
 
 const MapPage = () => {
   const { socket, isConnected } = useSocket()
@@ -15,9 +17,24 @@ const MapPage = () => {
   const [simulationData, setSimulationData] = useState(null)
   const [experimentId, setExperimentId] = useState(null)
 
-  const [cars, setCars] = useState([])
-  const [bookings, setBookings] = useState([])
+  const [cars, setCars] = useState<Car[]>([])
+  const [bookings, setBookings] = useState<Booking[]>([])
   const [isMapActive, setIsMapActive] = useState(false)
+
+  const upsertList = <T extends { id: any }>(
+    prev: T[],
+    incoming: T | T[],
+    mapper: (item: T) => T
+  ) => {
+    const list = Array.isArray(incoming) ? incoming : [incoming]
+    const next = [...prev]
+    list.forEach((raw) => {
+      const item = mapper(raw)
+      const i = next.findIndex((x) => x.id === item.id)
+      i >= 0 ? (next[i] = item) : next.push(item)
+    })
+    return next
+  }
 
   useEffect(() => {
     if (!socket) {
@@ -77,35 +94,22 @@ const MapPage = () => {
       setExperimentId(null)
     }
 
-    const handleCars = (carData: any) => {
-      console.log('🚗 Received car data:', carData)
-      setCars((prev) => {
-        const existingIndex = prev.findIndex((car) => car.id === carData.id)
-        if (existingIndex >= 0) {
-          const updated = [...prev]
-          updated[existingIndex] = carData
-          return updated
-        } else {
-          return [...prev, carData]
-        }
-      })
-    }
+    const handleCars = (payload: any | any[]) =>
+      setCars((prev) =>
+        upsertList(prev, payload, (car) => ({
+          ...car,
+          position: toLonLatArray(car.position),
+        }))
+      )
 
-    const handleBookings = (bookingData: any) => {
-      console.log('📋 Received booking data:', bookingData)
-      setBookings((prev) => {
-        const existingIndex = prev.findIndex(
-          (booking) => booking.id === bookingData.id
-        )
-        if (existingIndex >= 0) {
-          const updated = [...prev]
-          updated[existingIndex] = bookingData
-          return updated
-        } else {
-          return [...prev, bookingData]
-        }
-      })
-    }
+    const handleBookings = (payload: any | any[]) =>
+      setBookings((prev) =>
+        upsertList(prev, payload, (b) => ({
+          ...b,
+          pickup: toLonLatArray(b.pickup),
+          destination: toLonLatArray(b.destination),
+        }))
+      )
 
     console.log('🔌 Setting up socket event listeners...')
 
@@ -230,7 +234,7 @@ const MapPage = () => {
           <TabsContent value="map" className="mt-4">
             <Card className="relative h-[500px] overflow-hidden">
               <CardContent className="absolute inset-0 p-0">
-                <MapSimulator
+                <Map
                   cars={cars}
                   bookings={bookings}
                   isSimulationRunning={isSimulationRunning}
@@ -244,7 +248,7 @@ const MapPage = () => {
               <CardContent className="absolute inset-0 p-0">
                 <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
                   <div className="text-center">
-                    <Map size={48} className="mx-auto mb-2" />
+                    <MapIcon size={48} className="mx-auto mb-2" />
                     <p>Satellitvy laddas här.</p>
                     <p className="text-sm text-gray-300 mt-1">
                       Växla tillbaka till standardkarta för bättre rutt-visning.
