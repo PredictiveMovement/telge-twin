@@ -8,13 +8,13 @@ import DeckGL, {
   IconLayer,
 } from 'deck.gl'
 import inside from 'point-in-polygon'
-import { ParagraphLarge } from './components/Typography'
-import MunicipalityStatisticsBox from './components/MunicipalityStatisticsBox'
-import TimeProgressBar from './components/TimeProgressBar'
-import LayersMenu from './components/LayersMenu/index.jsx'
-import HoverInfoBox from './components/HoverInfoBox'
-import BookingLegend from './components/BookingLegend'
-import { BOOKING_COLORS, groupedColors } from './constants'
+import { ParagraphLarge } from './Typography/index.jsx'
+import MunicipalityStatisticsBox from './MunicipalityStatisticsBox/index.jsx'
+import TimeProgressBar from './TimeProgressBar/index.jsx'
+import LayersMenu from './LayersMenu/index.jsx'
+import HoverInfoBox from './HoverInfoBox/index.jsx'
+import BookingLegend from './BookingLegend/index.jsx'
+import { BOOKING_COLORS, groupedColors } from '../constants.js'
 
 const transitionInterpolator = new LinearInterpolator(['bearing'])
 

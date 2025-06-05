@@ -1,3 +1,28 @@
+@font-face {
+  font-family: 'Avenir Next';
+  src: local('Avenir Next'), local('AvenirNext'),
+       url('https://fonts.cdnfonts.com/css/avenir-next-lt-pro') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir Next';
+  src: local('Avenir Next Medium'), local('AvenirNext-Medium'),
+       url('https://fonts.cdnfonts.com/css/avenir-next-lt-pro') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Avenir Next';
+  src: local('Avenir Next Bold'), local('AvenirNext-Bold'),
+       url('https://fonts.cdnfonts.com/css/avenir-next-lt-pro') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,79 +30,131 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 13%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 13%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 157.5 72.7% 42.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 157.5 72.7% 42.2%;
+    --popover-foreground: 0 0% 13%;
+
+    --primary: 88 33% 67%;
+    --primary-foreground: 0 0% 13%;
+
+    --secondary: 45 100% 69%;
+    --secondary-foreground: 0 0% 13%;
+
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 35%;
+
+    --accent: 82 31% 84%;
+    --accent-foreground: 0 0% 13%;
+
+    --destructive: 13 100% 47%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 88 33% 67%;
+
+    --text-primary: 0 0% 13%;
+    --text-secondary: 0 0% 35%;
+
     --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 95%;
+    --sidebar-foreground: 0 0% 13%;
+    --sidebar-primary: 88 33% 67%;
+    --sidebar-primary-foreground: 0 0% 13%;
+    --sidebar-accent: 0 0% 85%;
+    --sidebar-accent-foreground: 0 0% 13%;
+    --sidebar-border: 0 0% 75%;
+    --sidebar-ring: 88 33% 67%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 157.5 72.7% 42.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 157.5 72.7% 42.2%;
+    --background: 0 0% 13%;
+    --foreground: 0 0% 100%;
+
+    --card: 0 0% 15%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 15%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 88 33% 67%;
+    --primary-foreground: 0 0% 13%;
+
+    --secondary: 45 100% 69%;
+    --secondary-foreground: 0 0% 13%;
+
+    --muted: 0 0% 25%;
+    --muted-foreground: 0 0% 80%;
+
+    --accent: 82 31% 30%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 13 100% 40%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 30%;
+    --input: 0 0% 30%;
+    --ring: 88 33% 67%;
+
+    --text-primary: 0 0% 100%;
+    --text-secondary: 0 0% 80%;
+
+    --sidebar-background: 0 0% 15%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 88 33% 67%;
+    --sidebar-primary-foreground: 0 0% 13%;
+    --sidebar-accent: 0 0% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 40%;
+    --sidebar-ring: 88 33% 67%;
   }
 }
 
-/* Behåller befintliga styles för kompatibilitet */
-body {
-  margin: 0;
-  font-family: 'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #282c34;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
+@layer components {
+  .nav-link {
+    @apply relative overflow-hidden;
+  }
+  
+  .nav-link::after {
+    @apply content-[''] absolute w-full h-0.5 bg-secondary bottom-0 left-0 transform scale-x-0 origin-bottom-right transition-transform duration-300 ease-out;
+  }
+  
+  .nav-link:hover::after {
+    @apply scale-x-100 origin-bottom-left;
+  }
+  
+  .hover-card {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
 
-.MuiSlider-rail {
-  background: rgb(103, 103, 103) !important;
-  opacity: 1 !important;
-}
-
-.MuiSlider-track,
-.MuiSlider-thumbColorPrimary {
-  background: rgb(103, 103, 103) !important;
-  color: rgb(103, 103, 103) !important;
-}
-
-.Mui-active,
-.MuiSlider-thumbColorPrimary:hover {
-  box-shadow: none !important;
+  .sidebar-icon {
+    @apply text-sidebar-foreground h-4 w-4 stroke-[1.5px];
+  }
+  
+  .sidebar-menu-item {
+    @apply py-3 px-4 text-base;
+  }
 }
