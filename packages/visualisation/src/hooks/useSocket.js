@@ -1,7 +1,7 @@
-import { useContext, useEffect, useRef } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { SocketIOContext } from '../context/socketIOContext'
 
-export const useSocket = (eventKey, callback) => {
+export const useSocketEvent = (eventKey, callback) => {
   const socket = useContext(SocketIOContext)
   const callbackRef = useRef(callback)
 
@@ -32,4 +32,28 @@ export const useSocket = (eventKey, callback) => {
   }, [eventKey, socket])
 
   return { socket }
+}
+
+export const useSocket = () => {
+  const socket = useContext(SocketIOContext)
+  const [isConnected, setIsConnected] = useState(false)
+
+  useEffect(() => {
+    if (!socket) return
+
+    const handleConnect = () => setIsConnected(true)
+    const handleDisconnect = () => setIsConnected(false)
+
+    setIsConnected(socket.connected)
+
+    socket.on('connect', handleConnect)
+    socket.on('disconnect', handleDisconnect)
+
+    return () => {
+      socket.off('connect', handleConnect)
+      socket.off('disconnect', handleDisconnect)
+    }
+  }, [socket])
+
+  return { socket, isConnected }
 }

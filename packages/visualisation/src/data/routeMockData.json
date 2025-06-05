@@ -1,0 +1,2193 @@
+{
+  "settings": {
+    "avftyper": [
+      {
+        "ID": "BGLFÄ",
+        "BESKRIVNING": "BNI Glas färgat",
+        "VOLYMVIKT": 326.31
+      },
+      {
+        "ID": "BGLOF",
+        "BESKRIVNING": "BNI Glas ofärgat",
+        "VOLYMVIKT": 326.31
+      },
+      {
+        "ID": "BLANDAVF",
+        "BESKRIVNING": "Blandat avfall",
+        "VOLYMVIKT": 108
+      },
+      {
+        "ID": "BMETFÖRP",
+        "BESKRIVNING": "BNI Metallförp.",
+        "VOLYMVIKT": 78.94
+      },
+      {
+        "ID": "BPAPPFÖRP",
+        "BESKRIVNING": "BNI Pappersförp.",
+        "VOLYMVIKT": 60
+      },
+      {
+        "ID": "BPLASTFÖRP",
+        "BESKRIVNING": "BNI Plastförp.",
+        "VOLYMVIKT": 26.31
+      },
+      {
+        "ID": "BRETURPAPP",
+        "BESKRIVNING": "Returpapper",
+        "VOLYMVIKT": 200
+      },
+      {
+        "ID": "BRÄNN",
+        "BESKRIVNING": "Brännbart avfall",
+        "VOLYMVIKT": 415.78
+      },
+      {
+        "ID": "BRÄNNKL2",
+        "BESKRIVNING": "Brännbart kl2, roster",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "DEP",
+        "BESKRIVNING": "Blandad deponi",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "DUMP",
+        "BESKRIVNING": "Dumpning ÅVS",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "ELAVF",
+        "BESKRIVNING": "Elektronikavfall",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "FA",
+        "BESKRIVNING": "Farligt avfall",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "FAST",
+        "BESKRIVNING": "Fast avgift",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "FETT",
+        "BESKRIVNING": "Fett",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "GLFÄ",
+        "BESKRIVNING": "Glas färgat",
+        "VOLYMVIKT": 326.31
+      },
+      {
+        "ID": "GLOF",
+        "BESKRIVNING": "Glas ofärgat",
+        "VOLYMVIKT": 326.31
+      },
+      {
+        "ID": "HAVREASKA",
+        "BESKRIVNING": "Havreaska",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "HEMSORT",
+        "BESKRIVNING": "Hemsortering",
+        "VOLYMVIKT": 107.99
+      },
+      {
+        "ID": "HUSHSORT",
+        "BESKRIVNING": "Hushållsavfall",
+        "VOLYMVIKT": 107.99
+      },
+      {
+        "ID": "HÖGSMTRL",
+        "BESKRIVNING": "Högservicematerial",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "LATRIN",
+        "BESKRIVNING": "Latrin",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "MATAVF",
+        "BESKRIVNING": "Matavfall",
+        "VOLYMVIKT": 680
+      },
+      {
+        "ID": "METFÖRP",
+        "BESKRIVNING": "Metallförpackningar",
+        "VOLYMVIKT": 78.94
+      },
+      {
+        "ID": "PAPPFÖRP",
+        "BESKRIVNING": "Pappersförpackningar",
+        "VOLYMVIKT": 25
+      },
+      {
+        "ID": "PLASTFÖRP",
+        "BESKRIVNING": "Plastförpackningar",
+        "VOLYMVIKT": 26.31
+      },
+      {
+        "ID": "RETURPAPP",
+        "BESKRIVNING": "Returpapper",
+        "VOLYMVIKT": 200
+      },
+      {
+        "ID": "SLAM",
+        "BESKRIVNING": "Slam",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "TEXTIL",
+        "BESKRIVNING": "Textil",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "TRÄ",
+        "BESKRIVNING": "Träavfall ej impreg",
+        "VOLYMVIKT": 130
+      },
+      {
+        "ID": "TRÄDGÅRD",
+        "BESKRIVNING": "Trädgårdsavfall",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "WELLPAPP",
+        "BESKRIVNING": "Wellpapp",
+        "VOLYMVIKT": 60
+      }
+    ],
+    "tjtyper": [
+      {
+        "ID": "--",
+        "BESKRIVNING": "Tjänstetyp ej angiven",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "AV",
+        "BESKRIVNING": "Avskiljare",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "AVBDT",
+        "BESKRIVNING": "Avskiljare bad, disk, tvätt",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "BALPRESS",
+        "BESKRIVNING": "Balpress",
+        "VOLYM": 500,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "EGCONT",
+        "BESKRIVNING": "Egen container",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "EGKOMP",
+        "BESKRIVNING": "Egen komprimator",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "ELBUR",
+        "BESKRIVNING": "Elbur",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "ELRULL",
+        "BESKRIVNING": "Elrullbur",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "FABIL",
+        "BESKRIVNING": "farligt avfall bil",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "FASTAVG",
+        "BESKRIVNING": "Fast avgift renhållning",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "FETTAV",
+        "BESKRIVNING": "Fettavskiljare",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "GEM",
+        "BESKRIVNING": "Gemensam hämtning",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K140L",
+        "BESKRIVNING": "140 liters kärl",
+        "VOLYM": 140,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K140LRABAT",
+        "BESKRIVNING": "140 liters kärl rabattkombo",
+        "VOLYM": 140,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K190L",
+        "BESKRIVNING": "190 liters kärl",
+        "VOLYM": 190,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K190LRABAT",
+        "BESKRIVNING": "190 liters kärl rabattkombo",
+        "VOLYM": 190,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K240L",
+        "BESKRIVNING": "240 liters kärl",
+        "VOLYM": 240,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K240L1",
+        "BESKRIVNING": "240 liters kärl 1",
+        "VOLYM": 240,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K240L2",
+        "BESKRIVNING": "240 liters kärl 2",
+        "VOLYM": 240,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370L",
+        "BESKRIVNING": "370 liters kärl",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370L1",
+        "BESKRIVNING": "370 liters kärl 1",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370L2",
+        "BESKRIVNING": "370 liters kärl 2",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370LRABAT",
+        "BESKRIVNING": "370 liters kärl rabattkombo",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K400L",
+        "BESKRIVNING": "400 liters kärl",
+        "VOLYM": 400,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K600L",
+        "BESKRIVNING": "600 liters kärl",
+        "VOLYM": 600,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K600LRABAT",
+        "BESKRIVNING": "600 liters kärl rabattkombo",
+        "VOLYM": 600,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660L",
+        "BESKRIVNING": "660 liters kärl",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660L1",
+        "BESKRIVNING": "660 liters kärl 1",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660L2",
+        "BESKRIVNING": "660 liters kärl 2",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660LRABAT",
+        "BESKRIVNING": "660 liters kärl rabattkombo",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "KBM",
+        "BESKRIVNING": "Kubikmeter",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "LATRIN",
+        "BESKRIVNING": "Latrintunna",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RENV",
+        "BESKRIVNING": "Reningsverk",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF12TÄ",
+        "BESKRIVNING": "Rullflak 12 kbm täckt",
+        "VOLYM": 12000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF15ÖP",
+        "BESKRIVNING": "Rullflak 15 kbm öppen",
+        "VOLYM": 15000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF27TÄ",
+        "BESKRIVNING": "Rullflak 27 kbm täckt",
+        "VOLYM": 27000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF30ÖP",
+        "BESKRIVNING": "Rullflak 30 kbm öppen",
+        "VOLYM": 30000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF40TÄ",
+        "BESKRIVNING": "Rullflak 40 kbm täckt",
+        "VOLYM": 40000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RULLVAGN",
+        "BESKRIVNING": "Rullvagn",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "SÄCK",
+        "BESKRIVNING": "Säck",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "TANK",
+        "BESKRIVNING": "Tank",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ0-1",
+        "BESKRIVNING": "Bottentömmande 0-1 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ1,1-2",
+        "BESKRIVNING": "Bottentömmande 1,1-2 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ2,1-3",
+        "BESKRIVNING": "Bottentömmande 2,1-3 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ2.5KB",
+        "BESKRIVNING": "Bottentömmande 2,5 kbm",
+        "VOLYM": 2500,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ2KB",
+        "BESKRIVNING": "Bottentömmande 2 kbm",
+        "VOLYM": 2000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ4+",
+        "BESKRIVNING": "Bottentömmande över 4 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "VAKUUM",
+        "BESKRIVNING": "Vakuumtank",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "VC06",
+        "BESKRIVNING": "Vippcontainer 6 kbm",
+        "VOLYM": 6000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "VC08",
+        "BESKRIVNING": "Vippcontainer 8 kbm",
+        "VOLYM": 8000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "ÅVS",
+        "BESKRIVNING": "Återvinningsstation",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      }
+    ],
+    "frekvenser": [
+      {
+        "ID": "V1V",
+        "BESKRIVNING": "Varje vecka",
+        "ANTALBESOKPERAR": 52,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "2GV",
+        "BESKRIVNING": "2 gånger i veckan",
+        "ANTALBESOKPERAR": 104,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "3GV",
+        "BESKRIVNING": "3 gånger i veckan",
+        "ANTALBESOKPERAR": 156,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "4GV",
+        "BESKRIVNING": "4 gånger i veckan",
+        "ANTALBESOKPERAR": 208,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "5GV",
+        "BESKRIVNING": "5 gånger i veckan",
+        "ANTALBESOKPERAR": 260,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V2VTRÄD",
+        "BESKRIVNING": "Trädgårdshämtning säsong",
+        "ANTALBESOKPERAR": 15,
+        "AKTIVFROM": "0331",
+        "AKTIVTOM": "1121"
+      },
+      {
+        "ID": "--",
+        "BESKRIVNING": "--",
+        "ANTALBESOKPERAR": 1,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "BUD",
+        "BESKRIVNING": "Per budning",
+        "ANTALBESOKPERAR": 1,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V4VLA",
+        "BESKRIVNING": "Var 4:e vecka latrin",
+        "ANTALBESOKPERAR": 6,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V4V2",
+        "BESKRIVNING": "Var 4:e vecka från v.2",
+        "ANTALBESOKPERAR": 13,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V4V3",
+        "BESKRIVNING": "Var 4:e vecka från v.3",
+        "ANTALBESOKPERAR": 13,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V2V1",
+        "BESKRIVNING": "Var 14:e dag udda vecka",
+        "ANTALBESOKPERAR": 26,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V2V2",
+        "BESKRIVNING": "Var 14:e dag jämn vecka",
+        "ANTALBESOKPERAR": 26,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V4V3S",
+        "BESKRIVNING": "Var 4:e vecka fritid",
+        "ANTALBESOKPERAR": 6,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V4V2S",
+        "BESKRIVNING": "Var 4:e vecka fritid",
+        "ANTALBESOKPERAR": 6,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V2V1S",
+        "BESKRIVNING": "Var 14:e dag fritid udda",
+        "ANTALBESOKPERAR": 11,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V8V23S",
+        "BESKRIVNING": "Var 8:e vecka fritid udda",
+        "ANTALBESOKPERAR": 3,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "7GV",
+        "BESKRIVNING": "7 gånger i veckan",
+        "ANTALBESOKPERAR": 364,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V4V1S",
+        "BESKRIVNING": "Var 4:e vecka fritid",
+        "ANTALBESOKPERAR": 6,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "ORDERV1V",
+        "BESKRIVNING": "Order på körtur V1V",
+        "ANTALBESOKPERAR": 0,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "ORDERV2V1",
+        "BESKRIVNING": "Order på körtur V2V1",
+        "ANTALBESOKPERAR": 0,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      }
+    ],
+    "bilar": [
+      {
+        "ID": "01",
+        "BESKRIVNING": "Hushåll baklastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "--",
+        "BESKRIVNING": "Ingen utförare angiven",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "02",
+        "BESKRIVNING": "Hushåll baklastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "13",
+        "BESKRIVNING": "Hushåll matavfall",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "15",
+        "BESKRIVNING": "Sorteringsteamet",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "23",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "60",
+        "BESKRIVNING": "Högservice skåpbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "80",
+        "BESKRIVNING": "Högservice kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "21",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "70",
+        "BESKRIVNING": "Högservice frontlastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "22",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "20",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": [
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 1
+          }
+        ]
+      },
+      {
+        "ID": "40",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": [
+          {
+            "AVFTYP": "GLOF",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "GLFÄ",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "FGLOF",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "FGLFÄ",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "WELLPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "FPAPPFÖRP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "FRETURPAPP",
+            "FACK": 2
+          }
+        ]
+      },
+      {
+        "ID": "41",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "42",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "91",
+        "BESKRIVNING": "Högservice lastvxl intern",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "93",
+        "BESKRIVNING": "Högservice lastväxlare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "97",
+        "BESKRIVNING": "Latrin",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "90",
+        "BESKRIVNING": "Högservice lastväxlare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "16",
+        "BESKRIVNING": "Hushåll mindre skåpbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "981",
+        "BESKRIVNING": "981",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "982",
+        "BESKRIVNING": "982",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "983",
+        "BESKRIVNING": "983",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "94",
+        "BESKRIVNING": "Avfett/Spolbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "985",
+        "BESKRIVNING": "985",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "24",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "05",
+        "BESKRIVNING": "Hushåll baklastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "951",
+        "BESKRIVNING": "951 Foria",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "953",
+        "BESKRIVNING": "953",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "81",
+        "BESKRIVNING": "Hushåll kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "12",
+        "BESKRIVNING": "Trädgårdsavfall i kärl",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "45",
+        "BESKRIVNING": "Blandat/Bränn Högservice",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "25",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "84",
+        "BESKRIVNING": "Städ ÅVS",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "200",
+        "BESKRIVNING": "ÅVC personal",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "83",
+        "BESKRIVNING": "Högservice kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "14",
+        "BESKRIVNING": "Hushåll matavfall",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "43",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "82",
+        "BESKRIVNING": "Högservice kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "71",
+        "BESKRIVNING": "Högservice frontlastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      }
+    ]
+  },
+  "routeData": [
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80010025,
+      "Hsnr": 1,
+      "Tjnr": 3,
+      "Dec": "J",
+      "Turordningsnr": 5,
+      "Avftyp": "WELLPAPP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.952461484154746,
+      "Lng": 17.580643712346973,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 10,
+      "Tjnr": 12,
+      "Dec": "A",
+      "Turordningsnr": 10,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90826046457221,
+      "Lng": 17.553349962490103,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019091,
+      "Hsnr": 1,
+      "Tjnr": 1,
+      "Dec": "A",
+      "Turordningsnr": 15,
+      "Avftyp": "WELLPAPP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90747707051525,
+      "Lng": 17.553987797697292,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 4,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 35,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.904268565233046,
+      "Lng": 17.554705299512644,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 10,
+      "Tjnr": 11,
+      "Dec": "A",
+      "Turordningsnr": 40,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90788370943084,
+      "Lng": 17.552733059506433,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 10,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 45,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V1V",
+      "Lat": 58.90781504445711,
+      "Lng": 17.552933693306365,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 4,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 50,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.904276872075435,
+      "Lng": 17.55471133487791,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 44,
+      "Tjnr": 3,
+      "Dec": "A",
+      "Turordningsnr": 60,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.902367904985226,
+      "Lng": 17.551235520949913,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 57,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 60,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90082908853259,
+      "Lng": 17.556267674188756,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 44,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 65,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V1V",
+      "Lat": 58.902331714617226,
+      "Lng": 17.551221780469596,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 56,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 65,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.89980802163503,
+      "Lng": 17.556753163413045,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 55,
+      "Tjnr": 9,
+      "Dec": "A",
+      "Turordningsnr": 70,
+      "Avftyp": "BRETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90039060066515,
+      "Lng": 17.55595653679523,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 57,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 70,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90082908853259,
+      "Lng": 17.556267674188756,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 56,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 75,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.89980802163503,
+      "Lng": 17.556753163413045,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 55,
+      "Tjnr": 4,
+      "Dec": "B",
+      "Turordningsnr": 80,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90039060066515,
+      "Lng": 17.55595653679523,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 82,
+      "Tjnr": 1,
+      "Dec": "A",
+      "Turordningsnr": 90,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90052896866495,
+      "Lng": 17.556977451687537,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 82,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 90,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V2V1",
+      "Lat": 58.9005175463573,
+      "Lng": 17.55693722670824,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018992,
+      "Hsnr": 1,
+      "Tjnr": 1,
+      "Dec": "B",
+      "Turordningsnr": 100,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.89699265472078,
+      "Lng": 17.615439900129715,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 53,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 105,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V1V",
+      "Lat": 58.9021855584673,
+      "Lng": 17.55906722604725,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 53,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 110,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.902191795756956,
+      "Lng": 17.559053492285955,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 21,
+      "Tjnr": 5,
+      "Dec": "B",
+      "Turordningsnr": 115,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.903176296019,
+      "Lng": 17.555840995988202,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 5,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 120,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90340985414635,
+      "Lng": 17.555220618302922,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 21,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 120,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90315900142546,
+      "Lng": 17.55580577114781,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 5,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 125,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90328465146993,
+      "Lng": 17.555226980850048,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 20,
+      "Tjnr": 3,
+      "Dec": "B",
+      "Turordningsnr": 125,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90341942921414,
+      "Lng": 17.55936539812915,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 22,
+      "Tjnr": 9,
+      "Dec": "B",
+      "Turordningsnr": 130,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.9042118187689,
+      "Lng": 17.55822814900167,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 22,
+      "Tjnr": 13,
+      "Dec": "A",
+      "Turordningsnr": 135,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K240L",
+      "Frekvens": "V1V",
+      "Lat": 58.904228440998786,
+      "Lng": 17.55817449622924,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 29,
+      "Tjnr": 4,
+      "Dec": "B",
+      "Turordningsnr": 140,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.904941707605424,
+      "Lng": 17.56220827854005,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 22,
+      "Tjnr": 7,
+      "Dec": "B",
+      "Turordningsnr": 150,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90421418675467,
+      "Lng": 17.55826960467741,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 22,
+      "Tjnr": 8,
+      "Dec": "A",
+      "Turordningsnr": 155,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.904204315979094,
+      "Lng": 17.558249829202474,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 42,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 160,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.908238202522526,
+      "Lng": 17.56237573895744,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 13,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 165,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90937744030101,
+      "Lng": 17.562439442530344,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 13,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 170,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V1V",
+      "Lat": 58.90937744030101,
+      "Lng": 17.562439442530344,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 29,
+      "Tjnr": 3,
+      "Dec": "A",
+      "Turordningsnr": 170,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90482856070649,
+      "Lng": 17.562246320386453,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 16,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 175,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V1V",
+      "Lat": 58.90791442795384,
+      "Lng": 17.561302854155496,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 42,
+      "Tjnr": 6,
+      "Dec": "B",
+      "Turordningsnr": 180,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90822919943546,
+      "Lng": 17.56237607837309,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 16,
+      "Tjnr": 9,
+      "Dec": "A",
+      "Turordningsnr": 180,
+      "Avftyp": "WELLPAPP",
+      "Tjtyp": "RULLVAGN",
+      "Frekvens": "V1V",
+      "Lat": 58.90791341026708,
+      "Lng": 17.561296602726983,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 16,
+      "Tjnr": 10,
+      "Dec": "A",
+      "Turordningsnr": 185,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90790647979146,
+      "Lng": 17.56129660380228,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 72,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 190,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90602401725535,
+      "Lng": 17.556922136754427,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 47,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 195,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.900774196114995,
+      "Lng": 17.550883483473996,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 47,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 200,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V1V",
+      "Lat": 58.90075774185461,
+      "Lng": 17.550901913497057,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 25,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 205,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V1V",
+      "Lat": 58.90082112490139,
+      "Lng": 17.54899922401112,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 25,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 210,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.900817316070516,
+      "Lng": 17.549021688742727,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 19,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 210,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V2V1",
+      "Lat": 58.906659195977696,
+      "Lng": 17.559038595223345,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 1,
+      "Tjnr": 1,
+      "Dec": "A",
+      "Turordningsnr": 215,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V1V",
+      "Lat": 58.89642595192861,
+      "Lng": 17.548836958110723,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 72,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 215,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90602401725535,
+      "Lng": 17.556922136754427,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 81,
+      "Tjnr": 1,
+      "Dec": "A",
+      "Turordningsnr": 225,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.893998310786536,
+      "Lng": 17.558295439025876,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 7,
+      "Tjnr": 6,
+      "Dec": "A",
+      "Turordningsnr": 230,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.901695192868615,
+      "Lng": 17.54353683495337,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 6,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 240,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.89673598216907,
+      "Lng": 17.545552595881063,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 6,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 245,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.89407239017538,
+      "Lng": 17.54798041647655,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 26,
+      "Tjnr": 5,
+      "Dec": "B",
+      "Turordningsnr": 250,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.90010048624171,
+      "Lng": 17.540734825416838,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 1,
+      "Tjnr": 2,
+      "Dec": "A",
+      "Turordningsnr": 255,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K190L",
+      "Frekvens": "V2V1",
+      "Lat": 58.89632203586574,
+      "Lng": 17.548663611222207,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 26,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 255,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V1V",
+      "Lat": 58.89976541818458,
+      "Lng": 17.540538198996856,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 54,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 260,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.896682805975324,
+      "Lng": 17.539056614470333,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 12,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 265,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V1V",
+      "Lat": 58.92275937496463,
+      "Lng": 17.45405499825848,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 74,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 270,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.89720118579858,
+      "Lng": 17.547512952061556,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 1,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 270,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.920096050347276,
+      "Lng": 17.443833372376563,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 68,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 275,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.94073219575774,
+      "Lng": 17.486992247168686,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 74,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 275,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V2V1",
+      "Lat": 58.89720118579858,
+      "Lng": 17.547512952061556,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 74,
+      "Tjnr": 7,
+      "Dec": "A",
+      "Turordningsnr": 280,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.89720118579858,
+      "Lng": 17.547512952061556,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 67,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 290,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.94057980563143,
+      "Lng": 17.488977427165995,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80019084,
+      "Hsnr": 7,
+      "Tjnr": 5,
+      "Dec": "A",
+      "Turordningsnr": 290,
+      "Avftyp": "RETURPAPP",
+      "Tjtyp": "K370L",
+      "Frekvens": "V2V1",
+      "Lat": 58.90169357469132,
+      "Lng": 17.543553997700172,
+      "Schemalagd": 1
+    },
+    {
+      "Turid": "2FA1ONS",
+      "Datum": "2025-06-04T00:00:00",
+      "Bil": "40",
+      "Kundnr": 80018417,
+      "Hsnr": 66,
+      "Tjnr": 4,
+      "Dec": "A",
+      "Turordningsnr": 295,
+      "Avftyp": "BPAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 58.94146596197179,
+      "Lng": 17.489095102832252,
+      "Schemalagd": 1
+    }
+  ]
+}

@@ -24,7 +24,7 @@ const SidebarNavigation = ({ isCollapsed }: SidebarNavigationProps) => {
       title: 'Körturer',
       path: '/routes',
       icon: Route,
-      disabled: true,
+      disabled: false,
     },
     {
       title: 'Karta',

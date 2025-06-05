@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState } from 'react'
 import 'jsoneditor-react/es/editor.min.css'
-import { useSocket } from '../hooks/useSocket.js'
+import { useSocketEvent } from '../hooks/useSocket.js'
 
 import Map from './Map.jsx'
 import Loading from './Loading/index.jsx'
@@ -14,13 +14,18 @@ import { Snackbar, SnackbarContent } from '@mui/material'
 
 import Slide from '@mui/material/Slide'
 
-const MapSimulator = () => {
+const MapSimulator = ({
+  cars = [],
+  bookings = [],
+  isSimulationRunning = false,
+  isConnected = false,
+}) => {
   const [activeCar, setActiveCar] = useState(null)
   const [reset, setReset] = useState(false)
   const [speed, setSpeed] = useState(60)
   const [time, setTime] = useState(-3600000) // 00:00
   const [carLayer, setCarLayer] = useState(true)
-  const [useIcons, setUseIcons] = useState(false) // Add this line
+  const [useIcons, setUseIcons] = useState(false)
   const [showBookingLegend, setShowBookingLegend] = useState(false)
   const [passengerLayer, setPassengerLayer] = useState(true)
   const [postombudLayer, setPostombudLayer] = useState(false)
@@ -39,15 +44,13 @@ const MapSimulator = () => {
   const [selectedDataFile, setSelectedDataFile] = useState(null)
   const [bookingAndVehicleStats, setBookingAndVehicleStats] = useState(null)
 
-  const [connected, setConnected] = useState(false)
-
-  const { socket } = useSocket()
+  const { socket } = useSocketEvent()
 
   const activeLayers = {
     carLayer,
     setCarLayer,
-    useIcons, // Add this line
-    setUseIcons, // Add this line
+    useIcons,
+    setUseIcons,
     showBookingLegend,
     setShowBookingLegend,
     postombudLayer,
@@ -67,19 +70,16 @@ const MapSimulator = () => {
     socket.emit('experimentParameters', experimentParameters)
   }
 
-  useSocket('init', () => {
+  useSocketEvent('init', () => {
     console.log('Init experiment')
-    setBookings([])
-    setPassengers([])
-    setCars([])
-    setmunicipalities([])
     setPostombud([])
     setLineShapes([])
+    setmunicipalities([])
     setLatestLogMessage('')
     socket.emit('speed', speed) // reset speed on server
   })
 
-  useSocket('reset', () => {
+  useSocketEvent('reset', () => {
     console.log('Reset experiment')
     setPreviousExperimentId(experimentParameters.id)
     setShowExperimentDoneModal(true)
@@ -104,41 +104,17 @@ const MapSimulator = () => {
     return new_arr
   }
 
-  const [cars, setCars] = React.useState([])
-  useSocket('cars', (newCars) => {
-    setReset(false)
-    setCars((cars) => [
-      ...cars.filter((car) => !newCars.some((nc) => nc.id === car.id)),
-      ...newCars,
-    ])
-  })
-
-  useSocket('time', (time) => {
+  useSocketEvent('time', (time) => {
     setTime(time)
   })
 
-  useSocket('log', (message) => {
+  useSocketEvent('log', (message) => {
     setLatestLogMessage(message)
     setSnackbarOpen(true)
   })
 
-  const [bookings, setBookings] = React.useState([])
-  useSocket('bookings', (newBookings) => {
-    setReset(false)
-    setBookings((bookings) => [
-      ...bookings.filter(
-        (booking) => !newBookings.some((nb) => nb.id === booking.id)
-      ),
-      ...newBookings.map(({ pickup, destination, ...rest }) => ({
-        pickup: [pickup.lon, pickup.lat],
-        destination: [destination.lon, destination.lat],
-        ...rest,
-      })),
-    ])
-  })
-
   const [postombud, setPostombud] = React.useState([])
-  useSocket('postombud', (newPostombud) => {
+  useSocketEvent('postombud', (newPostombud) => {
     setReset(false)
     setPostombud((current) => [
       ...current,
@@ -150,12 +126,12 @@ const MapSimulator = () => {
   })
 
   const [lineShapes, setLineShapes] = React.useState([])
-  useSocket('lineShapes', (lineShapes) => {
+  useSocketEvent('lineShapes', (lineShapes) => {
     setLineShapes(lineShapes)
   })
 
   const [municipalities, setmunicipalities] = React.useState([])
-  useSocket('municipality', (municipality) => {
+  useSocketEvent('municipality', (municipality) => {
     setReset(false)
     setmunicipalities((current) => {
       console.log('Received municipality data:', municipality)
@@ -163,16 +139,20 @@ const MapSimulator = () => {
     })
   })
 
-  useSocket('uploadedFiles', (files) => {
+  useSocketEvent('uploadedFiles', (files) => {
     setUploadedFiles(files)
   })
 
-  useSocket('bookingsAndVehiclesData', (data) => {
+  useSocketEvent('bookingsAndVehiclesData', (data) => {
     console.log('bookingsAndVehiclesData', data)
   })
 
-  useSocket('parameters', (currentParameters) => {
+  useSocketEvent('parameters', (currentParameters) => {
     console.log('ExperimentId', currentParameters.id)
+    console.log(
+      '📍 Received parameters with initMapState:',
+      currentParameters.initMapState
+    )
 
     if (!previousExperimentId) {
       setPreviousExperimentId(currentParameters.id)
@@ -197,188 +177,160 @@ const MapSimulator = () => {
 
     setFleets(currentParameters.fleets)
     setExperimentParameters(currentParameters)
-
-    if (currentParameters.selectedDataFile) {
-      console.log('Selected data file:', currentParameters.selectedDataFile)
-      setSelectedDataFile(currentParameters.selectedDataFile)
-    }
-
-    console.log('Received parameters:', currentParameters)
-  })
-  const [passengers, setPassengers] = React.useState([])
-  useSocket('passengers', (passengers) => {
-    setPassengers((currentPassengers) => [
-      ...currentPassengers.filter(
-        (cp) => !passengers.some((p) => p.id === cp.id)
-      ),
-      ...passengers.map(({ position, ...p }) => ({
-        ...p,
-        position: [position.lon, position.lat].map((s) => parseFloat(s)),
-      })),
-    ])
   })
 
   const onPause = () => {
     socket.emit('pause')
-    console.log('pause stream')
   }
 
   const onPlay = () => {
-    setReset(false)
-    socket.emit('play')
-    console.log('play stream')
+    socket.emit('speed', speed)
   }
 
   const onSpeedChange = (value) => {
-    socket.emit('speed', value)
     setSpeed(value)
+    socket.emit('speed', value)
   }
 
   const resetSimulation = () => {
-    setReset(true)
     socket.emit('reset')
-    setBookings([])
-    setPassengers([])
-    setCars([])
-    setActiveCar(null)
+    setReset(true)
+    setShowExperimentDoneModal(false)
+    setBookingAndVehicleStats(null)
   }
 
   const requestBookingsAndVehicles = () => {
     socket.emit('getBookingsAndVehicles')
   }
 
-  socket.on('disconnect', () => {
-    setConnected(false)
-  })
-
-  socket.on('connect', () => {
-    setConnected(true)
-  })
-
-  /**
-   * Update the fleets part of the parameters.
-   */
   const saveFleets = (updatedJson) => {
-    setExperimentParameters({ ...experimentParameters, fleets: updatedJson })
+    setExperimentParameters(updatedJson)
+  }
+
+  if (!socket) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="text-lg font-medium text-gray-600 mb-2">
+            Ansluter till simulator...
+          </div>
+          <div className="text-sm text-gray-500">
+            Kontrollera att simulatorn körs på rätt adress
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <>
-      <Logo />
-
-      {/* Loader. */}
-      {(!connected || reset || !cars.length || !bookings.length) && (
-        <Loading
-          connected={connected}
-          passengers={passengers.length}
-          cars={cars.length}
-          bookings={bookings.length}
-          municipalities={municipalities.length}
-          lineShapes={lineShapes.length}
-        />
-      )}
-
-      {/* Playback controls. */}
-      <PlaybackOptions
-        onPause={onPause}
-        onPlay={onPlay}
-        onSpeedChange={onSpeedChange}
+    <div className="relative w-full h-full">
+      <Map
+        activeCar={activeCar}
+        setActiveCar={setActiveCar}
+        cars={cars}
+        bookings={bookings}
+        postombud={postombud}
+        lineShapes={lineShapes}
+        municipalities={municipalities}
+        currentParameters={currentParameters}
+        fleets={fleets}
+        time={time}
+        activeLayers={activeLayers}
+        loading={false}
+        reset={reset}
+        initMapState={{
+          latitude: 59.1955,
+          longitude: 17.6253,
+          zoom: 10,
+          ...currentParameters.initMapState,
+        }}
+        experimentId={currentParameters.id}
+        socket={socket}
+        setShowEditExperimentModal={setShowEditExperimentModal}
+        selectedDataFile={selectedDataFile}
+        setSelectedDataFile={setSelectedDataFile}
+        uploadedFiles={uploadedFiles}
       />
 
-      {/* Reset experiment button. */}
-      <ResetExperiment resetSimulation={resetSimulation} />
+      {!isSimulationRunning && (
+        <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg text-center shadow-lg">
+            <div className="text-lg font-medium text-gray-800 mb-2">
+              Ingen simulering körs
+            </div>
+            <p className="text-sm text-gray-600">
+              Starta en simulering för att se live data på kartan
+            </p>
+          </div>
+        </div>
+      )}
 
-      {/* Stats button */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '120px',
-          right: '10px',
-          backgroundColor: '#fff',
-          borderRadius: '4px',
-          padding: '8px',
-          zIndex: 1000,
-          boxShadow: '0 0 10px rgba(0,0,0,0.2)',
-        }}
-      >
-        <button
-          onClick={requestBookingsAndVehicles}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#1976d2',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Get Stats
-        </button>
+      <div className="absolute top-4 left-4 z-40">
+        <Logo />
       </div>
 
-      {/* Edit experiment modal. */}
+      <div className="absolute top-4 right-4 z-40">
+        <div className="bg-white p-2 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isSimulationRunning ? 'bg-green-500' : 'bg-gray-400'
+              }`}
+            />
+            <span className="text-sm">
+              {isSimulationRunning ? 'Live' : 'Stoppad'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {isSimulationRunning && (
+        <>
+          <PlaybackOptions
+            onPlay={onPlay}
+            onPause={onPause}
+            onSpeedChange={onSpeedChange}
+            reset={reset}
+            speed={speed}
+            time={time}
+          />
+
+          <ResetExperiment
+            resetSimulation={resetSimulation}
+            requestBookingsAndVehicles={requestBookingsAndVehicles}
+            setShowEditExperimentModal={setShowEditExperimentModal}
+          />
+        </>
+      )}
+
       <EditExperimentModal
         fleets={fleets}
         show={showEditExperimentModal}
         setShow={setShowEditExperimentModal}
         restartSimulation={restartSimulation}
         saveFleets={saveFleets}
-        settings={currentParameters.settings}
       />
 
-      {/* Experiment done modal. */}
       <ExperimentDoneModal
         experimentId={previousExperimentId}
         show={showExperimentDoneModal}
         setShow={setShowExperimentDoneModal}
       />
 
-      {/* Map. */}
-      {currentParameters.initMapState && (
-        <Map
-          activeLayers={activeLayers}
-          passengers={passengers}
-          cars={cars}
-          bookings={bookings}
-          postombud={postombud}
-          municipalities={municipalities}
-          activeCar={activeCar}
-          time={time}
-          setActiveCar={setActiveCar}
-          lineShapes={lineShapes}
-          showEditExperimentModal={showEditExperimentModal}
-          setShowEditExperimentModal={setShowEditExperimentModal}
-          experimentId={currentParameters.id}
-          initMapState={currentParameters.initMapState}
-          socket={socket}
-          selectedDataFile={selectedDataFile}
-          setSelectedDataFile={setSelectedDataFile}
-          uploadedFiles={uploadedFiles}
-        />
-      )}
-
       <Snackbar
-        sx={{ opacity: 0.8 }}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        variant="filled"
         open={snackbarOpen}
-        autoHideDuration={3000}
-        TransitionComponent={TransitionDown}
+        autoHideDuration={6000}
         onClose={() => setSnackbarOpen(false)}
+        TransitionComponent={TransitionDown}
       >
-        <SnackbarContent
-          sx={{ backgroundColor: 'black', color: 'white' }}
-          message={latestLogMessage}
-        />
+        <SnackbarContent message={latestLogMessage} />
       </Snackbar>
-    </>
+    </div>
   )
 }
 
 function TransitionDown(props) {
   return <Slide {...props} direction="down" />
 }
+
 export default MapSimulator

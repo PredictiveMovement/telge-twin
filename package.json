@@ -28,8 +28,5 @@
     "eslint-plugin-rxjs": "^5.0.3",
     "lerna": "^6.6.2",
     "prettier": "^2.5.1"
-  },
-  "workspaces": [
-    "packages/*"
-  ]
+  }
 }

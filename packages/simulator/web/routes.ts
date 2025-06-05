@@ -3,12 +3,12 @@ import fs from 'fs'
 import cookie from 'cookie'
 import moment from 'moment'
 import { Server, Socket } from 'socket.io'
-import { filter, take, toArray, map } from 'rxjs/operators'
+import { filter, take } from 'rxjs/operators'
 import { emitters } from '../config'
 import { save, read } from '../config'
 import { info } from '../lib/log'
 import { virtualTime } from '../lib/virtualTime'
-import { firstValueFrom } from 'rxjs'
+import { safeId } from '../lib/id'
 
 // Data collectors for stats
 const collectedData = {
@@ -16,6 +16,10 @@ const collectedData = {
   vehicles: new Set(),
   lastReset: Date.now(),
 }
+
+let globalExperiment: any = null
+let isSimulationRunning = false
+const mapWatchers = new Set<string>()
 
 // CJS engine import to keep compatibility
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -40,14 +44,79 @@ function getUploadedFiles(): string[] {
   }
 }
 
+function getOrCreateGlobalExperiment() {
+  if (!globalExperiment) {
+    const currentEmitters = emitters()
+    globalExperiment = engine.createExperiment({
+      defaultEmitters: currentEmitters,
+      id: read().id,
+    })
+
+    if (!globalExperiment.parameters.emitters) {
+      globalExperiment.parameters.emitters = currentEmitters
+    }
+
+    globalExperiment.parameters.initMapState = {
+      latitude: parseFloat(process.env.LATITUDE || '59.1955'),
+      longitude: parseFloat(process.env.LONGITUDE || '17.6253'),
+      zoom: parseInt(process.env.ZOOM || '10', 10),
+    }
+
+    if (globalExperiment.virtualTime) {
+      globalExperiment.virtualTime
+        .getTimeStream()
+        .pipe(
+          filter((time: number) => time >= moment().endOf('day').valueOf()),
+          take(1)
+        )
+        .subscribe(() => {
+          stopGlobalSimulation()
+        })
+    }
+  }
+  return globalExperiment
+}
+
+function stopGlobalSimulation() {
+  if (globalExperiment) {
+    globalExperiment = null
+    isSimulationRunning = false
+
+    collectedData.bookings.clear()
+    collectedData.vehicles.clear()
+    collectedData.lastReset = Date.now()
+
+    mapWatchers.forEach((socketId) => {
+      const socket = require('socket.io').sockets.sockets.get(socketId)
+      if (socket) {
+        socket.emit('simulationStopped')
+      }
+    })
+  }
+}
+
+function connectSocketToGlobalExperiment(socket: Socket) {
+  const experiment = getOrCreateGlobalExperiment()
+
+  socket.data.experiment = experiment
+
+  if (socket.data.subscriptions) {
+    socket.data.subscriptions.forEach((sub: { unsubscribe(): void }) =>
+      sub.unsubscribe()
+    )
+  }
+
+  socket.data.subscriptions = subscribe(experiment, socket)
+
+  socket.emit('parameters', experiment.parameters)
+}
+
 // -----------------------------------------------------------------------------
 // Dynamic sub-route registration
 // -----------------------------------------------------------------------------
 
 function subscribe(experiment: any, socket: Socket): Array<unknown> {
   const currentEmitters = emitters()
-
-  // Import sub-routes lazily to avoid circular deps during compile
   const routes: Array<unknown> = []
 
   if (currentEmitters.includes('bookings')) {
@@ -106,35 +175,6 @@ function subscribe(experiment: any, socket: Socket): Array<unknown> {
   return routes.flat().filter(Boolean)
 }
 
-function start(socket: Socket, io: Server) {
-  const currentEmitters = emitters()
-  let experiment: any = (socket.data as any).experiment // may be undefined initially
-
-  if (!experiment) {
-    experiment = engine.createExperiment({ defaultEmitters: currentEmitters })
-    let endOfDaySubscription = experiment.virtualTime
-      .getTimeStream()
-      .pipe(
-        filter((time: number) => time >= moment().endOf('day').valueOf()),
-        take(1)
-      )
-      .subscribe(() => {
-        io.emit('reset')
-        info('Experiment finished. Restarting...')
-        endOfDaySubscription.unsubscribe()
-      })
-  }
-
-  socket.data.experiment = experiment
-
-  if (socket.data.subscriptions) {
-    socket.data.subscriptions.forEach((sub: { unsubscribe(): void }) =>
-      sub.unsubscribe()
-    )
-  }
-  socket.data.subscriptions = subscribe(experiment, socket)
-}
-
 // -----------------------------------------------------------------------------
 // Public API (register)
 // -----------------------------------------------------------------------------
@@ -152,59 +192,149 @@ function register(io: Server): void {
   }
 
   io.on('connection', (socket: Socket) => {
-    start(socket, io)
-
-    // Default map settings from env
-    socket.data.experiment.parameters.initMapState = {
-      latitude: parseFloat(process.env.LATITUDE || '65.0964472642777'),
-      longitude: parseFloat(process.env.LONGITUDE || '17.112050188704504'),
-      zoom: parseInt(process.env.ZOOM || '5', 10),
-    }
-
     socket.data.emitCars = emitters().includes('cars')
 
-    socket.emit('init')
+    socket.on('startSimulation', (simData, parameters) => {
+      const experimentId = parameters?.id || safeId()
+      const currentEmitters = emitters()
+      const paramsToSave = {
+        ...parameters,
+        id: experimentId,
+        emitters: currentEmitters,
+      }
 
-    socket.on('reset', () => {
-      info('Manual reset of simulation, recreating experiment')
+      save(paramsToSave)
+
+      globalExperiment = null
+      getOrCreateGlobalExperiment()
+      isSimulationRunning = true
+
       virtualTime.reset()
-      io.sockets.sockets.forEach((s) => start(s as Socket, io))
-      io.emit('init')
-      const params = read()
-      io.emit('parameters', params)
 
-      // Clear the collected data
+      mapWatchers.forEach((socketId) => {
+        const socket = io.sockets.sockets.get(socketId)
+        if (socket) {
+          connectSocketToGlobalExperiment(socket)
+        }
+      })
+
       collectedData.bookings.clear()
       collectedData.vehicles.clear()
       collectedData.lastReset = Date.now()
+
+      io.emit('simulationStarted', {
+        running: true,
+        data: simData,
+        experimentId,
+      })
+    })
+
+    socket.on('stopSimulation', () => {
+      stopGlobalSimulation()
+    })
+
+    socket.on('joinMap', () => {
+      mapWatchers.add(socket.id)
+      socket.data.isWatchingMap = true
+
+      if (isSimulationRunning) {
+        connectSocketToGlobalExperiment(socket)
+      }
+
+      socket.emit('simulationStatus', {
+        running: isSimulationRunning,
+        experimentId: globalExperiment?.parameters?.id,
+      })
+    })
+
+    socket.on('leaveMap', () => {
+      mapWatchers.delete(socket.id)
+      socket.data.isWatchingMap = false
+
+      if (socket.data.subscriptions) {
+        socket.data.subscriptions.forEach((sub: { unsubscribe(): void }) =>
+          sub.unsubscribe()
+        )
+        socket.data.subscriptions = []
+      }
+    })
+
+    socket.on('reset', () => {
+      virtualTime.reset()
+
+      if (isSimulationRunning) {
+        globalExperiment = null
+        getOrCreateGlobalExperiment()
+
+        mapWatchers.forEach((socketId) => {
+          const socket = io.sockets.sockets.get(socketId)
+          if (socket) {
+            connectSocketToGlobalExperiment(socket)
+          }
+        })
+      }
+
+      collectedData.bookings.clear()
+      collectedData.vehicles.clear()
+      collectedData.lastReset = Date.now()
+
+      io.emit('init')
+
+      if (globalExperiment) {
+        io.emit('parameters', globalExperiment.parameters)
+      }
     })
 
     socket.on('carLayer', (val: boolean) => (socket.data.emitCars = val))
 
     socket.on('experimentParameters', (value: unknown) => {
-      info('New experiment settings:', value)
       save(value as any)
-      const params = read()
-      io.emit('parameters', params)
-      virtualTime.reset()
-      io.sockets.sockets.forEach((s) => start(s as Socket, io))
+
+      if (isSimulationRunning) {
+        globalExperiment = null
+        virtualTime.reset()
+        getOrCreateGlobalExperiment()
+
+        mapWatchers.forEach((socketId) => {
+          const socket = io.sockets.sockets.get(socketId)
+          if (socket) {
+            connectSocketToGlobalExperiment(socket)
+          }
+        })
+      }
+
       io.emit('init')
+      if (globalExperiment) {
+        io.emit('parameters', globalExperiment.parameters)
+      }
     })
 
     socket.on('selectDataFile', (filename: string) => {
-      info('Selected data file:', filename)
       socket.data.selectedDataFile = filename
     })
 
     socket.on('saveDataFileSelection', (filename: string) => {
-      info('Saving data file selection:', filename)
       const params = read()
       params.selectedDataFile = filename
       save(params)
-      io.emit('parameters', params)
-      virtualTime.reset()
-      io.sockets.sockets.forEach((s) => start(s as Socket, io))
+
+      if (isSimulationRunning) {
+        globalExperiment = null
+        virtualTime.reset()
+        getOrCreateGlobalExperiment()
+
+        mapWatchers.forEach((socketId) => {
+          const socket = io.sockets.sockets.get(socketId)
+          if (socket) {
+            connectSocketToGlobalExperiment(socket)
+          }
+        })
+      }
+
       io.emit('init')
+      if (globalExperiment) {
+        io.emit('parameters', globalExperiment.parameters)
+      }
     })
 
     socket.on('getUploadedFiles', () => {
@@ -216,73 +346,17 @@ function register(io: Server): void {
       const bookingsCount = collectedData.bookings.size
       const vehiclesCount = collectedData.vehicles.size
 
-      // Get the experiment to extract detailed data
-      const experiment = socket.data.experiment
       let bookings: any[] = []
       let vehicles: any[] = []
 
-      if (experiment) {
-        // Get vehicles data from socket if available
-        if (socket.data.cars && socket.data.cars.length > 0) {
-          vehicles = socket.data.cars
-        }
-
-        // Get bookings data from socket if available
-        if (socket.data.bookings && socket.data.bookings.length > 0) {
-          bookings = socket.data.bookings
-        }
-
-        // If we have fleets, we can try to get data directly from them
-        if (
-          experiment.fleets &&
-          (bookings.length === 0 || vehicles.length === 0)
-        ) {
-          try {
-            // Get all the active bookings from all fleets
-            const allBookings: any[] = []
-            const allVehicles: any[] = []
-
-            Object.values(experiment.fleets).forEach((fleet: any) => {
-              // Try to get the current bookings
-              if (fleet.unhandledBookings && fleet.unhandledBookings._events) {
-                allBookings.push(...fleet.unhandledBookings._events)
-              }
-              if (
-                fleet.dispatchedBookings &&
-                fleet.dispatchedBookings._events
-              ) {
-                allBookings.push(...fleet.dispatchedBookings._events)
-              }
-
-              // Try to get the vehicles/cars
-              if (fleet.cars && fleet.cars._events) {
-                allVehicles.push(...fleet.cars._events)
-              }
-            })
-
-            if (allBookings.length > 0 && bookings.length === 0) {
-              bookings = allBookings
-            }
-
-            if (allVehicles.length > 0 && vehicles.length === 0) {
-              vehicles = allVehicles
-            }
-          } catch (e) {
-            // Ignore errors
-          }
-        }
-
-        // If we still don't have data, convert the collected IDs to objects
-        if (bookings.length === 0 && collectedData.bookings.size > 0) {
-          bookings = Array.from(collectedData.bookings).map((id) => ({ id }))
-        }
-
-        if (vehicles.length === 0 && collectedData.vehicles.size > 0) {
-          vehicles = Array.from(collectedData.vehicles).map((id) => ({ id }))
-        }
+      if (collectedData.bookings.size > 0) {
+        bookings = Array.from(collectedData.bookings).map((id) => ({ id }))
       }
 
-      // Send all data to the client
+      if (collectedData.vehicles.size > 0) {
+        vehicles = Array.from(collectedData.vehicles).map((id) => ({ id }))
+      }
+
       socket.emit('bookingsAndVehiclesData', {
         bookings,
         vehicles,
@@ -293,8 +367,9 @@ function register(io: Server): void {
       })
     })
 
-    socket.emit('parameters', socket.data.experiment.parameters)
-    socket.emit('uploadedFiles', getUploadedFiles())
+    socket.on('disconnect', () => {
+      mapWatchers.delete(socket.id)
+    })
   })
 }
 

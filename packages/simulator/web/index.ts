@@ -154,6 +154,74 @@ app.get('/api/experiments/:planId/trucks', async (req, res) => {
   }
 })
 
+app.get('/api/simulations', async (req, res) => {
+  try {
+    const searchResult = await search({
+      index: 'vroom-fleet-plans',
+      body: {
+        query: {
+          match_all: {},
+        },
+        _source: ['planId', 'fleet', 'timestamp'],
+        sort: [
+          {
+            timestamp: {
+              order: 'desc',
+            },
+          },
+        ],
+        size: 1000,
+      },
+    })
+
+    const hits = searchResult?.body?.hits?.hits || []
+
+    const simulationsMap = new Map()
+
+    hits.forEach((hit: any) => {
+      const { planId, fleet, timestamp } = hit._source
+
+      if (!simulationsMap.has(planId)) {
+        simulationsMap.set(planId, {
+          planId,
+          fleets: new Set(),
+          latestTimestamp: timestamp,
+          documentsCount: 0,
+        })
+      }
+
+      const simulation = simulationsMap.get(planId)
+      simulation.fleets.add(fleet)
+      simulation.documentsCount += 1
+
+      if (new Date(timestamp) > new Date(simulation.latestTimestamp)) {
+        simulation.latestTimestamp = timestamp
+      }
+    })
+
+    const simulations = Array.from(simulationsMap.values())
+      .map((simulation) => ({
+        planId: simulation.planId,
+        fleetCount: simulation.fleets.size,
+        fleets: Array.from(simulation.fleets),
+        latestTimestamp: simulation.latestTimestamp,
+        documentsCount: simulation.documentsCount,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.latestTimestamp).getTime() -
+          new Date(a.latestTimestamp).getTime()
+      )
+
+    res.json({ success: true, data: simulations })
+  } catch (error) {
+    console.error('Error fetching simulations:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    res.status(500).json({ success: false, error: errorMessage })
+  }
+})
+
 const server = http.createServer(app)
 
 const io = new Server(server, {

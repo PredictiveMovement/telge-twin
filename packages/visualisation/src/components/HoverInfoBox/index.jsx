@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react'
 import styled from 'styled-components'
 import ProgressBar from '../ProgressBar'
-import { Paragraph } from '../Typography'
 import moment from 'moment'
 import {
   DirectionsCar,
@@ -125,11 +124,7 @@ const ProgressBarLabel = styled.div`
 `
 
 const CarInfo = ({ data }) => {
-  console.log(data)
   const imageUrl = vehicleImages[data.fleet] || vehicleImages.default
-
-  const totalBins =
-    (data.queue || 0) + (data.cargo || 0) + (data.delivered || 0)
 
   return (
     <Wrapper left={data.x} top={data.viewport.height - data.y + 20}>
