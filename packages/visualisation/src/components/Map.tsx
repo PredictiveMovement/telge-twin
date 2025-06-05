@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { StaticMap } from 'react-map-gl'
 import DeckGL, {
   ScatterplotLayer,
@@ -9,6 +9,7 @@ import DeckGL, {
 import { Car, Booking } from '@/types/map'
 import LayersMenu from './LayersMenu'
 import BookingLegend from './BookingLegend'
+import PlaybackControls from './PlaybackControls'
 import { BookingFilters } from './BookingLegend/types'
 import { DEFAULT_FILTERS } from './BookingLegend/constants'
 
@@ -17,6 +18,11 @@ interface MapProps {
   bookings: Booking[]
   isSimulationRunning: boolean
   isConnected: boolean
+  isTimeRunning?: boolean
+  timeSpeed?: number
+  onPlayTime?: () => void
+  onPauseTime?: () => void
+  onSpeedChange?: (speed: number) => void
 }
 
 const BOOKING_COLORS = {
@@ -30,7 +36,17 @@ const BOOKING_COLORS = {
   default: [254, 254, 254],
 }
 
-const Map: React.FC<MapProps> = ({ cars, bookings, isSimulationRunning }) => {
+const Map: React.FC<MapProps> = ({
+  cars,
+  bookings,
+  isSimulationRunning,
+  isConnected,
+  isTimeRunning = false,
+  timeSpeed = 60,
+  onPlayTime,
+  onPauseTime,
+  onSpeedChange,
+}) => {
   const [mapState, setMapState] = useState({
     bearing: 0,
     pitch: 40,
@@ -482,12 +498,41 @@ const Map: React.FC<MapProps> = ({ cars, bookings, isSimulationRunning }) => {
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: isSimulationRunning ? '#10b981' : '#6b7280',
+              backgroundColor:
+                isSimulationRunning && isTimeRunning
+                  ? '#10b981'
+                  : isSimulationRunning
+                  ? '#eab308'
+                  : '#6b7280',
             }}
           />
-          {isSimulationRunning ? 'Simulering aktiv' : 'Simulering stoppad'}
+          {isSimulationRunning
+            ? isTimeRunning
+              ? 'Simulering aktiv'
+              : 'Simulering pausad'
+            : 'Simulering stoppad'}
         </div>
       </div>
+
+      {(isSimulationRunning || onPlayTime) && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 1000,
+          }}
+        >
+          <PlaybackControls
+            isPlaying={isTimeRunning}
+            speed={timeSpeed}
+            onPlay={onPlayTime || (() => {})}
+            onPause={onPauseTime || (() => {})}
+            onSpeedChange={onSpeedChange || (() => {})}
+            disabled={!isConnected || !isSimulationRunning}
+          />
+        </div>
+      )}
     </DeckGL>
   )
 }

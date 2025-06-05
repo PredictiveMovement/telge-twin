@@ -21,6 +21,9 @@ const MapPage = () => {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isMapActive, setIsMapActive] = useState(false)
 
+  const [isTimeRunning, setIsTimeRunning] = useState(false)
+  const [timeSpeed, setTimeSpeed] = useState(60)
+
   const upsertList = <T extends { id: any }>(
     prev: T[],
     incoming: T | T[],
@@ -67,6 +70,11 @@ const MapPage = () => {
       setIsSimulationRunning(status.running)
       setSimulationData(status.data)
       setExperimentId(status.experimentId)
+      if (status.running && socket) {
+        setIsTimeRunning(true)
+        socket.emit('play')
+        socket.emit('speed', timeSpeed)
+      }
     }
 
     const handleSimulationStarted = (data: any) => {
@@ -76,6 +84,11 @@ const MapPage = () => {
       setExperimentId(data.experimentId)
       setCars([])
       setBookings([])
+      setIsTimeRunning(true)
+      if (socket) {
+        socket.emit('play')
+        socket.emit('speed', timeSpeed)
+      }
     }
 
     const handleSimulationStopped = () => {
@@ -85,6 +98,10 @@ const MapPage = () => {
       setExperimentId(null)
       setCars([])
       setBookings([])
+      setIsTimeRunning(false)
+      if (socket) {
+        socket.emit('pause')
+      }
     }
 
     const handleSimulationFinished = () => {
@@ -92,6 +109,10 @@ const MapPage = () => {
       setIsSimulationRunning(false)
       setSimulationData(null)
       setExperimentId(null)
+      setIsTimeRunning(false)
+      if (socket) {
+        socket.emit('pause')
+      }
     }
 
     const handleCars = (payload: any | any[]) =>
@@ -148,6 +169,24 @@ const MapPage = () => {
     socket.emit('stopSimulation')
   }
 
+  const handlePlayTime = () => {
+    if (!socket) return
+    setIsTimeRunning(true)
+    socket.emit('play')
+  }
+
+  const handlePauseTime = () => {
+    if (!socket) return
+    setIsTimeRunning(false)
+    socket.emit('pause')
+  }
+
+  const handleSpeedChange = (speed: number) => {
+    if (!socket) return
+    setTimeSpeed(speed)
+    socket.emit('speed', speed)
+  }
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -191,20 +230,30 @@ const MapPage = () => {
               <div className="flex items-center space-x-4">
                 <div
                   className={`w-3 h-3 rounded-full ${
-                    isSimulationRunning
+                    isSimulationRunning && isTimeRunning
                       ? 'bg-green-500 animate-pulse'
+                      : isSimulationRunning
+                      ? 'bg-yellow-500'
                       : 'bg-gray-400'
                   }`}
                 />
                 <div>
                   <p className="font-medium">
                     {isSimulationRunning
-                      ? 'Simulering aktiv'
+                      ? isTimeRunning
+                        ? 'Simulering aktiv'
+                        : 'Simulering pausad'
                       : 'Ingen aktiv simulering'}
                   </p>
                   {experimentId && (
                     <p className="text-sm text-muted-foreground">
                       Experiment ID: {experimentId}
+                    </p>
+                  )}
+                  {isSimulationRunning && (
+                    <p className="text-sm text-muted-foreground">
+                      Hastighet: {timeSpeed}x | Tid:{' '}
+                      {isTimeRunning ? 'Körs' : 'Pausad'}
                     </p>
                   )}
                 </div>
@@ -239,6 +288,11 @@ const MapPage = () => {
                   bookings={bookings}
                   isSimulationRunning={isSimulationRunning}
                   isConnected={isConnected}
+                  isTimeRunning={isTimeRunning}
+                  timeSpeed={timeSpeed}
+                  onPlayTime={handlePlayTime}
+                  onPauseTime={handlePauseTime}
+                  onSpeedChange={handleSpeedChange}
                 />
               </CardContent>
             </Card>
@@ -274,7 +328,11 @@ const MapPage = () => {
               <div className="bg-telge-ljusbla p-4 rounded-md">
                 <p className="text-sm font-medium">Status</p>
                 <h3 className="text-2xl font-normal mt-1">
-                  {isSimulationRunning ? 'Aktiv' : 'Stoppad'}
+                  {isSimulationRunning
+                    ? isTimeRunning
+                      ? 'Aktiv'
+                      : 'Pausad'
+                    : 'Stoppad'}
                 </h3>
               </div>
               <div className="bg-telge-ljusgra p-4 rounded-md">
