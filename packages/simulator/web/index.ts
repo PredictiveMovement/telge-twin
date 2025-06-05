@@ -63,15 +63,14 @@ app.get('/', (_req, res) => {
 app.get('/api/experiments', async (req, res) => {
   try {
     const searchResult = await search({
-      index: 'vroom-fleet-plans',
+      index: 'experiments',
       body: {
         query: {
           match_all: {},
         },
-        _source: ['planId', 'timestamp'],
         sort: [
           {
-            timestamp: {
+            startDate: {
               order: 'desc',
             },
           },
@@ -81,11 +80,41 @@ app.get('/api/experiments', async (req, res) => {
     })
 
     const experiments =
-      searchResult?.body?.hits?.hits?.map((hit: any) => ({
-        id: hit._source.planId,
-        timestamp: hit._source.timestamp,
-        documentId: hit._id,
-      })) || []
+      searchResult?.body?.hits?.hits?.map((hit: any) => {
+        const source = hit._source
+        return {
+          id: source.id,
+          startDate: source.startDate,
+          fixedRoute: source.fixedRoute,
+          emitters: source.emitters,
+          fleets: source.fleets,
+          selectedDataFile: source.selectedDataFile,
+          fleetCount: source.fleets ? Object.keys(source.fleets).length : 0,
+          vehicleCount: source.fleets
+            ? Object.values(source.fleets).reduce(
+                (total: number, municipality: any) => {
+                  return (
+                    total +
+                    (municipality.fleets || []).reduce(
+                      (fleetTotal: number, fleet: any) => {
+                        return (
+                          fleetTotal +
+                          Object.values(fleet.vehicles || {}).reduce(
+                            (vTotal: number, count: any) => vTotal + count,
+                            0
+                          )
+                        )
+                      },
+                      0
+                    )
+                  )
+                },
+                0
+              )
+            : 0,
+          documentId: hit._id,
+        }
+      }) || []
 
     res.json({ success: true, data: experiments })
   } catch (error) {
@@ -96,26 +125,26 @@ app.get('/api/experiments', async (req, res) => {
   }
 })
 
-app.get('/api/experiments/:planId', async (req, res) => {
+app.get('/api/experiments/:experimentId', async (req, res) => {
   try {
-    const { planId } = req.params
+    const { experimentId } = req.params
     const searchResult = await search({
-      index: 'vroom-fleet-plans',
+      index: 'experiments',
       body: {
         query: {
-          term: { 'planId.keyword': planId },
+          term: { 'id.keyword': experimentId },
         },
       },
     })
 
     if (searchResult?.body?.hits?.hits?.length > 0) {
-      const planData = searchResult.body.hits.hits[0]._source
-      res.json({ success: true, data: planData })
+      const experimentData = searchResult.body.hits.hits[0]._source
+      res.json({ success: true, data: experimentData })
     } else {
-      res.status(404).json({ success: false, error: 'Plan not found' })
+      res.status(404).json({ success: false, error: 'Experiment not found' })
     }
   } catch (error) {
-    console.error('Error fetching plan by ID:', error)
+    console.error('Error fetching experiment by ID:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred'
     res.status(500).json({ success: false, error: errorMessage })

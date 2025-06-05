@@ -43,12 +43,16 @@ function getUploadedFiles(): string[] {
   }
 }
 
-function getOrCreateGlobalExperiment() {
+function getOrCreateGlobalExperiment(directParams?: any) {
   if (!globalExperiment) {
     const currentEmitters = emitters()
+
+    const experimentId = directParams?.id || safeId()
+
     globalExperiment = engine.createExperiment({
       defaultEmitters: currentEmitters,
-      id: read().id,
+      id: experimentId,
+      directParams: directParams,
     })
 
     if (!globalExperiment.parameters.emitters) {
@@ -195,15 +199,12 @@ function register(io: Server): void {
 
     socket.on('startSimulation', (simData, parameters) => {
       const experimentId = parameters?.id || safeId()
-      const currentEmitters = emitters()
-      const paramsToSave = {
-        ...parameters,
-        id: experimentId,
-        emitters: currentEmitters,
-      }
+      const isReplayMode = Object.values(parameters?.fleets || {}).some(
+        (m: any) => m.settings?.replayExperiment
+      )
 
       globalExperiment = null
-      getOrCreateGlobalExperiment()
+      getOrCreateGlobalExperiment(parameters)
       isSimulationRunning = true
 
       virtualTime.reset()

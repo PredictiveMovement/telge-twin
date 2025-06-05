@@ -7,11 +7,9 @@ const simulatorApi = axios.create({
   headers: SIMULATOR_CONFIG.requestConfig.headers,
 })
 
-export const fetchExperimentIds = async () => {
+export const fetchExperiments = async () => {
   try {
-    const response = await simulatorApi.get(
-      SIMULATOR_CONFIG.endpoints.experiments
-    )
+    const response = await simulatorApi.get('/api/experiments')
 
     if (response.data?.success && response.data?.data) {
       return response.data.data
@@ -19,7 +17,32 @@ export const fetchExperimentIds = async () => {
 
     return []
   } catch (error) {
+    console.error('Error fetching experiments:', error)
+    throw error
+  }
+}
+
+export const fetchExperimentIds = async () => {
+  try {
+    const experiments = await fetchExperiments()
+    return experiments.map((exp) => exp.id)
+  } catch (error) {
     console.error('Error fetching experiment IDs:', error)
+    throw error
+  }
+}
+
+export const fetchExperimentById = async (experimentId) => {
+  try {
+    const response = await simulatorApi.get(`/api/experiments/${experimentId}`)
+
+    if (response.data?.success && response.data?.data) {
+      return response.data.data
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error fetching experiment by ID:', error)
     throw error
   }
 }
@@ -245,8 +268,50 @@ export const startSimulation = (socket, routeData) => {
   }
 
   if (socket) {
-    console.log('Starting simulation')
     socket.emit('startSimulation', routeData, parameters)
+  }
+}
+
+export const startReplaySimulation = async (socket, experimentId) => {
+  try {
+    const experimentData = await fetchExperimentById(experimentId)
+
+    if (!experimentData) {
+      throw new Error(`Experiment ${experimentId} not found`)
+    }
+
+    const replayParameters = {
+      ...experimentData,
+      fleets: Object.fromEntries(
+        Object.entries(experimentData.fleets || {}).map(
+          ([municipality, config]) => [
+            municipality,
+            {
+              ...config,
+              settings: {
+                ...config.settings,
+                replayExperiment: experimentId,
+              },
+            },
+          ]
+        )
+      ),
+    }
+
+    const routeData = {
+      name: `Replay: Experiment ${experimentId}`,
+      description: `Replay av tidigare experiment från ${new Date(
+        experimentData.startDate
+      ).toLocaleString('sv-SE')}`,
+      startTime: new Date().toISOString(),
+    }
+
+    if (socket) {
+      socket.emit('startSimulation', routeData, replayParameters)
+    }
+  } catch (error) {
+    console.error('Error starting replay simulation:', error)
+    throw error
   }
 }
 

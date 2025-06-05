@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import { Car, Booking } from '@/types/map'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MapIcon, Route, Play, Square, Activity } from 'lucide-react'
+import { MapIcon, Route, Play, Square, Activity, RotateCcw } from 'lucide-react'
 import Map from '@/components/Map'
 import { useSocket } from '@/hooks/useSocket'
-import { startSimulation } from '@/api/simulator'
+import { startSimulation, startReplaySimulation } from '@/api/simulator'
 import { toLonLatArray } from '@/utils/geo'
 
 const MapPage = () => {
   const { socket, isConnected } = useSocket()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [isSimulationRunning, setIsSimulationRunning] = useState(false)
   const [simulationData, setSimulationData] = useState(null)
   const [experimentId, setExperimentId] = useState(null)
+  const [isReplayMode, setIsReplayMode] = useState(false)
 
   const [cars, setCars] = useState<Car[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -38,6 +41,16 @@ const MapPage = () => {
     })
     return next
   }
+
+  useEffect(() => {
+    const replayParam = searchParams.get('replay')
+    if (replayParam) {
+      setIsReplayMode(true)
+      if (socket && isConnected) {
+        handleReplaySimulation(replayParam)
+      }
+    }
+  }, [searchParams, socket, isConnected])
 
   useEffect(() => {
     if (!socket) {
@@ -187,26 +200,54 @@ const MapPage = () => {
     socket.emit('speed', speed)
   }
 
+  const handleReplaySimulation = async (replayExperimentId: string) => {
+    if (!socket) return
+    try {
+      await startReplaySimulation(socket, replayExperimentId)
+    } catch (error) {
+      console.error('Failed to start replay simulation:', error)
+    }
+  }
+
+  const handleExitReplay = () => {
+    setIsReplayMode(false)
+    setSearchParams({})
+    if (socket && isSimulationRunning) {
+      socket.emit('stopSimulation')
+    }
+  }
+
   return (
     <Layout>
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-normal">Karta</h1>
+            <h1 className="text-4xl font-normal">
+              {isReplayMode ? 'Karta - Replay' : 'Karta'}
+            </h1>
             <p className="text-muted-foreground mt-1">
-              Visualisera och övervaka rutter i realtid
+              {isReplayMode
+                ? `Spelar upp experiment: ${searchParams.get('replay')}`
+                : 'Visualisera och övervaka rutter i realtid'}
             </p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline">
-              <Route size={16} className="mr-2" />
-              Välj rutter
-            </Button>
+            {isReplayMode ? (
+              <Button variant="outline" onClick={handleExitReplay}>
+                <RotateCcw size={16} className="mr-2" />
+                Lämna replay
+              </Button>
+            ) : (
+              <Button variant="outline">
+                <Route size={16} className="mr-2" />
+                Välj rutter
+              </Button>
+            )}
             {!isSimulationRunning ? (
               <Button
                 className="bg-telge-bla hover:bg-telge-bla/90"
                 onClick={handleStartSimulation}
-                disabled={!isConnected}
+                disabled={!isConnected || isReplayMode}
               >
                 <Play size={16} className="mr-2" />
                 Starta simulering
@@ -224,7 +265,11 @@ const MapPage = () => {
           </div>
         </div>
 
-        <Card className="border-l-4 border-l-telge-bla">
+        <Card
+          className={`border-l-4 ${
+            isReplayMode ? 'border-l-orange-500' : 'border-l-telge-bla'
+          }`}
+        >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -241,13 +286,24 @@ const MapPage = () => {
                   <p className="font-medium">
                     {isSimulationRunning
                       ? isTimeRunning
-                        ? 'Simulering aktiv'
+                        ? isReplayMode
+                          ? 'Replay aktiv'
+                          : 'Simulering aktiv'
+                        : isReplayMode
+                        ? 'Replay pausad'
                         : 'Simulering pausad'
+                      : isReplayMode
+                      ? 'Replay stoppad'
                       : 'Ingen aktiv simulering'}
                   </p>
                   {experimentId && (
                     <p className="text-sm text-muted-foreground">
                       Experiment ID: {experimentId}
+                    </p>
+                  )}
+                  {isReplayMode && (
+                    <p className="text-sm text-orange-600 font-medium">
+                      🔄 Replay-läge aktivt
                     </p>
                   )}
                   {isSimulationRunning && (

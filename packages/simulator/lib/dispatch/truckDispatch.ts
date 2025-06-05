@@ -25,12 +25,12 @@ async function loadTruckPlanForExperiment(
           bool: {
             must: [
               {
-                term: {
-                  planId: experimentId,
+                match: {
+                  experiment: experimentId,
                 },
               },
               {
-                term: {
+                match: {
                   truckId: truckId,
                 },
               },
@@ -40,22 +40,35 @@ async function loadTruckPlanForExperiment(
         sort: [{ timestamp: { order: 'desc' } }],
       },
     })
-    return res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
+
+    const result = res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
+    if (result) {
+      info(
+        `Loaded truck plan from Elasticsearch for experiment: ${experimentId}, truckId: ${truckId}`
+      )
+    } else {
+      info(
+        `No truck plan found for experiment: ${experimentId}, truckId: ${truckId}`
+      )
+    }
+    return result
   } catch (e) {
-    error(`Error loading plan: ${e}`)
+    error(`Error loading truck plan: ${e}`)
     return null
   }
 }
 
 async function savePlanToElastic(
-  planId: string,
+  experimentId: string,
   truckId: string,
   fleetName: string,
   vroomResponse: any
 ): Promise<void> {
   try {
-    if (!planId || planId.trim() === '') {
-      error(`Invalid planId provided to savePlanToElastic: "${planId}"`)
+    if (!experimentId || experimentId.trim() === '') {
+      error(
+        `Invalid experimentId provided to savePlanToElastic: "${experimentId}"`
+      )
       return
     }
 
@@ -64,19 +77,22 @@ async function savePlanToElastic(
       return
     }
 
+    const planId = `${experimentId}-${truckId}-${Date.now()}`
+
     await save(
       {
         planId: planId,
+        experiment: experimentId,
         truckId: truckId,
         fleet: fleetName,
         vroomResponse: vroomResponse,
         timestamp: new Date().toISOString(),
       },
-      `${planId}-${truckId}`,
+      planId,
       'vroom-truck-plans'
     )
     info(
-      `Saved truck plan to Elasticsearch with planId: ${planId}, truckId: ${truckId}`
+      `Saved truck plan to Elasticsearch with planId: ${planId}, experiment: ${experimentId}, truckId: ${truckId}`
     )
   } catch (err) {
     error(`Error saving plan to Elasticsearch: ${err}`)
@@ -97,12 +113,14 @@ export async function findBestRouteToPickupBookings(
   const shipments = bookings.map(bookingToShipment)
   const result: any = await plan({ shipments, vehicles })
 
-  await savePlanToElastic(
-    experimentId,
-    truck.id,
-    truck.fleet?.name || truck.id,
-    result
-  )
+  if (!truck.fleet?.settings?.replayExperiment) {
+    await savePlanToElastic(
+      experimentId,
+      truck.id,
+      truck.fleet?.name || truck.id,
+      result
+    )
+  }
 
   if (result.unassigned?.length > 0) {
     error(`Unassigned bookings: ${result.unassigned}`)
@@ -130,8 +148,25 @@ export async function useReplayRoute(truck: any, bookings: any[]) {
     error(
       `No plan found for experiment ${truck.fleet.settings.replayExperiment} and truck ${truck.id}`
     )
+    return []
   }
-  return plan
+
+  const instructions = ['pickup', 'delivery', 'start']
+  return (
+    plan.routes[0]?.steps
+      ?.filter(({ type }: { type: string }) =>
+        instructions.includes(type as any)
+      )
+      ?.map(({ id, type, arrival, departure }: any) => {
+        const booking = bookings[id]
+        return {
+          action: type,
+          arrival,
+          departure,
+          booking,
+        }
+      }) || []
+  )
 }
 
 export default { findBestRouteToPickupBookings, useReplayRoute }

@@ -242,6 +242,9 @@
         "planId": {
           "type": "keyword"
         },
+        "experiment": {
+          "type": "keyword"
+        },
         "truckId": {
           "type": "keyword"
         },
@@ -264,6 +267,9 @@
         "planId": {
           "type": "keyword"
         },
+        "experiment": {
+          "type": "keyword"
+        },
         "fleet": {
           "type": "keyword"
         },
@@ -271,6 +277,31 @@
           "type": "date"
         },
         "vroomResponse": {
+          "type": "object",
+          "enabled": false
+        }
+      }
+    }
+  },
+  "experiments": {
+    "mappings": {
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "startDate": {
+          "type": "date"
+        },
+        "fixedRoute": {
+          "type": "integer"
+        },
+        "emitters": {
+          "type": "keyword"
+        },
+        "selectedDataFile": {
+          "type": "keyword"
+        },
+        "fleets": {
           "type": "object",
           "enabled": false
         }

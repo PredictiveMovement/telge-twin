@@ -113,8 +113,13 @@ async function loadPlanForExperiment(experimentId: string, fleet: string) {
           bool: {
             must: [
               {
-                term: {
-                  planId: experimentId,
+                match: {
+                  experiment: experimentId,
+                },
+              },
+              {
+                match: {
+                  fleet: fleet,
                 },
               },
             ],
@@ -123,7 +128,16 @@ async function loadPlanForExperiment(experimentId: string, fleet: string) {
         sort: [{ timestamp: { order: 'desc' } }],
       },
     })
-    return res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
+
+    const result = res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
+    if (result) {
+      info(
+        `Loaded plan from Elasticsearch for experiment: ${experimentId}, fleet: ${fleet}`
+      )
+    } else {
+      info(`No plan found for experiment: ${experimentId}, fleet: ${fleet}`)
+    }
+    return result
   } catch (e) {
     error(`Error loading plan: ${e}`)
     return null
@@ -131,14 +145,17 @@ async function loadPlanForExperiment(experimentId: string, fleet: string) {
 }
 
 async function savePlanToElastic(
-  planId: string,
+  experimentId: string,
   fleet: string,
   vroomResponse: any
 ): Promise<void> {
   try {
+    const planId = randomUUID().replace(/-/g, '')
+
     await save(
       {
         planId: planId,
+        experiment: experimentId,
         fleet: fleet,
         vroomResponse: vroomResponse,
         timestamp: new Date().toISOString(),
@@ -146,19 +163,27 @@ async function savePlanToElastic(
       planId,
       'vroom-fleet-plans'
     )
-    info(`Saved fleet plan to Elasticsearch with planId: ${planId}`)
+    info(
+      `Saved fleet plan to Elasticsearch with planId: ${planId}, experiment: ${experimentId}`
+    )
   } catch (err) {
     error(`Error saving plan to Elasticsearch: ${err}`)
   }
 }
 
-function planWithVroom(experimentId: string, fleet: string) {
+function planWithVroom(
+  experimentId: string,
+  fleet: string,
+  isReplay: boolean = false
+) {
   return pipe(
     mergeMap(async ({ bookings, cars, jobs, vehicles }: any) => {
       info(`Calculating routes with VROOM`)
       const vroomResponse = await plan({ jobs, vehicles })
 
-      await savePlanToElastic(experimentId, fleet, vroomResponse)
+      if (!isReplay) {
+        await savePlanToElastic(experimentId, fleet, vroomResponse)
+      }
 
       return { vroomResponse, cars, bookings }
     })

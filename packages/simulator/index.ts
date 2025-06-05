@@ -38,25 +38,32 @@ export interface Experiment {
 const engine = {
   subscriptions: [] as Array<{ unsubscribe(): void }>,
   createExperiment: (
-    { defaultEmitters, id = safeId() } = {} as {
+    { defaultEmitters, id = safeId(), directParams = null } = {} as {
       defaultEmitters?: any
       id?: string
+      directParams?: any
     }
   ): Experiment => {
     console.log('Creating experiment')
     engine.subscriptions.forEach((subscription) => subscription.unsubscribe())
-    const savedParams = read()
+
+    const savedParams = directParams || read()
+    const params = {
+      ...savedParams,
+      id: id,
+    }
+
     info(`*** Starting experiment ${id} with params:`, {
-      id: savedParams.id,
-      fixedRoute: savedParams.fixedRoute,
-      emitters: savedParams.emitters,
-      municipalities: Object.keys(savedParams.fleets).map((municipality) => {
-        return `${municipality} (${savedParams.fleets[municipality].fleets.length} fleets)`
+      id: params.id,
+      fixedRoute: params.fixedRoute,
+      emitters: params.emitters,
+      municipalities: Object.keys(params.fleets).map((municipality) => {
+        return `${municipality} (${params.fleets[municipality].fleets.length} fleets)`
       }),
+      source: directParams ? 'direct params' : 'config file',
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const regions = require('./streams/regions')(savedParams)
+    const regions = require('./streams/regions')(params)
 
     const parameters: ExperimentParameters = {
       id,

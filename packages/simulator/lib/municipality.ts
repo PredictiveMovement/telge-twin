@@ -60,8 +60,7 @@ class Municipality {
     this.fleetsConfig = fleetsConfig
     this.settings = settings
     this.experimentId = experimentId
-    const fleetExperimentId =
-      this.settings?.replayExperiment || this.experimentId || this.id
+    const fleetExperimentId = this.experimentId || this.id
 
     this.fleets = from(this.fleetsConfig).pipe(
       map(
@@ -115,13 +114,13 @@ class Municipality {
       mergeMap((bookings: any) => {
         info('All bookings are now added to queue:', bookings.length)
         return this.fleets.pipe(
-          mergeMap((fleet: any) =>
-            this.settings?.replayExperiment
+          mergeMap((fleet: any) => {
+            return this.settings?.replayExperiment
               ? fleet.startReplayDispatcher(this.settings.replayExperiment)
-              : this.settings.optimizedRoutes
+              : this.settings?.optimizedRoutes
               ? fleet.startVroomDispatcher()
               : fleet.startStandardDispatcher()
-          )
+          })
         )
       }),
       catchError((err: any) => {

@@ -160,7 +160,7 @@ class Fleet {
         )
       }),
       convertToVroomCompatibleFormat(),
-      planWithVroom(this.experimentId, this.name),
+      planWithVroom(this.experimentId, this.name, false),
       convertBackToBookings(),
       filter(({ booking }: any) => !booking.assigned),
       mergeMap(({ car, booking }: any) =>
@@ -195,9 +195,7 @@ class Fleet {
         )
       ),
       filter((x: any) => x && !x.booking.assigned),
-      mergeMap(({ car, booking }: any) =>
-        car.handleBooking(this.experimentId, booking)
-      ),
+      mergeMap(({ car, booking }: any) => car.handleBooking(replayId, booking)),
       catchError((err: any) => {
         error(`Replay error for ${this.name}:`, err)
         return of(null)
