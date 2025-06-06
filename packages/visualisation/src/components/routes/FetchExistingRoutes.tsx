@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import DatePicker from '@/components/statistics/DatePicker'
 import FilterPanel from '@/components/FilterPanel'
 import mockData from '@/data/routeMockData.json'
-import { startSimulation } from '@/api/simulator.js'
+import { startSimulation } from '@/api/simulator'
 
 interface FetchExistingRoutesProps {
   socket: any
@@ -20,8 +19,6 @@ const FetchExistingRoutes: React.FC<FetchExistingRoutesProps> = ({
   socket,
   onSimulationStart,
 }) => {
-  const navigate = useNavigate()
-
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const [showFilters, setShowFilters] = useState(false)
   const [groupedRoutes, setGroupedRoutes] = useState<any[]>([])
@@ -87,29 +84,6 @@ const FetchExistingRoutes: React.FC<FetchExistingRoutesProps> = ({
     }
 
     return filteredData
-  }
-
-  const getUniqueValues = (field: string) => {
-    if (!mockData || !mockData.routeData) {
-      return []
-    }
-    const uniqueValues = [
-      ...new Set(mockData.routeData.map((item) => item[field])),
-    ].filter((value) => value && value !== '--')
-    return uniqueValues.sort()
-  }
-
-  const getVehicleOptions = () => {
-    if (!mockData || !mockData.settings || !mockData.settings.bilar) {
-      return []
-    }
-    return mockData.settings.bilar
-      .filter((bil) => bil.ID !== '--' && bil.ID)
-      .map((bil) => ({
-        id: bil.ID,
-        display: `${bil.ID} ${bil.BESKRIVNING || ''}`.trim(),
-      }))
-      .sort((a, b) => a.display.localeCompare(b.display))
   }
 
   const frekvenser = ['V1V', 'V2V1', 'V2V2', 'V4V1', 'V4V2', 'BUD']
@@ -187,7 +161,6 @@ const FetchExistingRoutes: React.FC<FetchExistingRoutesProps> = ({
 
   const handleStartSimulation = () => {
     if (selectedRoutes.length === 0) {
-      alert('Välj minst en körtur för att starta simulering')
       return
     }
 

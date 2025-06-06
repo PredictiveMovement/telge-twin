@@ -3,8 +3,14 @@ export {}
 const { save } = require('./elastic')
 const { virtualTime } = require('./virtualTime')
 
-const collectExperimentMetadata = (experiment: any) => {
-  return save(experiment, experiment.id, 'experiments')
+const collectExperimentMetadata = async (experiment: any) => {
+  try {
+    const result = await save(experiment, experiment.id, 'experiments')
+    return result
+  } catch (err) {
+    console.error(`❌ Failed to save experiment to ES: ${experiment.id}`, err)
+    throw err
+  }
 }
 
 const collectBooking = (booking: any, experimentSettings: any) => {

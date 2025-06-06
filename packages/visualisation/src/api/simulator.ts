@@ -1,6 +1,13 @@
 import axios from 'axios'
 import { SIMULATOR_CONFIG } from '../config/simulator'
 
+const generateSessionId = () => {
+  return (
+    Math.random().toString(36).substring(2, 15) +
+    Math.random().toString(36).substring(2, 15)
+  )
+}
+
 const simulatorApi = axios.create({
   baseURL: SIMULATOR_CONFIG.url,
   timeout: SIMULATOR_CONFIG.requestConfig.timeout,
@@ -118,7 +125,7 @@ export const getUploadedFiles = (socket) => {
 export const startSimulation = (socket, routeData) => {
   const parameters = {
     id: null,
-    startDate: '2025-06-05T13:52:44.298Z',
+    startDate: new Date().toISOString(),
     fixedRoute: 100,
     emitters: ['bookings', 'cars'],
     fleets: {
@@ -272,7 +279,7 @@ export const startSimulation = (socket, routeData) => {
   }
 }
 
-export const startReplaySimulation = async (socket, experimentId) => {
+export const startSessionReplay = async (socket, experimentId) => {
   try {
     const experimentData = await fetchExperimentById(experimentId)
 
@@ -280,11 +287,15 @@ export const startReplaySimulation = async (socket, experimentId) => {
       throw new Error(`Experiment ${experimentId} not found`)
     }
 
+    const sessionId = generateSessionId()
+
     const replayParameters = {
       ...experimentData,
+      id: `replay_${experimentId}_${Date.now()}`,
+      isReplay: true,
       fleets: Object.fromEntries(
-        Object.entries(experimentData.fleets || {}).map(
-          ([municipality, config]) => [
+        Object.entries((experimentData as any).fleets || {}).map(
+          ([municipality, config]: [string, any]) => [
             municipality,
             {
               ...config,
@@ -298,21 +309,35 @@ export const startReplaySimulation = async (socket, experimentId) => {
       ),
     }
 
-    const routeData = {
-      name: `Replay: Experiment ${experimentId}`,
-      description: `Replay av tidigare experiment från ${new Date(
-        experimentData.startDate
-      ).toLocaleString('sv-SE')}`,
-      startTime: new Date().toISOString(),
+    if (socket) {
+      socket.emit('startSessionReplay', {
+        sessionId,
+        experimentId,
+        parameters: replayParameters,
+      })
     }
 
-    if (socket) {
-      socket.emit('startSimulation', routeData, replayParameters)
-    }
+    return sessionId
   } catch (error) {
-    console.error('Error starting replay simulation:', error)
+    console.error('Error starting session replay:', error)
     throw error
   }
+}
+
+export const joinSession = (socket, sessionId, replayId) => {
+  if (socket) {
+    socket.emit('joinSession', { sessionId, replayId })
+  }
+}
+
+export const leaveSession = (socket, sessionId) => {
+  if (socket) {
+    socket.emit('leaveSession', sessionId)
+  }
+}
+
+export const startReplaySimulation = async (socket, experimentId) => {
+  return await startSessionReplay(socket, experimentId)
 }
 
 export default simulatorApi

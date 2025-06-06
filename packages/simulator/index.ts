@@ -41,7 +41,7 @@ const engine = {
     { defaultEmitters, id = safeId(), directParams = null } = {} as {
       defaultEmitters?: any
       id?: string
-      directParams?: any
+      directParams?: any & { isReplay?: boolean }
     }
   ): Experiment => {
     console.log('Creating experiment')
@@ -67,13 +67,27 @@ const engine = {
 
     const parameters: ExperimentParameters = {
       id,
-      startDate: new Date(),
+      startDate: directParams?.startDate
+        ? new Date(directParams.startDate)
+        : new Date(),
       fixedRoute: savedParams.fixedRoute || 100,
-      emitters: defaultEmitters,
-      fleets: savedParams.fleets,
+      emitters: directParams?.emitters || defaultEmitters,
+      fleets: savedParams.fleets || {},
       selectedDataFile: savedParams.selectedDataFile,
     }
-    statistics.collectExperimentMetadata(parameters)
+
+    if (!directParams?.isReplay) {
+      statistics
+        .collectExperimentMetadata(parameters)
+        .then(() =>
+          info(`✅ Successfully saved experiment metadata for: ${id}`)
+        )
+        .catch((err: any) =>
+          error(`❌ Error saving experiment metadata: ${err}`)
+        )
+    } else {
+      info(`🔄 Skipping experiment metadata save for replay: ${id}`)
+    }
     const experiment: any = {
       logStream,
       lineShapes: regions.pipe(
@@ -90,10 +104,7 @@ const engine = {
       dispatchedBookings: regions.pipe(
         mergeMap((region: any) => region.dispatchedBookings)
       ),
-
-      // VEHICLES
       cars: regions.pipe(mergeMap((region: any) => region.cars)),
-
       parameters,
     }
 

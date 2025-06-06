@@ -9,6 +9,7 @@ import cors from 'cors'
 import http from 'http'
 import { Server } from 'socket.io'
 import routes from './routes'
+import apiRouter from './api'
 import { search } from '../lib/elastic'
 
 const port = env.PORT || 4000
@@ -55,7 +56,8 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 
 app.use('/uploads', express.static(uploadsDir))
 
-// Default response for other routes
+app.use('/api', apiRouter)
+
 app.get('/', (_req, res) => {
   res.status(200).send('PM Digital Twin Engine. Status: OK')
 })
