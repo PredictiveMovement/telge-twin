@@ -6,6 +6,7 @@ interface MapSocketState {
   socket: Socket | null
   isConnected: boolean
   error: string | null
+  virtualTime: number | null
 }
 
 export const useMapSocket = () => {
@@ -13,6 +14,7 @@ export const useMapSocket = () => {
     socket: null,
     isConnected: false,
     error: null,
+    virtualTime: null,
   })
 
   const socketRef = useRef<Socket | null>(null)
@@ -47,6 +49,13 @@ export const useMapSocket = () => {
       setState((prev) => ({
         ...prev,
         error: `Connection error: ${error.message}`,
+      }))
+    })
+
+    socket.on('time', (time: number) => {
+      setState((prev) => ({
+        ...prev,
+        virtualTime: time,
       }))
     })
 

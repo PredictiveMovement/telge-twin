@@ -10,6 +10,7 @@ import { Car, Booking } from '@/types/map'
 import LayersMenu from './LayersMenu'
 import BookingLegend from './BookingLegend'
 import PlaybackControls from './PlaybackControls'
+import { VirtualTimeDisplay } from './map/VirtualTimeDisplay'
 import { BookingFilters } from './BookingLegend/types'
 import { DEFAULT_FILTERS } from './BookingLegend/constants'
 
@@ -20,6 +21,7 @@ interface MapProps {
   isConnected: boolean
   isTimeRunning?: boolean
   timeSpeed?: number
+  virtualTime?: number | null
   onPlayTime?: () => void
   onPauseTime?: () => void
   onSpeedChange?: (speed: number) => void
@@ -43,6 +45,7 @@ const Map: React.FC<MapProps> = ({
   isConnected,
   isTimeRunning = false,
   timeSpeed = 60,
+  virtualTime = null,
   onPlayTime,
   onPauseTime,
   onSpeedChange,
@@ -473,46 +476,23 @@ const Map: React.FC<MapProps> = ({
         }}
       >
         <BookingLegend
-          bookings={bookings}
+          bookings={bookings.map((b) => ({
+            ...b,
+            id: b.id,
+            recyclingType: b.recyclingType,
+            status: b.status,
+          }))}
           filters={bookingFilters}
           onFiltersChange={setBookingFilters}
           isVisible={showBookingLegend}
         />
       </div>
 
-      <div
-        style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          background: 'rgba(255, 255, 255, 0.9)',
-          padding: '8px 12px',
-          borderRadius: '6px',
-          fontSize: '14px',
-          fontWeight: '500',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor:
-                isSimulationRunning && isTimeRunning
-                  ? '#10b981'
-                  : isSimulationRunning
-                  ? '#eab308'
-                  : '#6b7280',
-            }}
-          />
-          {isSimulationRunning
-            ? isTimeRunning
-              ? 'Simulering aktiv'
-              : 'Simulering pausad'
-            : 'Simulering stoppad'}
-        </div>
-      </div>
+      <VirtualTimeDisplay
+        virtualTime={virtualTime}
+        format="time"
+        position="top-right"
+      />
 
       {(isSimulationRunning || onPlayTime) && (
         <div
