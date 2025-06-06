@@ -2,9 +2,6 @@ import 'dotenv/config'
 
 import { env } from 'process'
 import express from 'express'
-import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
 import cors from 'cors'
 import http from 'http'
 import { Server } from 'socket.io'
@@ -14,47 +11,9 @@ import { search } from '../lib/elastic'
 
 const port = env.PORT || 4000
 
-const uploadsDir = path.join(__dirname, '..', 'uploads')
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true })
-}
-
-const storage = multer.diskStorage({
-  destination: function (
-    _req: unknown,
-    _file: Express.Multer.File,
-    cb: (err: Error | null, destination: string) => void
-  ) {
-    cb(null, uploadsDir)
-  },
-  filename: function (
-    _req: unknown,
-    file: Express.Multer.File,
-    cb: (err: Error | null, filename: string) => void
-  ) {
-    cb(null, file.originalname)
-  },
-})
-
-const upload = multer({ storage })
-
 const app = express()
 app.use(cors())
 app.use(express.json())
-
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ success: false, message: 'No file uploaded' })
-  }
-
-  return res.json({
-    success: true,
-    message: 'File uploaded successfully',
-    filename: req.file.originalname,
-  })
-})
-
-app.use('/uploads', express.static(uploadsDir))
 
 app.use('/api', apiRouter)
 
@@ -81,6 +40,69 @@ app.get('/api/experiments', async (req, res) => {
       },
     })
 
+    const experimentIds =
+      searchResult?.body?.hits?.hits
+        ?.map((hit: any) => hit._source.id)
+        .filter(Boolean) || []
+
+    const fleetCounts = new Map()
+    if (experimentIds.length > 0) {
+      const fleetCountResult = await search({
+        index: 'vroom-fleet-plans',
+        body: {
+          query: {
+            terms: { 'experiment.keyword': experimentIds },
+          },
+          aggs: {
+            fleets_per_experiment: {
+              terms: { field: 'experiment.keyword', size: 1000 },
+              aggs: {
+                unique_fleets: {
+                  cardinality: { field: 'fleet' },
+                },
+              },
+            },
+          },
+          size: 0,
+        },
+      })
+
+      fleetCountResult?.body?.aggregations?.fleets_per_experiment?.buckets?.forEach(
+        (bucket: any) => {
+          fleetCounts.set(bucket.key, bucket.unique_fleets.value)
+        }
+      )
+    }
+
+    const vehicleCounts = new Map()
+    if (experimentIds.length > 0) {
+      const vehicleCountResult = await search({
+        index: 'vroom-truck-plans',
+        body: {
+          query: {
+            terms: { 'experiment.keyword': experimentIds },
+          },
+          aggs: {
+            vehicles_per_experiment: {
+              terms: { field: 'experiment.keyword', size: 1000 },
+              aggs: {
+                unique_vehicles: {
+                  cardinality: { field: 'truckId' },
+                },
+              },
+            },
+          },
+          size: 0,
+        },
+      })
+
+      vehicleCountResult?.body?.aggregations?.vehicles_per_experiment?.buckets?.forEach(
+        (bucket: any) => {
+          vehicleCounts.set(bucket.key, bucket.unique_vehicles.value)
+        }
+      )
+    }
+
     const experiments =
       searchResult?.body?.hits?.hits?.map((hit: any) => {
         const source = hit._source
@@ -90,30 +112,12 @@ app.get('/api/experiments', async (req, res) => {
           fixedRoute: source.fixedRoute,
           emitters: source.emitters,
           fleets: source.fleets,
-          selectedDataFile: source.selectedDataFile,
-          fleetCount: source.fleets ? Object.keys(source.fleets).length : 0,
-          vehicleCount: source.fleets
-            ? Object.values(source.fleets).reduce(
-                (total: number, municipality: any) => {
-                  return (
-                    total +
-                    (municipality.fleets || []).reduce(
-                      (fleetTotal: number, fleet: any) => {
-                        return (
-                          fleetTotal +
-                          Object.values(fleet.vehicles || {}).reduce(
-                            (vTotal: number, count: any) => vTotal + count,
-                            0
-                          )
-                        )
-                      },
-                      0
-                    )
-                  )
-                },
-                0
-              )
-            : 0,
+          sourceDatasetId: source.sourceDatasetId,
+          datasetName: source.datasetName,
+          routeDataSource: source.routeDataSource,
+          simulationStatus: source.simulationStatus,
+          fleetCount: fleetCounts.get(source.id) || 0,
+          vehicleCount: vehicleCounts.get(source.id) || 0,
           documentId: hit._id,
         }
       }) || []

@@ -1,5 +1,3 @@
-import fs from 'fs'
-import path from 'path'
 import { from, Observable, ObservableInput } from 'rxjs'
 import {
   map,
@@ -14,6 +12,7 @@ import Booking, { BookingInput, Place } from '../../lib/models/booking'
 import { error, info } from '../../lib/log'
 import Pelias = require('../../lib/pelias')
 import { read as readConfig } from '../../config'
+import { Client } from '@elastic/elasticsearch'
 
 // -----------------------------------------------------------------------------
 // Constants & Types
@@ -44,12 +43,39 @@ type PreparedRow = BaseRow & {
   recyclingType: string
 }
 
+const client = new Client({
+  node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+})
+
+async function loadRouteData(parameters: any): Promise<any[]> {
+  try {
+    if (
+      parameters.routeDataSource === 'elasticsearch' &&
+      parameters.sourceDatasetId
+    ) {
+      const response = await client.get({
+        index: 'route-datasets',
+        id: parameters.sourceDatasetId,
+      })
+
+      return response.body._source.routeData || []
+    }
+
+    console.warn('No route data found, using empty array')
+    return []
+  } catch (error) {
+    console.error('Error loading route data:', error)
+    return []
+  }
+}
+
 /**
  * Build a Booking stream for Telge recycling pickups.
  */
-export default function createBookingStream(): Observable<Booking> {
-  const parameters = readConfig()
-  const dataFile = parameters.selectedDataFile || 'ruttdata_2024-09-03.json'
+export default function createBookingStream(
+  experimentParameters?: any
+): Observable<Booking> {
+  const parameters = experimentParameters || readConfig()
 
   const processData = (
     source$: ObservableInput<RawTelgeRecord>
@@ -111,52 +137,35 @@ export default function createBookingStream(): Observable<Booking> {
   }
 
   const loadData = (): Observable<PreparedRow> => {
-    const uploadsPath = path.join(__dirname, '../../uploads', dataFile)
-    const defaultPath = path.join(__dirname, '../../data/telge', dataFile)
-    const fallbackPath = path.join(
-      __dirname,
-      '../../data/telge',
-      'ruttdata_2024-09-03.json'
-    )
+    return new Observable<PreparedRow>((subscriber) => {
+      loadRouteData(parameters)
+        .then((routeData: RawTelgeRecord[]) => {
+          if (!routeData || routeData.length === 0) {
+            info('No route data found, using empty dataset')
+            subscriber.complete()
+            return
+          }
 
-    const dataFilePath = fs.existsSync(uploadsPath) ? uploadsPath : defaultPath
+          info(`Processing ${routeData.length} route records`)
 
-    try {
-      info(`Loading data from ${dataFilePath}`)
-      const jsonData: RawTelgeRecord[] = JSON.parse(
-        fs.readFileSync(dataFilePath, 'utf8')
-      )
-      return processData(
-        from(jsonData).pipe(
-          tap(() =>
-            info(
-              `Processing data from ${dataFile}. This might take a few minutes...`
+          from(routeData)
+            .pipe(
+              tap(() =>
+                info('Processing route data. This might take a few minutes...')
+              ),
+              mergeMap((record) => processData(from([record])))
             )
-          )
-        )
-      )
-    } catch (err: unknown) {
-      error(`Failed to load data file ${dataFile}`, err as Error)
-
-      try {
-        info(`Falling back to default data file at ${fallbackPath}`)
-        const fallbackData: RawTelgeRecord[] = JSON.parse(
-          fs.readFileSync(fallbackPath, 'utf8')
-        )
-        return processData(
-          from(fallbackData).pipe(
-            tap(() =>
-              info(
-                'Processing fallback data file. This might take a few minutes...'
-              )
-            )
-          )
-        )
-      } catch (fallbackErr) {
-        error(`Failed to load fallback data file`, fallbackErr as Error)
-        return from([] as PreparedRow[])
-      }
-    }
+            .subscribe({
+              next: (row) => subscriber.next(row),
+              error: (err) => subscriber.error(err),
+              complete: () => subscriber.complete(),
+            })
+        })
+        .catch((err) => {
+          error('Failed to load route data', err as Error)
+          subscriber.complete()
+        })
+    })
   }
 
   return loadData().pipe(

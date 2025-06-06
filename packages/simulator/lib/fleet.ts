@@ -19,20 +19,19 @@ const {
   convertToVroomCompatibleFormat,
   planWithVroom,
   convertBackToBookings,
-  loadPlanForExperiment,
 } = require('./clustering')
 const { addMeters } = require('./distance')
 
 const vehicleClasses = {
-  recycleTruck: { weight: 10000, parcelCapacity: 200, class: Truck },
-  baklastare: { weight: 10000, parcelCapacity: 200, class: Truck },
-  fyrfack: { weight: 10000, parcelCapacity: 200, class: Truck },
-  matbil: { weight: 10000, parcelCapacity: 200, class: Truck },
-  skåpbil: { weight: 10000, parcelCapacity: 200, class: Truck },
-  ['2-fack']: { weight: 10000, parcelCapacity: 200, class: Truck },
-  latrin: { weight: 10000, parcelCapacity: 200, class: Truck },
-  lastväxlare: { weight: 10000, parcelCapacity: 200, class: Truck },
-  kranbil: { weight: 10000, parcelCapacity: 200, class: Truck },
+  truck: { weight: 10000, parcelCapacity: 200, class: Truck },
+  baklastare: { weight: 12000, parcelCapacity: 150, class: Truck },
+  fyrfack: { weight: 14000, parcelCapacity: 300, class: Truck },
+  '2-fack': { weight: 12000, parcelCapacity: 250, class: Truck },
+  matbil: { weight: 8000, parcelCapacity: 100, class: Truck },
+  frontlastare: { weight: 15000, parcelCapacity: 400, class: Truck },
+  skåpbil: { weight: 3500, parcelCapacity: 50, class: Truck },
+  kranbil: { weight: 16000, parcelCapacity: 300, class: Truck },
+  lastväxlare: { weight: 18000, parcelCapacity: 500, class: Truck },
 }
 
 class Fleet {
@@ -76,25 +75,41 @@ class Fleet {
   }
 
   createCars(vehicleTypes: any) {
+    info(`🚛 Creating vehicles for fleet ${this.name}:`, vehicleTypes)
+
     return from(Object.entries(vehicleTypes)).pipe(
       map(([type, vehiclesCount]: any) => {
-        const Vehicle = (vehicleClasses as any)[type]?.class
-        if (!Vehicle) {
-          error(`No class found for vehicle type ${type}`)
-          return []
+        const vehicleConfig =
+          (vehicleClasses as any)[type] || vehicleClasses.truck
+
+        if (!(vehicleClasses as any)[type]) {
+          info(
+            `⚠️ Unknown vehicle type '${type}', using default truck configuration`
+          )
         }
+
+        const Vehicle = vehicleConfig.class
         this.vehiclesCount += vehiclesCount as number
+
+        info(
+          `🔧 Creating ${vehiclesCount}x ${type} vehicles (weight: ${vehicleConfig.weight}kg, capacity: ${vehicleConfig.parcelCapacity})`
+        )
+
         return Array.from({ length: vehiclesCount as number }).map((_, i) => {
           const offsetPosition = addMeters(this.hub.position, {
             x: 10 + 5 * this.id,
             y: -10 + 3 * i,
           })
+
+          const vehicleId = `${this.name}-${type}-${i}`
+
           return new Vehicle({
-            ...(vehicleTypes as any)[type],
-            id: this.name + '-' + i,
+            ...vehicleConfig,
+            id: vehicleId,
             fleet: this,
             position: new Position(offsetPosition),
             recyclingTypes: this.recyclingTypes,
+            vehicleType: type,
           })
         })
       }),
@@ -152,7 +167,7 @@ class Fleet {
     this.dispatchedBookings = this.unhandledBookings.pipe(
       bufferTime(1000),
       filter((bookings: any[]) => bookings.length > 0),
-      clusterByPostalCode(200, 5),
+      clusterByPostalCode(800, 5),
       withLatestFrom(this.cars.pipe(toArray())),
       tap(([bookings, cars]: any) => {
         info(
@@ -179,23 +194,24 @@ class Fleet {
       bufferTime(1000),
       filter((bs: any[]) => bs.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
-      mergeMap(([bookings, cars]: any) =>
-        from(loadPlanForExperiment(replayId, this.name)).pipe(
-          mergeMap((cached: any) => {
-            if (!cached) {
-              error(
-                `No cached VROOM plan for fleet ${this.name}, experiment ${replayId}`
-              )
-              return of(null)
-            }
-            return of({ vroomResponse: cached, cars, bookings }).pipe(
-              convertBackToBookings()
-            )
-          })
+      tap(([bookings, cars]: any) => {
+        info(
+          `Fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars for replay`
         )
-      ),
-      filter((x: any) => x && !x.booking.assigned),
-      mergeMap(({ car, booking }: any) => car.handleBooking(replayId, booking)),
+      }),
+      mergeMap(([bookings, cars]: any) => {
+        return from(bookings).pipe(
+          filter((booking: any) => !booking.assigned),
+          map((booking: any) => {
+            const car = cars.shift()
+            cars.push(car)
+            return { car, booking }
+          }),
+          mergeMap(({ car, booking }: any) =>
+            car.handleBooking(replayId, booking)
+          )
+        )
+      }),
       catchError((err: any) => {
         error(`Replay error for ${this.name}:`, err)
         return of(null)

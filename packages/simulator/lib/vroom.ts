@@ -47,14 +47,13 @@ export interface PlanInput {
   vehicles: Vehicle[]
 }
 
-async function plan({
-  jobs = [],
-  shipments = [],
-  vehicles,
-}: PlanInput): Promise<any> {
+async function plan(
+  { jobs = [], shipments = [], vehicles }: PlanInput,
+  retryCount = 0
+): Promise<any> {
   info('Vroom plan', jobs?.length, shipments?.length, vehicles?.length)
-  if (jobs?.length > 800) throw new Error('Too many jobs to plan')
-  if (shipments?.length > 800) throw new Error('Too many shipments to plan')
+  if (jobs?.length > 200) throw new Error('Too many jobs to plan')
+  if (shipments?.length > 200) throw new Error('Too many shipments to plan')
   if (vehicles.length > 200) throw new Error('Too many vehicles to plan')
 
   const cached = await getFromCache({ jobs, shipments, vehicles })
@@ -74,7 +73,14 @@ async function plan({
   }, 1000)
 
   try {
-    const json = await queue(() =>
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(
+        () => reject(new Error('VROOM timeout after 30 seconds')),
+        30000
+      )
+    })
+
+    const vroomPromise = queue(() =>
       fetch(vroomUrl, {
         method: 'POST',
         headers: {
@@ -94,6 +100,8 @@ async function plan({
       })
     )
 
+    const json = await Promise.race([vroomPromise, timeoutPromise])
+
     clearInterval(interval)
     info(`${shipments?.length || 0 + jobs?.length || 0}: Vroom done!`)
     if (Date.now() - before > 10_000) {
@@ -106,8 +114,15 @@ async function plan({
     info('Jobs', jobs?.length)
     info('Shipments', shipments?.length)
     info('Vehicles', vehicles?.length)
-    await delay(2000)
-    return plan({ jobs, shipments, vehicles })
+
+    if (retryCount < 3) {
+      info(`Retrying VROOM (attempt ${retryCount + 1}/3)...`)
+      await delay(2000)
+      return plan({ jobs, shipments, vehicles }, retryCount + 1)
+    } else {
+      error('Max VROOM retries reached, giving up', vroomError)
+      throw vroomError
+    }
   }
 }
 
@@ -163,8 +178,8 @@ function truckToVehicle(
   return {
     id: i,
     time_window: [
-      moment('05:00:00', 'hh:mm:ss').unix(),
-      moment('15:00:00', 'hh:mm:ss').unix(),
+      moment('08:00:00', 'hh:mm:ss').unix(),
+      moment('17:00:00', 'hh:mm:ss').unix(),
     ],
     capacity: [parcelCapacity - cargo.length],
     start: [position.lon, position.lat],

@@ -1,4 +1,3 @@
-import { Response } from 'node-fetch'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { plan, truckToVehicle, bookingToShipment } = require('../vroom')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -12,7 +11,133 @@ export interface Instruction {
   booking: any
 }
 
-async function loadTruckPlanForExperiment(
+export async function findBestRouteToPickupBookings(
+  experimentId: string,
+  truck: any,
+  bookings: any[],
+  instructions: ('pickup' | 'delivery' | 'start')[] = [
+    'pickup',
+    'delivery',
+    'start',
+  ]
+): Promise<Instruction[] | undefined> {
+  try {
+    if (bookings.length > 200) {
+      error(
+        `Too many bookings (${bookings.length}) for single VROOM call. This should be handled by chunking at truck level.`
+      )
+      return []
+    }
+
+    const vehicles = [truckToVehicle(truck, 0)]
+    const shipments = bookings.map(bookingToShipment)
+    const result: any = await plan({ shipments, vehicles }, 0)
+
+    if (result.unassigned?.length > 0) {
+      error(`Unassigned bookings: ${result.unassigned}`)
+    }
+
+    return result.routes[0]?.steps
+      .filter(({ type }: { type: string }) =>
+        instructions.includes(type as any)
+      )
+      .map(({ id, type, arrival, departure }: any) => {
+        const booking = bookings[id]
+        return {
+          action: type,
+          arrival,
+          departure,
+          booking,
+        }
+      })
+  } catch (vroomError) {
+    error(`Failed to plan route for truck ${truck.id}:`, vroomError)
+    return []
+  }
+}
+
+export async function saveCompletePlanForReplay(
+  experimentId: string,
+  truckId: string,
+  fleetName: string,
+  completePlan: Instruction[],
+  allBookings: any[]
+): Promise<void> {
+  try {
+    const planId = `${experimentId}-${truckId}-complete-${Date.now()}`
+
+    const bookingOrder = completePlan
+      .filter((instruction) => instruction.booking)
+      .map((instruction, index) => ({
+        index,
+        bookingId: instruction.booking.bookingId,
+        id: instruction.booking.id,
+      }))
+
+    info(
+      `📄 SAVING plan for ${truckId} with ${bookingOrder.length} bookings in order:`,
+      bookingOrder
+        .map((b: any) => `${b.index}:${b.bookingId || b.id}`)
+        .join(' → ')
+    )
+
+    const bookingMetadata = allBookings.map((booking, index) => ({
+      originalIndex: index,
+      bookingId: booking.bookingId,
+      id: booking.id,
+      recyclingType: booking.recyclingType,
+      pickup: {
+        lat: booking.pickup?.position?.lat,
+        lon: booking.pickup?.position?.lon,
+        postalcode: booking.pickup?.postalcode,
+      },
+    }))
+
+    const cleanCompletePlan = completePlan.map((instruction) => ({
+      action: instruction.action,
+      arrival: instruction.arrival,
+      departure: instruction.departure,
+      booking: instruction.booking
+        ? {
+            bookingId: instruction.booking.bookingId,
+            id: instruction.booking.id,
+            recyclingType: instruction.booking.recyclingType,
+            pickup: {
+              lat: instruction.booking.pickup?.position?.lat,
+              lon: instruction.booking.pickup?.position?.lon,
+              postalcode: instruction.booking.pickup?.postalcode,
+            },
+            destination: {
+              lat: instruction.booking.destination?.position?.lat,
+              lon: instruction.booking.destination?.position?.lon,
+            },
+          }
+        : null,
+    }))
+
+    await save(
+      {
+        planId: planId,
+        experiment: experimentId,
+        truckId: truckId,
+        fleet: fleetName,
+        completePlan: cleanCompletePlan,
+        bookingMetadata: bookingMetadata,
+        planType: 'complete',
+        timestamp: new Date().toISOString(),
+      },
+      planId,
+      'vroom-truck-plans'
+    )
+    info(
+      `Saved complete truck plan for replay with planId: ${planId}, experiment: ${experimentId}, truckId: ${truckId}`
+    )
+  } catch (err) {
+    error(`Error saving complete plan to Elasticsearch: ${err}`)
+  }
+}
+
+async function loadCompletePlanForExperiment(
   experimentId: string,
   truckId: string
 ) {
@@ -34,6 +159,11 @@ async function loadTruckPlanForExperiment(
                   truckId: truckId,
                 },
               },
+              {
+                match: {
+                  planType: 'complete',
+                },
+              },
             ],
           },
         },
@@ -41,114 +171,77 @@ async function loadTruckPlanForExperiment(
       },
     })
 
-    const result = res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
+    const result = res?.body?.hits?.hits?.[0]?._source || null
     if (result) {
       info(
-        `Loaded truck plan from Elasticsearch for experiment: ${experimentId}, truckId: ${truckId}`
+        `Loaded complete plan from Elasticsearch for experiment: ${experimentId}, truckId: ${truckId}`
       )
+      return result
     } else {
       info(
-        `No truck plan found for experiment: ${experimentId}, truckId: ${truckId}`
+        `No complete plan found for experiment: ${experimentId}, truckId: ${truckId}`
       )
     }
-    return result
+    return null
   } catch (e) {
-    error(`Error loading truck plan: ${e}`)
+    error(`Error loading complete plan: ${e}`)
     return null
   }
 }
 
-async function savePlanToElastic(
-  experimentId: string,
-  truckId: string,
-  fleetName: string,
-  vroomResponse: any
-): Promise<void> {
-  try {
-    if (!experimentId || experimentId.trim() === '') {
-      error(
-        `Invalid experimentId provided to savePlanToElastic: "${experimentId}"`
-      )
-      return
-    }
-
-    if (!truckId || truckId.trim() === '') {
-      error(`Invalid truckId provided to savePlanToElastic: "${truckId}"`)
-      return
-    }
-
-    const planId = `${experimentId}-${truckId}-${Date.now()}`
-
-    await save(
-      {
-        planId: planId,
-        experiment: experimentId,
-        truckId: truckId,
-        fleet: fleetName,
-        vroomResponse: vroomResponse,
-        timestamp: new Date().toISOString(),
-      },
-      planId,
-      'vroom-truck-plans'
-    )
-    info(
-      `Saved truck plan to Elasticsearch with planId: ${planId}, experiment: ${experimentId}, truckId: ${truckId}`
-    )
-  } catch (err) {
-    error(`Error saving plan to Elasticsearch: ${err}`)
-  }
-}
-
-export async function findBestRouteToPickupBookings(
-  experimentId: string,
-  truck: any,
-  bookings: any[],
-  instructions: ('pickup' | 'delivery' | 'start')[] = [
-    'pickup',
-    'delivery',
-    'start',
-  ]
-): Promise<Instruction[] | undefined> {
-  const vehicles = [truckToVehicle(truck, 0)]
-  const shipments = bookings.map(bookingToShipment)
-  const result: any = await plan({ shipments, vehicles })
-
-  if (!truck.fleet?.settings?.replayExperiment) {
-    await savePlanToElastic(
-      experimentId,
-      truck.id,
-      truck.fleet?.name || truck.id,
-      result
-    )
-  }
-
-  if (result.unassigned?.length > 0) {
-    error(`Unassigned bookings: ${result.unassigned}`)
-  }
-
-  return result.routes[0]?.steps
-    .filter(({ type }: { type: string }) => instructions.includes(type as any))
-    .map(({ id, type, arrival, departure }: any) => {
-      const booking = bookings[id]
-      return {
-        action: type,
-        arrival,
-        departure,
-        booking,
-      }
-    })
-}
-
 export async function useReplayRoute(truck: any, bookings: any[]) {
-  const plan = await loadTruckPlanForExperiment(
+  const completePlanData = await loadCompletePlanForExperiment(
     truck.fleet.settings.replayExperiment,
     truck.id
   )
-  if (!plan) {
-    error(
-      `No plan found for experiment ${truck.fleet.settings.replayExperiment} and truck ${truck.id}`
+
+  if (completePlanData?.completePlan) {
+    info(`Using complete plan for replay: ${truck.id}`)
+
+    const savedBookingOrder = completePlanData.completePlan
+      .filter((instruction: any) => instruction.booking)
+      .map((instruction: any, index: number) => ({
+        index,
+        bookingId: instruction.booking.bookingId,
+        id: instruction.booking.id,
+      }))
+
+    info(
+      `📖 LOADING plan for ${truck.id} with ${savedBookingOrder.length} bookings in order:`,
+      savedBookingOrder
+        .map((b: any) => `${b.index}:${b.bookingId || b.id}`)
+        .join(' → ')
     )
-    return []
+
+    const currentBookingOrder = bookings.map((booking: any, index: number) => ({
+      index,
+      bookingId: booking.bookingId,
+      id: booking.id,
+    }))
+
+    info(
+      `🔄 CURRENT queue for ${truck.id} with ${currentBookingOrder.length} bookings in order:`,
+      currentBookingOrder
+        .map((b: any) => `${b.index}:${b.bookingId || b.id}`)
+        .join(' → ')
+    )
+
+    const reconstructedPlan = completePlanData.completePlan.map(
+      (instruction: any) => ({
+        action: instruction.action,
+        arrival: instruction.arrival,
+        departure: instruction.departure,
+        booking: instruction.booking
+          ? bookings.find(
+              (b: any) =>
+                b.bookingId === instruction.booking.bookingId ||
+                b.id === instruction.booking.id
+            ) || instruction.booking
+          : null,
+      })
+    )
+
+    return reconstructedPlan
   }
 
   const instructions = ['pickup', 'delivery', 'start']
@@ -158,7 +251,10 @@ export async function useReplayRoute(truck: any, bookings: any[]) {
         instructions.includes(type as any)
       )
       ?.map(({ id, type, arrival, departure }: any) => {
-        const booking = bookings[id]
+        const booking = bookings[id] || bookings.find((b, idx) => idx === id)
+        if (!booking) {
+          error(`Could not find booking for id ${id} in replay`)
+        }
         return {
           action: type,
           arrival,
@@ -169,11 +265,19 @@ export async function useReplayRoute(truck: any, bookings: any[]) {
   )
 }
 
-export default { findBestRouteToPickupBookings, useReplayRoute }
+export default {
+  findBestRouteToPickupBookings,
+  useReplayRoute,
+  saveCompletePlanForReplay,
+}
 
 // CommonJS compatibility
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 if (typeof module !== 'undefined') {
-  module.exports = { findBestRouteToPickupBookings, useReplayRoute }
+  module.exports = {
+    findBestRouteToPickupBookings,
+    useReplayRoute,
+    saveCompletePlanForReplay,
+  }
 }

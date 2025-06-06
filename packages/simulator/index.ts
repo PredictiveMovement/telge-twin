@@ -19,7 +19,10 @@ export interface ExperimentParameters {
   fixedRoute: number
   emitters?: any
   fleets: Record<string, any>
-  selectedDataFile?: string
+  sourceDatasetId?: string
+  datasetName?: string
+  routeDataSource?: string
+  simulationStatus?: string
 }
 
 export interface Experiment {
@@ -73,7 +76,10 @@ const engine = {
       fixedRoute: savedParams.fixedRoute || 100,
       emitters: directParams?.emitters || defaultEmitters,
       fleets: savedParams.fleets || {},
-      selectedDataFile: savedParams.selectedDataFile,
+      sourceDatasetId: directParams?.sourceDatasetId,
+      datasetName: directParams?.datasetName,
+      routeDataSource: directParams?.routeDataSource,
+      simulationStatus: 'running',
     }
 
     if (!directParams?.isReplay) {

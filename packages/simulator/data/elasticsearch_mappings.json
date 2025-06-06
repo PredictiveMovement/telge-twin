@@ -236,6 +236,70 @@
       }
     }
   },
+  "route-datasets": {
+    "mappings": {
+      "properties": {
+        "datasetId": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "text"
+        },
+        "description": {
+          "type": "text"
+        },
+        "uploadTimestamp": {
+          "type": "date"
+        },
+        "originalFilename": {
+          "type": "keyword"
+        },
+        "filterCriteria": {
+          "type": "object",
+          "properties": {
+            "dateRange": {
+              "properties": {
+                "from": {
+                  "type": "date"
+                },
+                "to": {
+                  "type": "date"
+                }
+              }
+            },
+            "selectedBils": {
+              "type": "keyword"
+            },
+            "selectedAvftyper": {
+              "type": "keyword"
+            },
+            "selectedFrekvenser": {
+              "type": "keyword"
+            },
+            "selectedTjtyper": {
+              "type": "keyword"
+            }
+          }
+        },
+        "recordCount": {
+          "type": "integer"
+        },
+        "originalRecordCount": {
+          "type": "integer"
+        },
+        "routeData": {
+          "type": "object",
+          "enabled": false
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "associatedExperiments": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
   "vroom-truck-plans": {
     "mappings": {
       "properties": {
@@ -299,6 +363,18 @@
           "type": "keyword"
         },
         "selectedDataFile": {
+          "type": "keyword"
+        },
+        "sourceDatasetId": {
+          "type": "keyword"
+        },
+        "datasetName": {
+          "type": "text"
+        },
+        "simulationStatus": {
+          "type": "keyword"
+        },
+        "routeDataSource": {
           "type": "keyword"
         },
         "fleets": {

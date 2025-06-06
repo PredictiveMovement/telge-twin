@@ -23,7 +23,10 @@ export interface ReadArgs {
 }
 
 // Map of municipality name to function that returns a booking stream
-const bookingFactories: Record<string, () => ObservableInput<unknown>> = {
+const bookingFactories: Record<
+  string,
+  (params?: any) => ObservableInput<unknown>
+> = {
   'Södertälje kommun': createTelgeBookingStream,
 }
 
@@ -36,7 +39,8 @@ const activeMunicipalities: string[] = configuredMunicipalities()
 export function read({
   fleets,
   id: experimentId,
-}: ReadArgs): Observable<Municipality> {
+  ...experimentParameters
+}: ReadArgs & any): Observable<Municipality> {
   return from(data).pipe(
     // Only include municipalities that are configured as active
     filter(({ namn }: { namn: string }) =>
@@ -55,6 +59,7 @@ export function read({
         fleets: fleetConfig.fleets,
         settings: fleetConfig.settings,
         experimentId,
+        experimentParameters,
       }
     }),
 
@@ -68,6 +73,7 @@ export function read({
         fleets,
         settings,
         experimentId,
+        experimentParameters,
       }) => {
         const searchQuery = address || name.split(' ')[0]
         const searchResult = await Pelias.searchOne(searchQuery)
@@ -84,7 +90,9 @@ export function read({
           name,
           id: kod,
           fleetsConfig: fleets,
-          bookings: bookingFactories[name]?.() ?? createTelgeBookingStream(),
+          bookings:
+            bookingFactories[name]?.(experimentParameters) ??
+            createTelgeBookingStream(experimentParameters),
           center,
           settings,
           experimentId,

@@ -32,7 +32,7 @@ function calculateCenters(groups: any) {
   )
 }
 
-function clusterByPostalCode(maxClusters = 200, length = 4) {
+function clusterByPostalCode(maxClusters = 800, length = 4) {
   return pipe(
     mergeMap((bookings: any[]) => {
       // only cluster when needed
@@ -58,6 +58,134 @@ function clusterByPostalCode(maxClusters = 200, length = 4) {
       )
     })
   )
+}
+
+function chunkBookingsForVroom(
+  bookings: any[],
+  maxChunkSize = 200,
+  useGeographicClustering = true
+): any[][] {
+  if (bookings.length <= maxChunkSize) {
+    return [bookings]
+  }
+
+  if (useGeographicClustering) {
+    const sortedBookings = [...bookings].sort((a, b) => {
+      const postalA = a.pickup?.postalcode || ''
+      const postalB = b.pickup?.postalcode || ''
+      return postalA.localeCompare(postalB)
+    })
+
+    const chunks: any[][] = []
+    for (let i = 0; i < sortedBookings.length; i += maxChunkSize) {
+      chunks.push(sortedBookings.slice(i, i + maxChunkSize))
+    }
+    return chunks
+  } else {
+    const chunks: any[][] = []
+    for (let i = 0; i < bookings.length; i += maxChunkSize) {
+      chunks.push(bookings.slice(i, i + maxChunkSize))
+    }
+    return chunks
+  }
+}
+
+async function planWithVroomChunked(
+  experimentId: string,
+  fleet: string,
+  bookings: any[],
+  vehicles: any[],
+  isReplay: boolean = false
+): Promise<any> {
+  const chunks = chunkBookingsForVroom(bookings)
+
+  if (chunks.length === 1) {
+    const jobs = chunks[0].map((booking: any, i: number) =>
+      bookingToJob(booking, i)
+    )
+    return await plan({ jobs, vehicles }, 0)
+  }
+
+  info(`Processing ${chunks.length} chunks with VROOM for fleet ${fleet}`)
+
+  const chunkPromises = chunks.map(async (chunk, chunkIndex) => {
+    const jobs = chunk.map((booking: any, i: number) =>
+      bookingToJob(booking, i)
+    )
+    try {
+      const result = await plan({ jobs, vehicles }, 0)
+      return { chunkIndex, result, bookings: chunk }
+    } catch (err) {
+      error(`Failed to plan chunk ${chunkIndex} for fleet ${fleet}:`, err)
+      return { chunkIndex, result: null, bookings: chunk }
+    }
+  })
+
+  const chunkResults = await Promise.all(chunkPromises)
+
+  return mergeVroomChunkResults(chunkResults, vehicles)
+}
+
+function mergeVroomChunkResults(chunkResults: any[], vehicles: any[]): any {
+  const mergedRoutes: any[] = []
+  const allUnassigned: any[] = []
+  let totalCost = 0
+  let totalDuration = 0
+
+  vehicles.forEach((_, vehicleIndex) => {
+    mergedRoutes[vehicleIndex] = {
+      vehicle: vehicleIndex,
+      cost: 0,
+      duration: 0,
+      steps: [],
+    }
+  })
+
+  chunkResults.forEach(({ result, chunkIndex, bookings }) => {
+    if (!result) {
+      bookings.forEach((_: any, i: number) => {
+        allUnassigned.push({ id: i + chunkIndex * 200 })
+      })
+      return
+    }
+
+    result.routes?.forEach((route: any) => {
+      const vehicleIndex = route.vehicle
+      if (mergedRoutes[vehicleIndex]) {
+        mergedRoutes[vehicleIndex].cost += route.cost || 0
+        mergedRoutes[vehicleIndex].duration += route.duration || 0
+
+        const adjustedSteps =
+          route.steps?.map((step: any) => ({
+            ...step,
+            id: step.id !== undefined ? step.id + chunkIndex * 200 : step.id,
+          })) || []
+
+        mergedRoutes[vehicleIndex].steps.push(...adjustedSteps)
+      }
+    })
+
+    result.unassigned?.forEach((unassigned: any) => {
+      allUnassigned.push({
+        ...unassigned,
+        id: unassigned.id + chunkIndex * 200,
+      })
+    })
+
+    totalCost += result.cost || 0
+    totalDuration += result.duration || 0
+  })
+
+  return {
+    code: 0,
+    summary: {
+      cost: totalCost,
+      duration: totalDuration,
+      unassigned: allUnassigned.length,
+    },
+    unassigned: allUnassigned,
+    routes: mergedRoutes.filter((route) => route.steps.length > 0),
+  }
 }
 
 function convertToVroomCompatibleFormat() {
@@ -178,8 +306,20 @@ function planWithVroom(
 ) {
   return pipe(
     mergeMap(async ({ bookings, cars, jobs, vehicles }: any) => {
-      info(`Calculating routes with VROOM`)
-      const vroomResponse = await plan({ jobs, vehicles })
+      info(`Calculating routes with VROOM for ${bookings.length} bookings`)
+
+      let vroomResponse
+      if (bookings.length > 200) {
+        vroomResponse = await planWithVroomChunked(
+          experimentId,
+          fleet,
+          bookings,
+          vehicles,
+          isReplay
+        )
+      } else {
+        vroomResponse = await plan({ jobs, vehicles }, 0)
+      }
 
       if (!isReplay) {
         await savePlanToElastic(experimentId, fleet, vroomResponse)
@@ -222,4 +362,7 @@ module.exports = {
   convertBackToBookings,
   calculateCenters,
   loadPlanForExperiment,
+  chunkBookingsForVroom,
+  planWithVroomChunked,
+  mergeVroomChunkResults,
 }

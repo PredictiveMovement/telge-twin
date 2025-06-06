@@ -22,9 +22,16 @@ export function read(): Parameters {
     const result = JSON.parse(fs.readFileSync(file, 'utf8'))
     return result
   } catch (e) {
-    // fallback to default
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return save(require('./parameters.json'))
+    const defaultConfig = {
+      emitters: ['bookings', 'cars'],
+      fleets: {
+        'Södertälje kommun': {
+          settings: { optimizedRoutes: true },
+          fleets: [],
+        },
+      },
+    }
+    return save(defaultConfig)
   }
 }
 

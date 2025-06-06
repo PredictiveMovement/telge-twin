@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { SIMULATOR_CONFIG } from '../config/simulator'
+import io, { Socket } from 'socket.io-client'
 
 const generateSessionId = () => {
   return (
@@ -13,6 +14,57 @@ const simulatorApi = axios.create({
   timeout: SIMULATOR_CONFIG.requestConfig.timeout,
   headers: SIMULATOR_CONFIG.requestConfig.headers,
 })
+
+export interface RouteDataset {
+  id: string
+  datasetId: string
+  name: string
+  description: string
+  uploadTimestamp: string
+  originalFilename: string
+  filterCriteria: {
+    dateRange?: {
+      from: string
+      to: string
+    }
+    selectedBils?: string[]
+    selectedAvftyper?: string[]
+    selectedFrekvenser?: string[]
+    selectedTjtyper?: string[]
+  }
+  recordCount: number
+  originalRecordCount: number
+  status: string
+  associatedExperiments: string[]
+  fleetConfiguration?: FleetConfiguration[]
+  originalSettings?: any
+}
+
+export interface FleetConfiguration {
+  name: string
+  hubAddress: string
+  recyclingTypes: string[]
+  vehicles: Record<string, number>
+  compartmentConfiguration?: any[]
+  swedishCategory: string
+  vehicleIds: string[]
+  assignedTurids: string[]
+  bookingCount: number
+  source: 'route-data' | 'fack-config' | 'fallback'
+  isPotential?: boolean
+  isEmergency?: boolean
+}
+
+export interface Experiment {
+  id: string
+  startDate: string
+  sourceDatasetId?: string
+  datasetName?: string
+  simulationStatus: string
+  routeDataSource?: string
+  fixedRoute?: number
+  emitters?: string[]
+}
 
 export const fetchExperiments = async () => {
   try {
@@ -86,199 +138,6 @@ export const fetchSimulations = async () => {
   }
 }
 
-export const uploadFile = async (file) => {
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const response = await fetch(`${SIMULATOR_CONFIG.url}/api/upload`, {
-      method: 'POST',
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error(
-        `Upload failed with status ${response.status}: ${response.statusText}`
-      )
-    }
-
-    const data = await response.json()
-    return data
-  } catch (error) {
-    console.error('Error uploading file:', error)
-    throw error
-  }
-}
-
-export const selectDataFile = (socket, filename) => {
-  socket.emit('selectDataFile', filename)
-}
-
-export const saveDataFileSelection = (socket, filename) => {
-  socket.emit('saveDataFileSelection', filename)
-}
-
-export const getUploadedFiles = (socket) => {
-  socket.emit('getUploadedFiles')
-}
-
-export const startSimulation = (socket, routeData) => {
-  const parameters = {
-    id: null,
-    startDate: new Date().toISOString(),
-    fixedRoute: 100,
-    emitters: ['bookings', 'cars'],
-    fleets: {
-      'Södertälje kommun': {
-        settings: {
-          optimizedRoutes: true,
-          replayExperiment: '',
-        },
-        fleets: [
-          {
-            name: 'Hushållsavfall',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: ['HUSHSORT'],
-            vehicles: {
-              baklastare: 3,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Hemsortering',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: ['HEMSORT', 'BRÄNN'],
-            vehicles: {
-              fyrfack: 10,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Matavfall',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: ['MATAVF'],
-            vehicles: {
-              matbil: 2,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Baklastare',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: ['TRÄDGÅRD'],
-            vehicles: {
-              baklastare: 2,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Skåpbil',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: ['TEXTIL'],
-            vehicles: {
-              skåpbil: 3,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Frontlastare',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: [
-              'BMETFÖRP',
-              'METFÖRP',
-              'BPLASTFÖRP',
-              'PLASTFÖRP',
-              'BPAPPFÖRP',
-              'PAPPFÖRP',
-              'BRETURPAPP',
-              'RETURPAPP',
-              'WELLPAPP',
-              'BGLFÄ',
-              'GLFÄ',
-              'BGLOF',
-              'GLOF',
-            ],
-            vehicles: {
-              '2-fack': 5,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Latrin (Påhittad, ska tas bort när vi vet hur det ska hanteras)',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: [
-              'FETT',
-              'SLAM',
-              'LATRIN',
-              'BLANDAVF',
-              'BRÄNNKL2',
-              'TRÄ',
-              'FA',
-              'DUMP',
-              'HAVREASKA',
-              'ANJORD',
-              'DEP',
-              'ELAVF',
-              'TRÄIMP',
-              'HÖGSMTRL',
-            ],
-            vehicles: {
-              latrin: 3,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Lastväxlare',
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            recyclingTypes: ['Liftdumper', 'Rullflak', 'komprimatorer'],
-            vehicles: {
-              lastväxlare: 4,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Kranbil',
-            recyclingTypes: ['HEMSORT'],
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            vehicles: {
-              kranbil: 3,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Lastväxlare',
-            recyclingTypes: ['Liftdumper', 'Rullflak', 'komprimatorer'],
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            vehicles: {
-              lastväxlare: 4,
-            },
-            optimizedRoutes: true,
-          },
-          {
-            name: 'Baklastare',
-            recyclingTypes: ['Externa kommuner'],
-            hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-            vehicles: {
-              baklastare: 3,
-            },
-            optimizedRoutes: true,
-          },
-        ],
-      },
-    },
-    selectedDataFile: 'ruttdata_sample.json',
-    initMapState: {
-      latitude: 65.0964472642777,
-      longitude: 17.112050188704504,
-      zoom: 5,
-    },
-  }
-
-  if (socket) {
-    socket.emit('startSimulation', routeData, parameters)
-  }
-}
-
 export const startSessionReplay = async (socket, experimentId) => {
   try {
     const experimentData = await fetchExperimentById(experimentId)
@@ -338,6 +197,100 @@ export const leaveSession = (socket, sessionId) => {
 
 export const startReplaySimulation = async (socket, experimentId) => {
   return await startSessionReplay(socket, experimentId)
+}
+
+export class SimulatorAPI {
+  private socket: Socket
+
+  constructor(url: string = 'http://localhost:3000') {
+    this.socket = io(url)
+    this.socket.connect()
+  }
+
+  saveRouteDataset(datasetData: {
+    name: string
+    description?: string
+    originalFilename: string
+    filterCriteria: any
+    routeData: any[]
+    originalRecordCount: number
+    fleetConfiguration?: any[]
+    originalSettings?: any
+  }): Promise<{
+    success: boolean
+    datasetId?: string
+    dataset?: RouteDataset
+    error?: string
+  }> {
+    return new Promise((resolve) => {
+      this.socket.emit('saveRouteDataset', datasetData)
+      this.socket.once('routeDatasetSaved', (result) => {
+        resolve(result)
+      })
+
+      setTimeout(() => {
+        console.log('SimulatorAPI: Timeout efter 10 sekunder')
+        resolve({ success: false, error: 'Timeout - no response from server' })
+      }, 10000)
+    })
+  }
+
+  getRouteDatasets(): Promise<RouteDataset[]> {
+    return new Promise((resolve) => {
+      this.socket.emit('getRouteDatasets')
+      this.socket.once('routeDatasets', resolve)
+    })
+  }
+
+  deleteRouteDataset(
+    datasetId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      this.socket.emit('deleteRouteDataset', datasetId)
+      this.socket.once('routeDatasetDeleted', resolve)
+    })
+  }
+
+  getExperiments(): Promise<Experiment[]> {
+    return new Promise((resolve) => {
+      this.socket.emit('getExperiments')
+      this.socket.once('experiments', resolve)
+    })
+  }
+
+  startSimulationFromDataset(
+    datasetId: string,
+    datasetName: string,
+    parameters: any = {}
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const defaultParameters = {
+        id: null,
+        startDate: new Date().toISOString(),
+        fixedRoute: 100,
+        emitters: ['bookings', 'cars'],
+        initMapState: {
+          latitude: 65.0964472642777,
+          longitude: 17.112050188704504,
+          zoom: 5,
+        },
+      }
+
+      this.socket.emit(
+        'startSimulation',
+        {
+          sourceDatasetId: datasetId,
+          datasetName,
+        },
+        {
+          ...defaultParameters,
+          ...parameters,
+          routeDataSource: 'elasticsearch',
+        }
+      )
+      this.socket.once('simulationStarted', () => resolve())
+    })
+  }
 }
 
 export default simulatorApi

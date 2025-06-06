@@ -16,7 +16,7 @@ export class VirtualTime {
   private currentTime: any
   private _now!: number
 
-  constructor(timeMultiplier = 1, startHour = 6.8) {
+  constructor(timeMultiplier = 1, startHour = 8.0) {
     this.startHour = startHour
     this.timeMultiplier = timeMultiplier
     this.reset()
@@ -88,7 +88,7 @@ export class VirtualTime {
   }
 }
 
-export const virtualTime = new VirtualTime()
+export const virtualTime = new VirtualTime(1, 8.0)
 
 // CJS fallback
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

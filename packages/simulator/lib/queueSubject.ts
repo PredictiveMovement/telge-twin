@@ -1,19 +1,14 @@
-import { Subject, mergeMap, catchError, from } from 'rxjs'
-import { debug, error } from './log'
+import { Subject, mergeMap, catchError, from, delay } from 'rxjs'
+import { error, info } from './log'
 
-const API_CALL_LIMIT = 30
-
-interface QueueItem<T> {
-  fn: () => Promise<T> | T
-  resolve: (value: T | PromiseLike<T>) => void
-  reject: (reason?: unknown) => void
-}
+const API_CALL_LIMIT = 2
 
 const queueSubject = new Subject<any>()
 let queueLength = 0
 
 export function queue<T>(fn: () => Promise<T> | T): Promise<T> {
   queueLength++
+  info(`🔄 Adding to queue, total queued: ${queueLength}`)
   return new Promise<any>((resolve, reject) => {
     queueSubject.next({ fn, resolve, reject })
   })
@@ -24,9 +19,10 @@ queueSubject
     mergeMap(
       ({ fn, resolve, reject }) =>
         from(fn()).pipe(
+          delay(500),
           mergeMap((result: any) => {
             queueLength--
-            debug('queueLength', queueLength)
+            info(`✅ Queue completed, remaining: ${queueLength}`)
             resolve(result)
             return []
           }),

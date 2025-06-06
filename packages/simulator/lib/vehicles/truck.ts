@@ -1,9 +1,11 @@
 const {
   findBestRouteToPickupBookings,
   useReplayRoute,
+  saveCompletePlanForReplay,
 } = require('../dispatch/truckDispatch')
-const { warn, debug } = require('../log')
+const { warn, debug, info } = require('../log')
 const { clusterPositions } = require('../../lib/kmeans')
+const { chunkBookingsForVroom } = require('../clustering')
 const Vehicle = require('./vehicle').default
 const { firstValueFrom, from, mergeMap, mergeAll, toArray } = require('rxjs')
 
@@ -145,8 +147,60 @@ class Truck extends Vehicle {
     if (booking.queued) booking.queued(this)
 
     clearTimeout(this._timeout)
+    const randomDelay = 2000 + Math.random() * 2000
     this._timeout = setTimeout(async () => {
-      if (this.queue.length > 100 && this.position) {
+      if (this.fleet.settings.replayExperiment) {
+        info(
+          `Truck ${this.id} loading replay plan for experiment ${this.fleet.settings.replayExperiment}`
+        )
+        this.plan = await useReplayRoute(this, this.queue)
+      } else if (this.queue.length > 200) {
+        info(
+          `Truck ${this.id} using chunking for ${this.queue.length} bookings`
+        )
+        const chunks = chunkBookingsForVroom(this.queue, 200, true)
+
+        const chunkPlans = await Promise.all(
+          chunks.map(async (chunk: any[], chunkIndex: number) => {
+            try {
+              const plan = await findBestRouteToPickupBookings(
+                experimentId,
+                this,
+                chunk,
+                ['pickup']
+              )
+              return plan || []
+            } catch (err) {
+              warn(
+                `Failed to plan chunk ${chunkIndex} for truck ${this.id}:`,
+                err
+              )
+              return []
+            }
+          })
+        )
+
+        this.plan = [
+          { action: 'start' },
+          ...chunkPlans.flat(),
+          { action: 'delivery' },
+          { action: 'end' },
+        ]
+
+        await saveCompletePlanForReplay(
+          experimentId,
+          this.id,
+          this.fleet?.name || this.id,
+          this.plan,
+          this.queue
+        )
+
+        info(
+          `🚛 NORMAL planning for ${this.id} created plan with ${
+            this.plan.filter((p) => p.booking).length
+          } bookings`
+        )
+      } else if (this.queue.length > 100 && this.position) {
         const clusters = (
           await clusterPositions(this.queue, Math.ceil(this.queue.length / 70))
         ).sort(
@@ -156,9 +210,7 @@ class Truck extends Vehicle {
         )
 
         this.plan = [
-          {
-            action: 'start',
-          },
+          { action: 'start' },
           ...(await firstValueFrom(
             from(clusters).pipe(
               mergeMap(
@@ -175,24 +227,48 @@ class Truck extends Vehicle {
               toArray()
             )
           )),
-          {
-            action: 'delivery',
-          },
-          {
-            action: 'end',
-          },
+          { action: 'delivery' },
+          { action: 'end' },
         ]
-      } else if (this.fleet.settings.replayExperiment) {
-        this.plan = await useReplayRoute(this, this.queue)
+
+        await saveCompletePlanForReplay(
+          experimentId,
+          this.id,
+          this.fleet?.name || this.id,
+          this.plan,
+          this.queue
+        )
+
+        info(
+          `🚛 NORMAL k-means planning for ${this.id} created plan with ${
+            this.plan.filter((p) => p.booking).length
+          } bookings`
+        )
       } else {
         this.plan = await findBestRouteToPickupBookings(
           experimentId,
           this,
           this.queue
         )
+
+        if (this.plan) {
+          await saveCompletePlanForReplay(
+            experimentId,
+            this.id,
+            this.fleet?.name || this.id,
+            this.plan,
+            this.queue
+          )
+
+          info(
+            `🚛 NORMAL direct planning for ${this.id} created plan with ${
+              this.plan.filter((p) => p.booking).length
+            } bookings`
+          )
+        }
       }
       if (!this.instruction) await this.pickNextInstructionFromPlan()
-    }, 2000)
+    }, randomDelay)
 
     return booking
   }
