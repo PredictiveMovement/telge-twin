@@ -19,11 +19,9 @@ const Sidebar = () => {
   return (
     <SidebarComponent variant="sidebar" collapsible="icon">
       <SidebarHeader className={`py-6 bg-[#f7f7f7] ${headerPadding}`}>
-        <div className={`flex items-center w-full ${headerLayout}`}>
+        <div className={`flex items-start w-full ${headerLayout}`}>
           {!isCollapsed && (
-            <div className="transition-opacity duration-300">
-              <span className="text-xl font-semibold font-prompt">Ruttger</span>
-            </div>
+            <img src="/logo.png" alt="Ruttger" className="h-16 ml-2" />
           )}
           <button
             onClick={toggleSidebar}
