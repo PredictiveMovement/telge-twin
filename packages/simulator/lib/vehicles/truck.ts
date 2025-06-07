@@ -3,18 +3,18 @@ const {
   useReplayRoute,
   saveCompletePlanForReplay,
 } = require('../dispatch/truckDispatch')
-const { warn, debug, info } = require('../log')
-const { clusterPositions } = require('../../lib/kmeans')
-const { chunkBookingsForVroom } = require('../clustering')
+const { warn, info } = require('../log')
 const Vehicle = require('./vehicle').default
-const { firstValueFrom, from, mergeMap, mergeAll, toArray } = require('rxjs')
 
 interface TruckConstructorArgs {
   id?: string
   position: any // Position type
+  destination?: any
   startPosition?: any // Position type
   parcelCapacity?: number
   recyclingTypes?: string[]
+  weight?: number
+  fackDetails?: any[]
 }
 
 class Truck extends Vehicle {
@@ -37,14 +37,30 @@ class Truck extends Vehicle {
     this.parcelCapacity = args.parcelCapacity || 250
     this.plan = []
 
-    // position is inherited from Vehicle, assigned in super(args)
     this.startPosition = args.startPosition || args.position
     this.recyclingTypes = args.recyclingTypes
   }
 
   async pickNextInstructionFromPlan() {
     this.instruction = this.plan.shift()
-    this.booking = this.instruction?.booking
+
+    if (this.instruction?.booking) {
+      const realBooking = this.queue.find(
+        (b: any) =>
+          b.id === this.instruction.booking.id ||
+          b.bookingId === this.instruction.booking.bookingId
+      )
+      this.booking = realBooking || this.instruction.booking
+
+      if (!realBooking) {
+        info(
+          `⚠️ Could not find real Booking object for ${this.instruction.booking.id}, using instruction booking`
+        )
+      }
+    } else {
+      this.booking = null
+    }
+
     this.status = this.instruction?.action || 'returning'
     if (this.statusEvents) this.statusEvents.next(this)
     switch (this.status) {
@@ -52,17 +68,27 @@ class Truck extends Vehicle {
         return this.navigateTo(this.startPosition)
       case 'pickup':
         this.status = 'toPickup'
-        if (
-          !this.booking ||
-          !this.booking.pickup ||
-          !this.booking.pickup.position
-        )
+
+        let pickupPosition = null
+        if (this.booking?.pickup?.position) {
+          pickupPosition = this.booking.pickup.position
+        } else if (this.instruction?.booking?.pickup) {
+          const Position = require('../models/position')
+          pickupPosition = new Position({
+            lat: this.instruction.booking.pickup.lat,
+            lng: this.instruction.booking.pickup.lon,
+          })
+        }
+
+        if (!pickupPosition) {
           throw new Error(
-            'Booking, booking pickup, or booking pickup position is missing for pickup action'
+            `Pickup position missing for booking ${this.booking?.id} in both booking object and replay instruction`
           )
-        return this.navigateTo(this.booking.pickup.position)
+        }
+
+        return this.navigateTo(pickupPosition)
       case 'delivery':
-        return this.navigateTo(this.startPosition) // Assuming delivery means returning to start for trucks
+        return this.navigateTo(this.startPosition)
       default:
         warn('Unknown status', this.status, this.instruction)
         if (!this.plan.length) this.status = 'returning'
@@ -105,7 +131,6 @@ class Truck extends Vehicle {
     if (this.cargo.indexOf(this.booking) > -1)
       return warn('Already picked up', this.id, this.booking.id)
 
-    debug('Pickup cargo', this.id, this.booking.id)
     this.cargo.push(this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.pickedUp) this.booking.pickedUp(this.position)
@@ -150,120 +175,53 @@ class Truck extends Vehicle {
     const randomDelay = 2000 + Math.random() * 2000
     this._timeout = setTimeout(async () => {
       if (this.fleet.settings.replayExperiment) {
-        info(
-          `Truck ${this.id} loading replay plan for experiment ${this.fleet.settings.replayExperiment}`
-        )
         this.plan = await useReplayRoute(this, this.queue)
-      } else if (this.queue.length > 200) {
-        info(
-          `Truck ${this.id} using chunking for ${this.queue.length} bookings`
-        )
-        const chunks = chunkBookingsForVroom(this.queue, 200, true)
-
-        const chunkPlans = await Promise.all(
-          chunks.map(async (chunk: any[], chunkIndex: number) => {
-            try {
-              const plan = await findBestRouteToPickupBookings(
-                experimentId,
-                this,
-                chunk,
-                ['pickup']
-              )
-              return plan || []
-            } catch (err) {
-              warn(
-                `Failed to plan chunk ${chunkIndex} for truck ${this.id}:`,
-                err
-              )
-              return []
-            }
-          })
-        )
-
-        this.plan = [
-          { action: 'start' },
-          ...chunkPlans.flat(),
-          { action: 'delivery' },
-          { action: 'end' },
-        ]
-
-        await saveCompletePlanForReplay(
-          experimentId,
-          this.id,
-          this.fleet?.name || this.id,
-          this.plan,
-          this.queue
-        )
-
-        info(
-          `🚛 NORMAL planning for ${this.id} created plan with ${
-            this.plan.filter((p) => p.booking).length
-          } bookings`
-        )
-      } else if (this.queue.length > 100 && this.position) {
-        const clusters = (
-          await clusterPositions(this.queue, Math.ceil(this.queue.length / 70))
-        ).sort(
-          (a: any, b: any) =>
-            this.position.distanceTo(a.center) -
-            this.position.distanceTo(b.center)
-        )
-
-        this.plan = [
-          { action: 'start' },
-          ...(await firstValueFrom(
-            from(clusters).pipe(
-              mergeMap(
-                async (cluster: any) =>
-                  await findBestRouteToPickupBookings(
-                    experimentId,
-                    this,
-                    cluster.items,
-                    ['pickup']
-                  ),
-                1
-              ),
-              mergeAll(),
-              toArray()
-            )
-          )),
-          { action: 'delivery' },
-          { action: 'end' },
-        ]
-
-        await saveCompletePlanForReplay(
-          experimentId,
-          this.id,
-          this.fleet?.name || this.id,
-          this.plan,
-          this.queue
-        )
-
-        info(
-          `🚛 NORMAL k-means planning for ${this.id} created plan with ${
-            this.plan.filter((p) => p.booking).length
-          } bookings`
-        )
       } else {
-        this.plan = await findBestRouteToPickupBookings(
-          experimentId,
-          this,
-          this.queue
-        )
+        try {
+          const vroomPromise = findBestRouteToPickupBookings(
+            experimentId,
+            this,
+            this.queue
+          )
 
-        if (this.plan) {
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(new Error(`VROOM planning timeout after 30000ms`))
+            }, 30000)
+          })
+
+          this.plan = await Promise.race([vroomPromise, timeoutPromise])
+
+          if (this.plan) {
+            await saveCompletePlanForReplay(
+              experimentId,
+              this.id,
+              this.fleet?.name || this.id,
+              this.plan,
+              this.queue,
+              this.fleet?.settings?.createReplay ?? true
+            )
+          } else {
+            throw new Error('VROOM returned null plan')
+          }
+        } catch (error: any) {
+          this.plan = [
+            { action: 'start' },
+            ...this.queue.map((b: any) => ({
+              action: 'pickup',
+              booking: b,
+            })),
+            { action: 'delivery' },
+            { action: 'end' },
+          ]
+
           await saveCompletePlanForReplay(
             experimentId,
             this.id,
             this.fleet?.name || this.id,
             this.plan,
-            this.queue
-          )
-
-          info(
-            `🚛 NORMAL direct planning for ${this.id} created plan with ${
-              this.plan.filter((p) => p.booking).length
-            } bookings`
+            this.queue,
+            this.fleet?.settings?.createReplay ?? true
           )
         }
       }
@@ -275,6 +233,19 @@ class Truck extends Vehicle {
 
   async waitAtPickup() {
     return // Trucks don't wait
+  }
+
+  setReplayPlan(replayPlan: any[]) {
+    info(
+      `🔄 Setting replay plan for truck ${this.id} with ${
+        replayPlan?.length || 0
+      } steps`
+    )
+    this.plan = replayPlan || []
+
+    if (!this.instruction && this.plan.length > 0) {
+      this.pickNextInstructionFromPlan()
+    }
   }
 }
 

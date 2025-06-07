@@ -9,15 +9,8 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { fetchExperiments } from '@/api/simulator'
-import {
-  RotateCcw,
-  Info,
-  Database,
-  RefreshCw,
-  Calendar,
-  Layers,
-} from 'lucide-react'
+import { getExperiments } from '@/api/simulator'
+import { RotateCcw, Info, Database, RefreshCw, Calendar } from 'lucide-react'
 
 interface Experiment {
   id: string
@@ -45,8 +38,8 @@ export default function ExperimentsTab() {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchExperiments()
-      setExperiments(data)
+      const data = await getExperiments()
+      setExperiments(data as any)
     } catch (err) {
       console.error('Error loading experiments:', err)
       setError('Kunde inte ladda experimentdata. Försök igen.')
@@ -73,7 +66,6 @@ export default function ExperimentsTab() {
     navigate(`/map?replay=${experimentId}`)
   }
 
-  const totalFleets = experiments.reduce((sum, exp) => sum + exp.fleetCount, 0)
   const totalVehicles = experiments.reduce(
     (sum, exp) => sum + exp.vehicleCount,
     0
@@ -140,16 +132,6 @@ export default function ExperimentsTab() {
               </Card>
               <Card>
                 <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-green-600">
-                    {totalFleets}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Totalt antal fleets
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
                   <div className="text-2xl font-bold text-orange-600">
                     {totalVehicles}
                   </div>
@@ -187,12 +169,6 @@ export default function ExperimentsTab() {
                         </th>
                         <th className="border border-gray-300 py-2 px-3 text-left">
                           <div className="flex items-center gap-2">
-                            <Layers size={16} />
-                            Fleets
-                          </div>
-                        </th>
-                        <th className="border border-gray-300 py-2 px-3 text-left">
-                          <div className="flex items-center gap-2">
                             <Calendar size={16} />
                             Skapad
                           </div>
@@ -218,11 +194,6 @@ export default function ExperimentsTab() {
                             {experiment.id?.length > 20
                               ? `${experiment.id.substring(0, 20)}...`
                               : experiment.id || 'N/A'}
-                          </td>
-                          <td className="border border-gray-300 py-2 px-3">
-                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                              {experiment.fleetCount}
-                            </span>
                           </td>
                           <td className="border border-gray-300 py-2 px-3 text-sm">
                             {formatTimestamp(experiment.startDate)}

@@ -192,11 +192,14 @@ const MapPage = () => {
 
     const handleBookings = (payload: any | any[]) => {
       setBookings((prev) =>
-        upsertList(prev, payload, (b) => ({
-          ...b,
-          pickup: toLonLatArray(b.pickup),
-          destination: toLonLatArray(b.destination),
-        }))
+        upsertList(prev, payload, (b) => {
+          const processed = {
+            ...b,
+            pickup: b.pickup ? toLonLatArray(b.pickup) : null,
+            destination: b.destination ? toLonLatArray(b.destination) : null,
+          }
+          return processed
+        })
       )
     }
 

@@ -8,8 +8,13 @@ import { Server } from 'socket.io'
 import routes from './routes'
 import apiRouter from './api'
 import { search } from '../lib/elastic'
+import { Client } from '@elastic/elasticsearch'
+import { safeId } from '../lib/id'
 
 const port = env.PORT || 4000
+const client = new Client({
+  node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+})
 
 const app = express()
 app.use(cors())
@@ -44,35 +49,6 @@ app.get('/api/experiments', async (req, res) => {
       searchResult?.body?.hits?.hits
         ?.map((hit: any) => hit._source.id)
         .filter(Boolean) || []
-
-    const fleetCounts = new Map()
-    if (experimentIds.length > 0) {
-      const fleetCountResult = await search({
-        index: 'vroom-fleet-plans',
-        body: {
-          query: {
-            terms: { 'experiment.keyword': experimentIds },
-          },
-          aggs: {
-            fleets_per_experiment: {
-              terms: { field: 'experiment.keyword', size: 1000 },
-              aggs: {
-                unique_fleets: {
-                  cardinality: { field: 'fleet' },
-                },
-              },
-            },
-          },
-          size: 0,
-        },
-      })
-
-      fleetCountResult?.body?.aggregations?.fleets_per_experiment?.buckets?.forEach(
-        (bucket: any) => {
-          fleetCounts.set(bucket.key, bucket.unique_fleets.value)
-        }
-      )
-    }
 
     const vehicleCounts = new Map()
     if (experimentIds.length > 0) {
@@ -116,7 +92,6 @@ app.get('/api/experiments', async (req, res) => {
           datasetName: source.datasetName,
           routeDataSource: source.routeDataSource,
           simulationStatus: source.simulationStatus,
-          fleetCount: fleetCounts.get(source.id) || 0,
           vehicleCount: vehicleCounts.get(source.id) || 0,
           documentId: hit._id,
         }
@@ -157,103 +132,259 @@ app.get('/api/experiments/:experimentId', async (req, res) => {
   }
 })
 
-app.get('/api/experiments/:planId/trucks', async (req, res) => {
+app.get('/api/datasets/:datasetId', async (req, res) => {
   try {
-    const { planId } = req.params
+    const { datasetId } = req.params
     const searchResult = await search({
-      index: 'vroom-truck-plans',
+      index: 'route-datasets',
       body: {
         query: {
-          term: { 'planId.keyword': planId },
+          term: { _id: datasetId },
         },
-        _source: ['planId', 'truckId', 'fleet', 'timestamp'],
-        sort: [{ timestamp: { order: 'desc' } }],
       },
     })
 
-    const truckPlans =
-      searchResult?.body?.hits?.hits?.map((hit: any) => ({
-        planId: hit._source.planId,
-        truckId: hit._source.truckId,
-        fleet: hit._source.fleet,
-        timestamp: hit._source.timestamp,
-        documentId: hit._id,
-      })) || []
-
-    res.json({ success: true, data: truckPlans })
+    if (searchResult?.body?.hits?.hits?.length > 0) {
+      const datasetData = searchResult.body.hits.hits[0]._source
+      res.json({ success: true, data: datasetData })
+    } else {
+      res.status(404).json({ success: false, error: 'Dataset not found' })
+    }
   } catch (error) {
-    console.error('Error fetching truck plans:', error)
+    console.error('Error fetching dataset by ID:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred'
     res.status(500).json({ success: false, error: errorMessage })
   }
 })
 
-app.get('/api/simulations', async (req, res) => {
+app.post('/api/datasets', async (req, res) => {
   try {
-    const searchResult = await search({
-      index: 'vroom-fleet-plans',
+    const datasetData = req.body
+    const datasetId = safeId()
+
+    const routeDataset = {
+      datasetId,
+      name: datasetData.name,
+      description: datasetData.description || '',
+      uploadTimestamp: new Date().toISOString(),
+      originalFilename: datasetData.originalFilename,
+      filterCriteria: datasetData.filterCriteria,
+      recordCount: datasetData.routeData.length,
+      originalRecordCount: datasetData.originalRecordCount,
+      routeData: datasetData.routeData,
+      status: 'ready',
+      associatedExperiments: [],
+      fleetConfiguration: datasetData.fleetConfiguration || null,
+      originalSettings: datasetData.originalSettings || null,
+    }
+
+    await client.index({
+      index: 'route-datasets',
+      id: datasetId,
+      body: routeDataset,
+    })
+
+    await client.indices.refresh({ index: 'route-datasets' })
+
+    res.json({
+      success: true,
+      datasetId,
+      dataset: routeDataset,
+    })
+  } catch (error) {
+    console.error('Error saving route dataset:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+app.get('/api/datasets', async (req, res) => {
+  try {
+    const response = await client.search({
+      index: 'route-datasets',
       body: {
-        query: {
-          match_all: {},
-        },
-        _source: ['planId', 'fleet', 'timestamp'],
-        sort: [
-          {
-            timestamp: {
-              order: 'desc',
-            },
-          },
-        ],
-        size: 1000,
+        query: { match_all: {} },
+        sort: [{ uploadTimestamp: { order: 'desc' } }],
+        size: 100,
       },
     })
 
-    const hits = searchResult?.body?.hits?.hits || []
+    const datasets = response.body.hits.hits.map((hit: any) => ({
+      id: hit._id,
+      ...hit._source,
+    }))
 
-    const simulationsMap = new Map()
+    res.json({ success: true, data: datasets })
+  } catch (error) {
+    console.error('Error fetching route datasets:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    })
+  }
+})
 
-    hits.forEach((hit: any) => {
-      const { planId, fleet, timestamp } = hit._source
+app.delete('/api/datasets/:datasetId', async (req, res) => {
+  try {
+    const { datasetId } = req.params
 
-      if (!simulationsMap.has(planId)) {
-        simulationsMap.set(planId, {
-          planId,
-          fleets: new Set(),
-          latestTimestamp: timestamp,
-          documentsCount: 0,
-        })
-      }
-
-      const simulation = simulationsMap.get(planId)
-      simulation.fleets.add(fleet)
-      simulation.documentsCount += 1
-
-      if (new Date(timestamp) > new Date(simulation.latestTimestamp)) {
-        simulation.latestTimestamp = timestamp
-      }
+    await client.delete({
+      index: 'route-datasets',
+      id: datasetId,
     })
 
-    const simulations = Array.from(simulationsMap.values())
-      .map((simulation) => ({
-        planId: simulation.planId,
-        fleetCount: simulation.fleets.size,
-        fleets: Array.from(simulation.fleets),
-        latestTimestamp: simulation.latestTimestamp,
-        documentsCount: simulation.documentsCount,
-      }))
-      .sort(
-        (a, b) =>
-          new Date(b.latestTimestamp).getTime() -
-          new Date(a.latestTimestamp).getTime()
-      )
+    await client.indices.refresh({ index: 'route-datasets' })
 
-    res.json({ success: true, data: simulations })
+    res.json({
+      success: true,
+      datasetId,
+    })
   } catch (error) {
-    console.error('Error fetching simulations:', error)
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error occurred'
-    res.status(500).json({ success: false, error: errorMessage })
+    console.error('Error deleting route dataset:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+app.post('/api/simulation/start-from-dataset', async (req, res) => {
+  try {
+    const { datasetId, datasetName, parameters = {} } = req.body
+
+    if (!datasetId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dataset ID is required',
+      })
+    }
+
+    const defaultParameters = {
+      id: null,
+      startDate: new Date().toISOString(),
+      fixedRoute: 100,
+      emitters: ['bookings', 'cars'],
+      initMapState: {
+        latitude: 65.0964472642777,
+        longitude: 17.112050188704504,
+        zoom: 5,
+      },
+    }
+
+    const simulationData = {
+      sourceDatasetId: datasetId,
+      datasetName: datasetName || 'Unknown Dataset',
+    }
+
+    const fullParameters = {
+      ...defaultParameters,
+      ...parameters,
+      routeDataSource: 'elasticsearch',
+    }
+
+    res.json({
+      success: true,
+      data: {
+        simulationData,
+        parameters: fullParameters,
+        message: 'Use socket startSimulation with provided data',
+      },
+    })
+  } catch (error) {
+    console.error('Error preparing simulation start:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+app.post('/api/simulation/prepare-replay', async (req, res) => {
+  try {
+    const { experimentId } = req.body
+
+    if (!experimentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Experiment ID is required',
+      })
+    }
+
+    const experimentResult = await search({
+      index: 'experiments',
+      body: {
+        query: {
+          term: { 'id.keyword': experimentId },
+        },
+      },
+    })
+
+    if (!experimentResult?.body?.hits?.hits?.length) {
+      return res.status(404).json({
+        success: false,
+        error: `Experiment ${experimentId} not found`,
+      })
+    }
+
+    const experimentData = experimentResult.body.hits.hits[0]._source
+    const sourceDatasetId = experimentData.sourceDatasetId
+
+    if (!sourceDatasetId) {
+      return res.status(400).json({
+        success: false,
+        error: `No sourceDatasetId found for experiment ${experimentId}`,
+      })
+    }
+
+    const datasetResult = await search({
+      index: 'route-datasets',
+      body: {
+        query: {
+          term: { _id: sourceDatasetId },
+        },
+      },
+    })
+
+    if (!datasetResult?.body?.hits?.hits?.length) {
+      return res.status(404).json({
+        success: false,
+        error: `Dataset ${sourceDatasetId} not found`,
+      })
+    }
+
+    const dataset = datasetResult.body.hits.hits[0]._source
+    const datasetFleetConfig = dataset.fleetConfiguration || []
+
+    const { createFleetConfigFromDataset } = require('../lib/fleet-utils')
+    const fleetConfig = createFleetConfigFromDataset(
+      datasetFleetConfig,
+      experimentId
+    )
+
+    const replayParameters = {
+      ...experimentData,
+      id: `replay_${experimentId}_${Date.now()}`,
+      isReplay: true,
+      fleets: fleetConfig,
+    }
+
+    res.json({
+      success: true,
+      data: {
+        experimentId,
+        sessionId: `session_${Date.now()}`,
+        parameters: replayParameters,
+      },
+    })
+  } catch (error) {
+    console.error('Error preparing replay:', error)
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 })
 

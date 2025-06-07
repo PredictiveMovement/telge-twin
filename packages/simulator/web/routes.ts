@@ -6,6 +6,7 @@ import { save } from '../config'
 import { virtualTime } from '../lib/virtualTime'
 import { safeId } from '../lib/id'
 import { Client } from '@elastic/elasticsearch'
+import { createFleetConfigFromDataset } from '../lib/fleet-utils'
 
 import {
   globalExperiment as sharedGlobalExperiment,
@@ -30,34 +31,6 @@ const engine: {
 const client = new Client({
   node: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
 })
-
-function createFleetConfigFromDataset(fleetConfigurations: any[]) {
-  const fleets = fleetConfigurations.map((fleet) => {
-    return {
-      name: fleet.name,
-      hubAddress: fleet.hubAddress || 'LERHAGA 50, 151 66 Södertälje',
-      recyclingTypes: fleet.recyclingTypes,
-      vehicles: fleet.vehicles,
-      optimizedRoutes: true,
-      compartmentConfiguration: fleet.compartmentConfiguration,
-      swedishCategory: fleet.swedishCategory,
-      vehicleIds: fleet.vehicleIds,
-      assignedTurids: fleet.assignedTurids,
-      bookingCount: fleet.bookingCount,
-      source: fleet.source,
-      templateId: fleet.templateId,
-    }
-  })
-
-  console.log(`✅ Converted ${fleets.length} fleets successfully`)
-
-  return {
-    'Södertälje kommun': {
-      settings: { optimizedRoutes: true },
-      fleets,
-    },
-  }
-}
 
 function createGlobalSimulation(directParams?: any) {
   const currentEmitters = emitters()
@@ -272,165 +245,113 @@ function register(io: Server): void {
   io.on('connection', (socket: Socket) => {
     socket.data.emitCars = emitters().includes('cars')
 
-    socket.on('saveRouteDataset', async (datasetData) => {
-      try {
-        const datasetId = safeId()
-        const routeDataset = {
-          datasetId,
-          name: datasetData.name,
-          description: datasetData.description || '',
-          uploadTimestamp: new Date().toISOString(),
-          originalFilename: datasetData.originalFilename,
-          filterCriteria: datasetData.filterCriteria,
-          recordCount: datasetData.routeData.length,
-          originalRecordCount: datasetData.originalRecordCount,
-          routeData: datasetData.routeData,
-          status: 'ready',
-          associatedExperiments: [],
-          fleetConfiguration: datasetData.fleetConfiguration || null,
-          originalSettings: datasetData.originalSettings || null,
-        }
-
-        await client.index({
-          index: 'route-datasets',
-          id: datasetId,
-          body: routeDataset,
-        })
-
-        await client.indices.refresh({ index: 'route-datasets' })
-
-        socket.emit('routeDatasetSaved', {
-          success: true,
-          datasetId,
-          dataset: routeDataset,
-        })
-      } catch (error) {
-        console.error('Error saving route dataset:', error)
-        socket.emit('routeDatasetSaved', {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    })
-
-    socket.on('getRouteDatasets', async () => {
-      try {
-        const response = await client.search({
-          index: 'route-datasets',
-          body: {
-            query: { match_all: {} },
-            sort: [{ uploadTimestamp: { order: 'desc' } }],
-            size: 100,
-          },
-        })
-
-        const datasets = response.body.hits.hits.map((hit: any) => ({
-          id: hit._id,
-          ...hit._source,
-        }))
-
-        socket.emit('routeDatasets', datasets)
-      } catch (error) {
-        console.error('Error fetching route datasets:', error)
-        socket.emit('routeDatasets', [])
-      }
-    })
-
-    socket.on('deleteRouteDataset', async (datasetId) => {
-      try {
-        await client.delete({
-          index: 'route-datasets',
-          id: datasetId,
-        })
-
-        await client.indices.refresh({ index: 'route-datasets' })
-
-        socket.emit('routeDatasetDeleted', {
-          success: true,
-          datasetId,
-        })
-      } catch (error) {
-        console.error('Error deleting route dataset:', error)
-        socket.emit('routeDatasetDeleted', {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    })
-
-    socket.on('getExperiments', async () => {
-      try {
-        const response = await client.search({
-          index: 'experiments',
-          body: {
-            query: { match_all: {} },
-            sort: [{ startDate: { order: 'desc' } }],
-            size: 100,
-          },
-        })
-
-        const experiments = response.body.hits.hits.map((hit: any) => ({
-          id: hit._id,
-          ...hit._source,
-        }))
-
-        socket.emit('experiments', experiments)
-      } catch (error) {
-        console.error('Error fetching experiments:', error)
-        socket.emit('experiments', [])
-      }
-    })
-
     socket.on('startSimulation', async (simData, parameters) => {
-      const experimentId = parameters?.id || safeId()
+      const { experimentId, datasetId, isReplay } = simData
+      let currentExperimentId = experimentId || safeId()
+      let fleetsConfig: any[] = []
+      let experimentSettings: any = {}
 
-      let datasetFleetConfig = null
-      if (simData.sourceDatasetId) {
-        try {
+      try {
+        if (isReplay && experimentId) {
+          const experimentResponse = await client.get({
+            index: 'experiments',
+            id: experimentId,
+          })
+
+          const experimentData = experimentResponse.body._source
+          fleetsConfig = experimentData.fleets || []
+          experimentSettings = {
+            ...experimentData.settings,
+            replayExperiment: experimentId,
+            isReplay: true,
+          }
+
+          console.log(
+            `🔄 Replay mode: Loading experiment ${experimentId} with ${fleetsConfig.length} fleets`
+          )
+        } else if (datasetId) {
+          const datasetResponse = await client.get({
+            index: 'route-datasets',
+            id: datasetId,
+          })
+
+          const datasetData = datasetResponse.body._source
+          fleetsConfig = datasetData.fleetConfiguration || []
+
+          const newExperimentData = {
+            id: currentExperimentId,
+            name: `Experiment from ${datasetData.name}`,
+            description: `Auto-generated from dataset: ${datasetData.description}`,
+            datasetId: datasetId,
+            fleets: fleetsConfig,
+            settings: datasetData.originalSettings || {},
+            startDate: new Date().toISOString(),
+            status: 'running',
+          }
+
+          await client.index({
+            index: 'experiments',
+            id: currentExperimentId,
+            body: newExperimentData,
+          })
+        } else if (simData.sourceDatasetId) {
           const datasetResponse = await client.get({
             index: 'route-datasets',
             id: simData.sourceDatasetId,
           })
           const dataset = datasetResponse.body._source
-          datasetFleetConfig = dataset.fleetConfiguration
-          console.log(
-            '💾 Använder fleet configuration från dataset:',
-            datasetFleetConfig?.length || 0,
-            'fleets'
+          fleetsConfig = dataset.fleetConfiguration || []
+        } else {
+          const defaultConfig = createFleetConfigFromDataset(
+            [],
+            undefined,
+            parameters
           )
-        } catch (error) {
-          console.warn(
-            '⚠️ Kunde inte hämta dataset fleet config, använder default'
-          )
+          fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
         }
+
+        globalExperiment = null
+        createGlobalSimulation({
+          ...parameters,
+          ...experimentSettings,
+          experimentId: currentExperimentId,
+          sourceDatasetId: datasetId || simData.sourceDatasetId,
+          datasetName: simData.datasetName,
+          routeDataSource: 'elasticsearch',
+          fleets: {
+            'Södertälje kommun': {
+              settings: {
+                optimizedRoutes: true,
+                saveToElastic: true,
+                createReplay: true,
+              },
+              fleets: fleetsConfig,
+            },
+          },
+        })
+        isGlobalSimulationRunning = true
+
+        virtualTime.reset()
+
+        globalMapWatchers.forEach((socketId) => {
+          const socket = io.sockets.sockets.get(socketId)
+          if (socket) {
+            connectSocketToExperiment(socket)
+          }
+        })
+
+        io.emit('simulationStarted', {
+          running: true,
+          data: simData,
+          experimentId: currentExperimentId,
+          isReplay: !!isReplay,
+        })
+      } catch (error) {
+        console.error('Error starting simulation:', error)
+        socket.emit('simulationError', {
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
-
-      const fleetConfig = createFleetConfigFromDataset(datasetFleetConfig)
-
-      globalExperiment = null
-      createGlobalSimulation({
-        ...parameters,
-        sourceDatasetId: simData.sourceDatasetId,
-        datasetName: simData.datasetName,
-        routeDataSource: 'elasticsearch',
-        fleets: fleetConfig,
-      })
-      isGlobalSimulationRunning = true
-
-      virtualTime.reset()
-
-      globalMapWatchers.forEach((socketId) => {
-        const socket = io.sockets.sockets.get(socketId)
-        if (socket) {
-          connectSocketToExperiment(socket)
-        }
-      })
-
-      io.emit('simulationStarted', {
-        running: true,
-        data: simData,
-        experimentId,
-      })
     })
 
     socket.on('stopSimulation', () => {

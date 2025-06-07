@@ -1,7 +1,7 @@
 import { Subject, mergeMap, catchError, from, delay } from 'rxjs'
 import { error, info } from './log'
 
-const API_CALL_LIMIT = 2
+const API_CALL_LIMIT = 1
 
 const queueSubject = new Subject<any>()
 let queueLength = 0

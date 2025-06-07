@@ -25,13 +25,15 @@ function convertPosition(pos: PositionLike | [number, number]): {
 }
 
 export class Position {
-  lon: number
-  lat: number
+  public lat: number
+  public lng: number
+  public lon: number
 
   constructor(pos: PositionLike | [number, number]) {
     const { lon, lat } = convertPosition(pos)
-    this.lon = Number(lon)
     this.lat = Number(lat)
+    this.lng = Number(lon)
+    this.lon = Number(lon)
   }
 
   isValid(): boolean {

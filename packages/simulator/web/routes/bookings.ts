@@ -20,11 +20,11 @@ const cleanBookings = () =>
         recyclingType,
       } = booking as Record<string, any>
 
-      return {
+      const result = {
         id,
-        pickup: pickup.position,
+        pickup: pickup?.position,
         assigned,
-        destination: destination.position,
+        destination: destination?.position,
         status,
         isCommercial,
         deliveryTime,
@@ -35,6 +35,8 @@ const cleanBookings = () =>
         type,
         recyclingType,
       }
+
+      return result
     })
   )
 
@@ -46,7 +48,9 @@ export function register(experiment: any, socket: Socket) {
         bufferTime(100),
         filter((e: unknown[]) => e.length > 0)
       )
-      .subscribe((bookings: unknown[]) => socket.emit('bookings', bookings)),
+      .subscribe((bookings: unknown[]) => {
+        socket.emit('bookings', bookings)
+      }),
 
     experiment.bookingUpdates
       .pipe(
@@ -54,7 +58,9 @@ export function register(experiment: any, socket: Socket) {
         bufferTime(100),
         filter((e: unknown[]) => e.length > 0)
       )
-      .subscribe((bookings: unknown[]) => socket.emit('bookings', bookings)),
+      .subscribe((bookings: unknown[]) => {
+        socket.emit('bookings', bookings)
+      }),
   ]
 }
 

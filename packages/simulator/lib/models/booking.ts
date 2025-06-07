@@ -111,7 +111,8 @@ export class Booking<TPassenger = unknown> {
     position: Position,
     metersMoved: number,
     co2: number,
-    cost: number
+    cost: number,
+    timeDiff?: number
   ): Promise<void> {
     this.position = position
     this.distance += metersMoved

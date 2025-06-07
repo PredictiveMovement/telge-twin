@@ -8,7 +8,13 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { SimulatorAPI, RouteDataset } from '@/api/simulator'
+import {
+  RouteDataset,
+  getRouteDatasets,
+  deleteRouteDataset,
+  startSimulationFromDataset,
+} from '@/api/simulator'
+import { useMapSocket } from '@/hooks/useMapSocket'
 import { toast } from 'sonner'
 import { Trash2, Play, Info } from 'lucide-react'
 
@@ -18,8 +24,7 @@ export default function SavedDatasetsTab() {
   const [startingSimulation, setStartingSimulation] = useState<string | null>(
     null
   )
-
-  const simulatorAPI = new SimulatorAPI('http://localhost:4000')
+  const { socket } = useMapSocket()
 
   useEffect(() => {
     loadDatasets()
@@ -27,7 +32,7 @@ export default function SavedDatasetsTab() {
 
   const loadDatasets = async () => {
     try {
-      const data = await simulatorAPI.getRouteDatasets()
+      const data = await getRouteDatasets()
       setDatasets(data)
     } catch (error) {
       toast.error('Fel vid hämtning av datasets')
@@ -42,7 +47,7 @@ export default function SavedDatasetsTab() {
     }
 
     try {
-      const result = await simulatorAPI.deleteRouteDataset(datasetId)
+      const result = await deleteRouteDataset(datasetId)
       if (result.success) {
         toast.success('Dataset borttagen')
         loadDatasets()
@@ -54,14 +59,27 @@ export default function SavedDatasetsTab() {
     }
   }
 
-  const startSimulation = async (dataset: RouteDataset) => {
+  const startSimulation = async (
+    dataset: RouteDataset,
+    optimizeRoutes: boolean = true
+  ) => {
     setStartingSimulation(dataset.id)
     try {
-      await simulatorAPI.startSimulationFromDataset(
+      const parameters = {
+        optimizeRoutes,
+        saveToElastic: optimizeRoutes,
+        createReplay: optimizeRoutes,
+      }
+
+      await startSimulationFromDataset(
+        socket,
         dataset.datasetId,
-        dataset.name
+        dataset.name,
+        parameters
       )
-      toast.success(`Simulering startad för: ${dataset.name}`)
+
+      const mode = optimizeRoutes ? 'VROOM-optimerad' : 'enkel sekventiell'
+      toast.success(`${mode} simulering startad för: ${dataset.name}`)
     } catch (error) {
       toast.error('Fel vid start av simulering')
     } finally {
@@ -220,14 +238,28 @@ export default function SavedDatasetsTab() {
 
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Button
-                    onClick={() => startSimulation(dataset)}
+                    onClick={() => startSimulation(dataset, true)}
                     disabled={startingSimulation === dataset.id}
                     className="flex-1"
+                    title="Starta simulering med VROOM route-optimering (sparar data till Elasticsearch)"
                   >
                     <Play className="w-4 h-4 mr-2" />
                     {startingSimulation === dataset.id
                       ? 'Startar...'
-                      : 'Starta Simulering'}
+                      : 'VROOM Optimerad'}
+                  </Button>
+
+                  <Button
+                    onClick={() => startSimulation(dataset, false)}
+                    disabled={startingSimulation === dataset.id}
+                    variant="outline"
+                    className="flex-1"
+                    title="Starta enkel sekventiell simulering (ingen VROOM, sparar inte data)"
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    {startingSimulation === dataset.id
+                      ? 'Startar...'
+                      : 'Enkel Sekventiell'}
                   </Button>
 
                   <Button

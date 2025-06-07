@@ -5,8 +5,6 @@ import Pelias = require('../lib/pelias')
 import data from '../data/municipalities.json'
 import { municipalities as configuredMunicipalities } from '../config'
 import { info } from '../lib/log'
-import createTelgeBookingStream from './orders/telge'
-import { ObservableInput } from 'rxjs'
 
 // --------------------------------------------------------------------------------
 // Types
@@ -20,14 +18,6 @@ export interface FleetConfig {
 export interface ReadArgs {
   fleets: Record<string, FleetConfig>
   id?: string
-}
-
-// Map of municipality name to function that returns a booking stream
-const bookingFactories: Record<
-  string,
-  (params?: any) => ObservableInput<unknown>
-> = {
-  'Södertälje kommun': createTelgeBookingStream,
 }
 
 const activeMunicipalities: string[] = configuredMunicipalities()
@@ -86,16 +76,15 @@ export function read({
         info(`creating municipality ${name}`)
 
         return new Municipality({
-          geometry,
           name,
-          id: kod,
-          fleetsConfig: fleets,
-          bookings:
-            bookingFactories[name]?.(experimentParameters) ??
-            createTelgeBookingStream(experimentParameters),
           center,
+          fleetsConfig: fleets,
+          preAssignedBookings:
+            experimentParameters?.dataset?.preAssignedBookings,
+          bookings: from([]),
           settings,
           experimentId,
+          experimentParameters,
         })
       }
     ),

@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch'
 import moment from 'moment'
-import { debug, error, info } from './log'
+import { error, info } from './log'
 import { getFromCache, updateCache } from './cache'
 import queue from './queueSubject'
 
@@ -51,26 +51,19 @@ async function plan(
   { jobs = [], shipments = [], vehicles }: PlanInput,
   retryCount = 0
 ): Promise<any> {
-  info('Vroom plan', jobs?.length, shipments?.length, vehicles?.length)
   if (jobs?.length > 200) throw new Error('Too many jobs to plan')
   if (shipments?.length > 200) throw new Error('Too many shipments to plan')
   if (vehicles.length > 200) throw new Error('Too many vehicles to plan')
 
   const cached = await getFromCache({ jobs, shipments, vehicles })
   if (cached) {
-    debug('Vroom cache hit')
     return cached
   }
-  debug('Vroom cache miss')
 
   const before = Date.now()
   const interval = setInterval(() => {
-    info(
-      `${
-        shipments?.length || 0 + jobs?.length || 0
-      }: Vroom still planning... ${Math.round((Date.now() - before) / 1000)}s`
-    )
-  }, 1000)
+    info(`VROOM still planning... ${Math.round((Date.now() - before) / 1000)}s`)
+  }, 5000)
 
   try {
     const timeoutPromise = new Promise((_, reject) => {
@@ -94,7 +87,9 @@ async function plan(
         }),
       }).then(async (res: Response) => {
         if (!res.ok) {
-          throw new Error('Vroom error: ' + (await res.text()))
+          const errorText = await res.text()
+          error(`VROOM HTTP ${res.status} error:`, errorText)
+          throw new Error(`Vroom HTTP ${res.status}: ${errorText}`)
         }
         return res.json()
       })
@@ -103,17 +98,11 @@ async function plan(
     const json = await Promise.race([vroomPromise, timeoutPromise])
 
     clearInterval(interval)
-    info(`${shipments?.length || 0 + jobs?.length || 0}: Vroom done!`)
-    if (Date.now() - before > 10_000) {
-      return updateCache({ jobs, shipments, vehicles }, json)
-    }
-    return json
+
+    return updateCache({ jobs, shipments, vehicles }, json)
   } catch (vroomError) {
     clearInterval(interval)
     error('Vroom error', vroomError)
-    info('Jobs', jobs?.length)
-    info('Shipments', shipments?.length)
-    info('Vehicles', vehicles?.length)
 
     if (retryCount < 3) {
       info(`Retrying VROOM (attempt ${retryCount + 1}/3)...`)
@@ -130,34 +119,49 @@ function bookingToShipment(
   { id, pickup, destination, groupedBookings }: any,
   i: number
 ): Shipment {
+  const pickupLon = pickup.position.lon || pickup.position.lng
+  const pickupLat = pickup.position.lat
+  const deliveryLon = destination.position.lon || destination.position.lng
+  const deliveryLat = destination.position.lat
+
+  if (!pickupLon || !pickupLat || isNaN(pickupLon) || isNaN(pickupLat)) {
+    error(`Invalid pickup coordinates for booking ${id}:`, {
+      pickupLon,
+      pickupLat,
+      pickup,
+    })
+  }
+  if (
+    !deliveryLon ||
+    !deliveryLat ||
+    isNaN(deliveryLon) ||
+    isNaN(deliveryLat)
+  ) {
+    error(`Invalid delivery coordinates for booking ${id}:`, {
+      deliveryLon,
+      deliveryLat,
+      destination,
+    })
+  }
+
+  const now = moment()
+  const pickupStart = now.clone().add(30, 'minutes')
+  const pickupEnd = pickupStart.clone().add(30, 'minutes')
+  const deliveryStart = now.clone().add(2, 'hours')
+  const deliveryEnd = deliveryStart.clone().add(30, 'minutes')
+
   return {
     id: i,
     amount: [groupedBookings?.length || 1],
     pickup: {
-      id: i,
-      time_windows: pickup.departureTime?.length
-        ? [
-            [
-              moment(pickup.departureTime, 'hh:mm:ss').unix(),
-              moment(pickup.departureTime, 'hh:mm:ss').add(5, 'minutes').unix(),
-            ],
-          ]
-        : undefined,
-      location: [pickup.position.lon, pickup.position.lat],
+      id: i * 2,
+      time_windows: [[pickupStart.unix(), pickupEnd.unix()]],
+      location: [pickupLon, pickupLat],
     },
     delivery: {
-      id: i,
-      location: [destination.position.lon, destination.position.lat],
-      time_windows: destination.arrivalTime?.length
-        ? [
-            [
-              moment(destination.arrivalTime, 'hh:mm:ss').unix(),
-              moment(destination.arrivalTime, 'hh:mm:ss')
-                .add(5, 'minutes')
-                .unix(),
-            ],
-          ]
-        : undefined,
+      id: i * 2 + 1,
+      location: [deliveryLon, deliveryLat],
+      time_windows: [[deliveryStart.unix(), deliveryEnd.unix()]],
     },
     service: 30,
   }
@@ -166,7 +170,7 @@ function bookingToShipment(
 function bookingToJob({ pickup, groupedBookings }: any, i: number): Job {
   return {
     id: i,
-    location: [pickup.position.lon, pickup.position.lat],
+    location: [pickup.position.lon || pickup.position.lng, pickup.position.lat],
     pickup: [groupedBookings?.length || 1],
   }
 }
@@ -175,17 +179,18 @@ function truckToVehicle(
   { position, parcelCapacity, destination, cargo }: any,
   i: number
 ): Vehicle {
+  const now = moment()
+  const workStart = now.clone()
+  const workEnd = now.clone().add(8, 'hours')
+
   return {
     id: i,
-    time_window: [
-      moment('08:00:00', 'hh:mm:ss').unix(),
-      moment('17:00:00', 'hh:mm:ss').unix(),
-    ],
+    time_window: [workStart.unix(), workEnd.unix()],
     capacity: [parcelCapacity - cargo.length],
-    start: [position.lon, position.lat],
+    start: [position.lon || position.lng, position.lat],
     end: destination
-      ? [destination.lon, destination.lat]
-      : [position.lon, position.lat],
+      ? [destination.lon || destination.lng, destination.lat]
+      : [position.lon || position.lng, position.lat],
   }
 }
 

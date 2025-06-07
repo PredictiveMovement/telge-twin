@@ -1,9 +1,7 @@
 const { from, pipe, of } = require('rxjs')
 const { map, mergeMap, groupBy, toArray } = require('rxjs/operators')
 const { plan, truckToVehicle, bookingToJob } = require('./vroom')
-const { save, search } = require('./elastic')
 const { error, info } = require('./log')
-const { randomUUID } = require('crypto')
 
 const SIMULATION_ID = ''
 
@@ -32,61 +30,95 @@ function calculateCenters(groups: any) {
   )
 }
 
-function clusterByPostalCode(maxClusters = 800, length = 4) {
+function clusterByPostalCode(maxBookings = 100, maxUniquePostalCodes = 10) {
   return pipe(
-    mergeMap((bookings: any[]) => {
-      // only cluster when needed
-      if (bookings.length < maxClusters) return of(bookings)
-
-      return from(bookings).pipe(
-        groupBy((booking: any) => booking.pickup?.postalcode.slice(0, length)),
-        mergeMap((group: any) =>
-          group.pipe(
-            toArray(),
-            map((bookings: any) => ({ postalcode: group.key, bookings }))
-          )
-        ),
-        map(({ bookings }: any) =>
-          bookings.length > 1
-            ? {
-                ...bookings[0], // pick the first booking in the cluster
-                groupedBookings: bookings, // add the rest as grouped bookings so we can handle them later
-              }
-            : bookings[0]
-        ),
-        toArray()
+    groupBy((booking: any) => booking.postalcode),
+    map((group: any) => ({ postalCode: group.key, bookings: group })),
+    mergeMap((group: any) =>
+      group.bookings.pipe(
+        toArray(),
+        map((bookings: any[]) => ({ ...group, bookings }))
       )
+    ),
+    toArray(),
+    map((groups: any[]) => {
+      if (groups.length <= maxUniquePostalCodes) {
+        return groups
+      }
+
+      return groups
+        .sort((a, b) => b.bookings.length - a.bookings.length)
+        .slice(0, maxUniquePostalCodes)
+    }),
+    mergeMap((groups: any[]) => from(groups)),
+    mergeMap(({ postalCode, bookings }: any) => {
+      if (bookings.length <= maxBookings) {
+        return of({ postalCode, bookings })
+      }
+
+      const chunks: any[] = []
+      for (let i = 0; i < bookings.length; i += maxBookings) {
+        chunks.push({
+          postalCode: `${postalCode}-chunk-${Math.floor(i / maxBookings)}`,
+          bookings: bookings.slice(i, i + maxBookings),
+        })
+      }
+      return from(chunks)
     })
   )
 }
 
 function chunkBookingsForVroom(
   bookings: any[],
-  maxChunkSize = 200,
-  useGeographicClustering = true
+  maxSize: number = 200
 ): any[][] {
-  if (bookings.length <= maxChunkSize) {
-    return [bookings]
+  const chunks = []
+  for (let i = 0; i < bookings.length; i += maxSize) {
+    chunks.push(bookings.slice(i, i + maxSize))
   }
+  return chunks
+}
 
-  if (useGeographicClustering) {
-    const sortedBookings = [...bookings].sort((a, b) => {
-      const postalA = a.pickup?.postalcode || ''
-      const postalB = b.pickup?.postalcode || ''
-      return postalA.localeCompare(postalB)
+function mergeVroomChunkResults(chunkResults: any[], vehicles: any[]): any {
+  const mergedRoutes = vehicles.map((vehicle, vehicleIndex) => ({
+    vehicle: vehicleIndex,
+    cost: 0,
+    steps: [],
+    duration: 0,
+    distance: 0,
+  }))
+
+  let stepIdOffset = 0
+
+  chunkResults.forEach(({ result, chunkIndex }) => {
+    if (!result || !result.routes) return
+
+    result.routes.forEach((route: any, routeIndex: number) => {
+      if (routeIndex < mergedRoutes.length) {
+        const adjustedSteps = route.steps.map((step: any) => ({
+          ...step,
+          id: step.id !== undefined ? step.id + stepIdOffset : step.id,
+        }))
+
+        mergedRoutes[routeIndex].steps.push(...adjustedSteps)
+        mergedRoutes[routeIndex].cost += route.cost || 0
+        mergedRoutes[routeIndex].duration += route.duration || 0
+        mergedRoutes[routeIndex].distance += route.distance || 0
+      }
     })
 
-    const chunks: any[][] = []
-    for (let i = 0; i < sortedBookings.length; i += maxChunkSize) {
-      chunks.push(sortedBookings.slice(i, i + maxChunkSize))
+    if (result.jobs) {
+      stepIdOffset += result.jobs.length
     }
-    return chunks
-  } else {
-    const chunks: any[][] = []
-    for (let i = 0; i < bookings.length; i += maxChunkSize) {
-      chunks.push(bookings.slice(i, i + maxChunkSize))
-    }
-    return chunks
+  })
+
+  return {
+    routes: mergedRoutes,
+    summary: {
+      cost: mergedRoutes.reduce((sum, route) => sum + route.cost, 0),
+      duration: mergedRoutes.reduce((sum, route) => sum + route.duration, 0),
+      distance: mergedRoutes.reduce((sum, route) => sum + route.distance, 0),
+    },
   }
 }
 
@@ -126,177 +158,21 @@ async function planWithVroomChunked(
   return mergeVroomChunkResults(chunkResults, vehicles)
 }
 
-function mergeVroomChunkResults(chunkResults: any[], vehicles: any[]): any {
-  const mergedRoutes: any[] = []
-  const allUnassigned: any[] = []
-  let totalCost = 0
-  let totalDuration = 0
-
-  vehicles.forEach((_, vehicleIndex) => {
-    mergedRoutes[vehicleIndex] = {
-      vehicle: vehicleIndex,
-      cost: 0,
-      duration: 0,
-      steps: [],
-    }
-  })
-
-  chunkResults.forEach(({ result, chunkIndex, bookings }) => {
-    if (!result) {
-      bookings.forEach((_: any, i: number) => {
-        allUnassigned.push({ id: i + chunkIndex * 200 })
-      })
-      return
-    }
-
-    result.routes?.forEach((route: any) => {
-      const vehicleIndex = route.vehicle
-      if (mergedRoutes[vehicleIndex]) {
-        mergedRoutes[vehicleIndex].cost += route.cost || 0
-        mergedRoutes[vehicleIndex].duration += route.duration || 0
-
-        const adjustedSteps =
-          route.steps?.map((step: any) => ({
-            ...step,
-            id: step.id !== undefined ? step.id + chunkIndex * 200 : step.id,
-          })) || []
-
-        mergedRoutes[vehicleIndex].steps.push(...adjustedSteps)
-      }
-    })
-
-    result.unassigned?.forEach((unassigned: any) => {
-      allUnassigned.push({
-        ...unassigned,
-        id: unassigned.id + chunkIndex * 200,
-      })
-    })
-
-    totalCost += result.cost || 0
-    totalDuration += result.duration || 0
-  })
-
-  return {
-    code: 0,
-    summary: {
-      cost: totalCost,
-      duration: totalDuration,
-      unassigned: allUnassigned.length,
-    },
-    unassigned: allUnassigned,
-    routes: mergedRoutes.filter((route) => route.steps.length > 0),
-  }
-}
-
 function convertToVroomCompatibleFormat() {
   return pipe(
-    mergeMap(async ([bookings, cars]: any) => {
-      const jobs = bookings.map((booking: any, i: number) =>
+    map(({ postalCode, bookings }: any) => {
+      const groupedBookings = bookings.map((booking: any, i: number) => ({
+        ...booking,
+        groupedBookings: [booking],
+      }))
+
+      const jobs = groupedBookings.map((booking: any, i: number) =>
         bookingToJob(booking, i)
       )
-      const vehicles = cars.map((truck: any, i: number) =>
-        truckToVehicle(truck, i)
-      )
-      return { bookings, cars, jobs, vehicles }
+
+      return { postalCode, bookings: groupedBookings, jobs }
     })
   )
-}
-
-function generatePlanId(bookings: any[], cars: any[]): string {
-  return randomUUID().replace(/-/g, '')
-}
-
-async function loadPlanFromElastic(planId: string): Promise<any | null> {
-  if (!planId) return null
-
-  try {
-    const searchResult = await search({
-      index: 'vroom-fleet-plans',
-      body: {
-        query: {
-          term: { planId: planId },
-        },
-      },
-    })
-
-    if (searchResult?.body?.hits?.hits?.length > 0) {
-      info(`Loaded plan from Elasticsearch with planId: ${planId}`)
-      return searchResult.body.hits.hits[0]._source.vroomResponse
-    }
-
-    return null
-  } catch (err) {
-    error(`Error loading plan from Elasticsearch: ${err}`)
-    return null
-  }
-}
-
-async function loadPlanForExperiment(experimentId: string, fleet: string) {
-  try {
-    const res = await search({
-      index: 'vroom-fleet-plans',
-      body: {
-        size: 1,
-        query: {
-          bool: {
-            must: [
-              {
-                match: {
-                  experiment: experimentId,
-                },
-              },
-              {
-                match: {
-                  fleet: fleet,
-                },
-              },
-            ],
-          },
-        },
-        sort: [{ timestamp: { order: 'desc' } }],
-      },
-    })
-
-    const result = res?.body?.hits?.hits?.[0]?._source?.vroomResponse || null
-    if (result) {
-      info(
-        `Loaded plan from Elasticsearch for experiment: ${experimentId}, fleet: ${fleet}`
-      )
-    } else {
-      info(`No plan found for experiment: ${experimentId}, fleet: ${fleet}`)
-    }
-    return result
-  } catch (e) {
-    error(`Error loading plan: ${e}`)
-    return null
-  }
-}
-
-async function savePlanToElastic(
-  experimentId: string,
-  fleet: string,
-  vroomResponse: any
-): Promise<void> {
-  try {
-    const planId = randomUUID().replace(/-/g, '')
-
-    await save(
-      {
-        planId: planId,
-        experiment: experimentId,
-        fleet: fleet,
-        vroomResponse: vroomResponse,
-        timestamp: new Date().toISOString(),
-      },
-      planId,
-      'vroom-fleet-plans'
-    )
-    info(
-      `Saved fleet plan to Elasticsearch with planId: ${planId}, experiment: ${experimentId}`
-    )
-  } catch (err) {
-    error(`Error saving plan to Elasticsearch: ${err}`)
-  }
 }
 
 function planWithVroom(
@@ -321,9 +197,7 @@ function planWithVroom(
         vroomResponse = await plan({ jobs, vehicles }, 0)
       }
 
-      if (!isReplay) {
-        await savePlanToElastic(experimentId, fleet, vroomResponse)
-      }
+      info(`✅ VROOM planning completed for fleet ${fleet}`)
 
       return { vroomResponse, cars, bookings }
     })
@@ -361,7 +235,6 @@ module.exports = {
   convertToVroomCompatibleFormat,
   convertBackToBookings,
   calculateCenters,
-  loadPlanForExperiment,
   chunkBookingsForVroom,
   planWithVroomChunked,
   mergeVroomChunkResults,

@@ -12,8 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { SimulatorAPI } from '@/api/simulator'
-import { generateFleetConfiguration } from '@/utils/fleetGenerator'
+import { saveRouteDataset } from '@/api/simulator'
+import { generateFleetsAndBookings } from '@/utils/fleetGenerator'
 import { toast } from 'sonner'
 
 function FleetPreview({
@@ -23,7 +23,7 @@ function FleetPreview({
   routeData: any[]
   settings: any
 }) {
-  const fleets = generateFleetConfiguration(routeData, settings)
+  const fleets = generateFleetsAndBookings(routeData, settings).fleets
 
   if (fleets.length === 0) {
     return (
@@ -44,7 +44,7 @@ function FleetPreview({
       <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
         <div className="flex justify-between items-center text-sm">
           <span className="font-medium text-green-800">
-            {fleets.length} Template-baserade Fleets
+            {fleets.length} Avfallstyp-baserade Fleets
           </span>
           <span className="text-green-600">
             {assignedBookings}/{totalBookings} bokningar täckta
@@ -70,35 +70,23 @@ function FleetPreview({
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Badge
-                  variant={
-                    fleet.source === 'template' ? 'default' : 'secondary'
-                  }
-                  className="text-xs"
-                >
+                <Badge variant="default" className="text-xs">
                   {fleet.name}
                 </Badge>
-                {fleet.templateId === 'fallback' && (
-                  <Badge variant="destructive" className="text-xs">
-                    FALLBACK
-                  </Badge>
-                )}
+                <Badge variant="outline" className="text-xs">
+                  {fleet.source}
+                </Badge>
               </div>
               <div className="flex gap-2">
                 <Badge variant="secondary" className="text-xs">
                   {fleet.bookingCount} bokningar
-                </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {fleet.swedishCategory}
                 </Badge>
               </div>
             </div>
 
             <div className="text-xs text-gray-600 space-y-2">
               <div className="flex items-start gap-2">
-                <span className="font-medium min-w-fit">
-                  📦 Avfallstyper ({fleet.recyclingTypes.length}):
-                </span>
+                <span className="font-medium min-w-fit">📦 Avfallstyp:</span>
                 <div className="flex gap-1 flex-wrap">
                   {fleet.recyclingTypes.map((type) => (
                     <Badge
@@ -114,58 +102,108 @@ function FleetPreview({
 
               <div className="flex items-start gap-2">
                 <span className="font-medium min-w-fit">
-                  🚛 Fordon ({fleet.vehicleIds.length}):
+                  🚛 Fordon ({fleet.vehicles.length}):
                 </span>
                 <div className="flex gap-1 flex-wrap">
-                  {fleet.vehicleIds.slice(0, 4).map((vehicleId) => (
+                  {fleet.vehicles.slice(0, 4).map((vehicle) => (
                     <Badge
-                      key={vehicleId}
+                      key={vehicle.originalId}
                       variant="outline"
                       className="px-1 py-0 text-xs"
+                      title={`${vehicle.description} (${vehicle.type})`}
                     >
-                      {vehicleId}
+                      {vehicle.originalId}
                     </Badge>
                   ))}
-                  {fleet.vehicleIds.length > 4 && (
+                  {fleet.vehicles.length > 4 && (
                     <span className="text-xs text-gray-500">
-                      +{fleet.vehicleIds.length - 4} fler
+                      +{fleet.vehicles.length - 4} fler
                     </span>
                   )}
                 </div>
               </div>
 
-              {fleet.assignedTurids.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <span className="font-medium min-w-fit">
-                    🗺️ Turids ({fleet.assignedTurids.length}):
-                  </span>
-                  <div className="flex gap-1 flex-wrap">
-                    {fleet.assignedTurids.slice(0, 3).map((turid) => (
-                      <Badge
-                        key={turid}
-                        variant="outline"
-                        className="px-1 py-0 text-xs"
-                      >
-                        {turid}
-                      </Badge>
-                    ))}
-                    {fleet.assignedTurids.length > 3 && (
-                      <span className="text-xs text-gray-500">
-                        +{fleet.assignedTurids.length - 3} fler
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
               <div className="flex items-center gap-2 pt-1 border-t border-blue-200">
                 <span className="font-medium">🏗️ Fordonstyper:</span>
                 <span className="text-xs">
-                  {Object.entries(fleet.vehicles)
-                    .map(([type, count]) => `${count}x ${type}`)
-                    .join(', ')}
+                  {(() => {
+                    const typeCounts: Record<string, number> = {}
+                    fleet.vehicles.forEach((vehicle) => {
+                      typeCounts[vehicle.type] =
+                        (typeCounts[vehicle.type] || 0) + 1
+                    })
+                    return Object.entries(typeCounts)
+                      .map(([type, count]) => `${count}x ${type}`)
+                      .join(', ')
+                  })()}
                 </span>
               </div>
+
+              {fleet.vehicles.length > 0 && (
+                <div className="pt-2 border-t border-blue-200">
+                  <span className="font-medium text-xs">
+                    📋 Fordonsdetaljer:
+                  </span>
+                  <div className="mt-1 space-y-2">
+                    {fleet.vehicles.map((vehicle) => (
+                      <div
+                        key={vehicle.originalId}
+                        className="text-xs text-gray-500 border-l-2 border-gray-200 pl-2"
+                      >
+                        <div className="font-medium text-gray-700">
+                          {vehicle.originalId}: {vehicle.description}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {vehicle.weight > 0 && `Vikt: ${vehicle.weight}kg`}
+                          {vehicle.parcelCapacity > 0 &&
+                            ` | Kapacitet: ${vehicle.parcelCapacity}`}
+                          {vehicle.usageCount > 0 &&
+                            ` | Användning: ${vehicle.usageCount} gånger`}
+                        </div>
+
+                        {vehicle.fackDetails &&
+                          vehicle.fackDetails.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              <span className="font-medium text-xs text-gray-600">
+                                🗂️ Fackdetaljer:
+                              </span>
+                              {vehicle.fackDetails.map((fack) => (
+                                <div
+                                  key={fack.fackNumber}
+                                  className="ml-2 p-1 bg-gray-50 rounded text-xs"
+                                >
+                                  <div className="font-medium">
+                                    Fack {fack.fackNumber}
+                                  </div>
+                                  {fack.volym && (
+                                    <div>Volym: {fack.volym}L</div>
+                                  )}
+                                  {fack.vikt && <div>Vikt: {fack.vikt}kg</div>}
+                                  <div className="mt-1">
+                                    {fack.avfallstyper.map((waste, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="text-xs text-gray-600"
+                                      >
+                                        <span className="font-medium">
+                                          {waste.avftyp}
+                                        </span>
+                                        {waste.volymvikt &&
+                                          ` (${waste.volymvikt} kg/m³)`}
+                                        {waste.fyllnadsgrad &&
+                                          ` - ${waste.fyllnadsgrad}% fyllning`}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -200,8 +238,6 @@ export default function FileUploadTab() {
   const [datasetName, setDatasetName] = useState<string>('')
   const [datasetDescription, setDatasetDescription] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
-
-  const simulatorAPI = new SimulatorAPI('http://localhost:4000')
 
   const extractVehicleInfo = (data: RouteRecord[]) => {
     const vehicleMap = new Map<string, any>()
@@ -410,12 +446,13 @@ export default function FileUploadTab() {
         }
       }
 
-      const fleetConfiguration = generateFleetConfiguration(
+      const fleetData = generateFleetsAndBookings(
         filteredData,
         originalSettings
       )
+      const fleetConfiguration = fleetData.fleets
 
-      const result = await simulatorAPI.saveRouteDataset({
+      const result = await saveRouteDataset({
         name: datasetName,
         description: datasetDescription,
         originalFilename,

@@ -1,250 +1,355 @@
-export interface VehicleInfo {
-  id: string
+export interface VehicleSpec {
+  originalId: string
+  type: string
   description: string
-  fackConfiguration?: FackConfig[]
+  weight?: number
+  parcelCapacity?: number
+  fackDetails?: FackDetail[]
   usageCount: number
 }
 
-export interface FackConfig {
-  fackNumber: number | null
-  avfallstyper: string[]
-  inferredFromUsage?: boolean
+export interface FackDetail {
+  fackNumber: number
+  avfallstyper: FackWasteType[]
+  volym?: number
+  vikt?: number
+}
+
+export interface FackWasteType {
+  avftyp: string
+  volymvikt?: number | null
+  fyllnadsgrad?: number | null
+  beskrivning?: string | null
+}
+
+export interface StandardizedBooking {
+  id: string
+  vehicleId: string
+  recyclingType: string
+  position: {
+    lat: number
+    lng: number
+  }
+  destination: {
+    lat: number
+    lng: number
+    name: string
+  }
+  pickup: {
+    lat: number
+    lng: number
+    name: string
+    departureTime: string
+  }
+  serviceType: string
+  order: string
+  sender: string
+  weight: number
+  originalRecord: any
 }
 
 export interface FleetConfiguration {
   name: string
   hubAddress: string
   recyclingTypes: string[]
-  vehicles: Record<string, number>
-  compartmentConfiguration?: FackConfig[]
-  swedishCategory: string
-  vehicleIds: string[]
-  assignedTurids: string[]
+  vehicles: VehicleSpec[]
+  preAssignedBookings: Record<string, StandardizedBooking[]>
   bookingCount: number
-  source: 'template' | 'custom'
-  templateId?: string
+  source: 'waste-type-based'
 }
 
-export interface FleetTemplate {
-  id: string
-  name: string
-  description: string
-  wasteTypes: string[]
-  vehicleTypes: string[]
-  category: string
-  priority: number
+export interface GeneratedFleetData {
+  fleets: FleetConfiguration[]
+  allBookings: StandardizedBooking[]
 }
 
-const PREDEFINED_FLEET_TEMPLATES: FleetTemplate[] = [
-  {
-    id: 'hushall',
-    name: 'Hushållsavfall',
-    description: 'Traditionellt hushållsavfall och hemsortering',
-    wasteTypes: ['HUSHSORT', 'HEMSORT', 'BLANDAVF'],
-    vehicleTypes: ['baklastare', '4-fack', 'hushåll'],
-    category: 'KOMMUNALT_HUSHALL',
-    priority: 5,
-  },
-  {
-    id: 'plastforpackningar',
-    name: 'Plastförpackningar',
-    description: 'Plastförpackningar inklusive BNI',
-    wasteTypes: ['PLASTFÖRP', 'BPLASTFÖRP'],
-    vehicleTypes: ['2-fack', 'högservice', 'frontlastare'],
-    category: 'PRODUCENT_FORPACKNING',
-    priority: 10,
-  },
-  {
-    id: 'metallforpackningar',
-    name: 'Metallförpackningar',
-    description: 'Metallförpackningar inklusive BNI',
-    wasteTypes: ['METFÖRP', 'BMETFÖRP'],
-    vehicleTypes: ['2-fack', 'högservice', 'frontlastare'],
-    category: 'PRODUCENT_FORPACKNING',
-    priority: 9,
-  },
-  {
-    id: 'papper',
-    name: 'Papper & Kartong',
-    description: 'Returpapper och wellpapp',
-    wasteTypes: [
-      'RETURPAPP',
-      'BRETURPAPP',
-      'WELLPAPP',
-      'PAPPFÖRP',
-      'BPAPPFÖRP',
-    ],
-    vehicleTypes: ['2-fack', 'frontlastare', 'högservice'],
-    category: 'PRODUCENT_PAPPER',
-    priority: 7,
-  },
-  {
-    id: 'glas',
-    name: 'Glasåtervinning',
-    description: 'Färgat och ofärgat glas',
-    wasteTypes: ['GLOF', 'GLFÄ', 'BGLOF', 'BGLFÄ'],
-    vehicleTypes: ['2-fack', 'högservice'],
-    category: 'PRODUCENT_GLAS',
-    priority: 6,
-  },
-  {
-    id: 'organiskt',
-    name: 'Organiskt Avfall',
-    description: 'Matavfall och trädgårdsavfall',
-    wasteTypes: ['MATAVF', 'TRÄDGÅRD'],
-    vehicleTypes: ['baklastare', 'matbil', 'trädgård'],
-    category: 'KOMMUNALT_ORGANISKT',
-    priority: 4,
-  },
-  {
-    id: 'specialavfall',
-    name: 'Specialavfall',
-    description: 'Farligt avfall, elektronik och textil',
-    wasteTypes: ['FA', 'ELAVF', 'TEXTIL'],
-    vehicleTypes: ['skåpbil', 'specialfordon'],
-    category: 'SPECIALAVFALL',
-    priority: 3,
-  },
-  {
-    id: 'slam-latrin',
-    name: 'Slam & Latrin',
-    description: 'Slam, latrin och fett',
-    wasteTypes: ['SLAM', 'LATRIN', 'FETT'],
-    vehicleTypes: ['vakuum', 'spolbil'],
-    category: 'SLAM_LATRIN',
-    priority: 2,
-  },
-  {
-    id: 'ovrigt',
-    name: 'Övrigt Avfall',
-    description: 'Övriga avfallstyper och fallback',
-    wasteTypes: [
-      'BRÄNN',
-      'BRÄNNKL2',
-      'DEP',
-      'DUMP',
-      'TRÄ',
-      'HAVREASKA',
-      'HÖGSMTRL',
-      'FAST',
-    ],
-    vehicleTypes: ['universal', 'lastväxlare', 'kranbil'],
-    category: 'ÖVRIGT',
-    priority: 1,
-  },
-]
+interface RouteRecord {
+  Turid: string
+  Avftyp: string
+  Bil: string
+  Lat: number
+  Lng: number
+  Tjtyp?: string
+  Turordningsnr?: string
+  [key: string]: any
+}
 
-export function generateFleetConfiguration(
-  routeData: any[],
+export function generateFleetsAndBookings(
+  routeData: RouteRecord[],
   settings: any
-): FleetConfiguration[] {
-  const dataAnalysis = analyzeRouteData(routeData, settings)
-  const fleets = createFleetsFromTemplates(dataAnalysis)
-  return fleets
-}
+): GeneratedFleetData {
+  const allBookings = transformToStandardizedBookings(routeData)
 
-interface DataAnalysis {
-  availableWasteTypes: string[]
-  systemWasteTypes: string[]
-  availableVehicles: VehicleInfo[]
-  wasteTypeBookingCounts: Map<string, number>
-  vehicleWasteUsage: Map<string, string[]>
-  wasteVehicleUsage: Map<string, string[]>
-  turidVehicleMapping: Map<string, string>
-  totalBookings: number
-  systemSettings: any
-}
+  const vehicleGroups = groupBookingsByVehicle(allBookings)
 
-function analyzeRouteData(routeData: any[], settings: any): DataAnalysis {
-  const wasteTypeBookingCounts = new Map<string, number>()
-  const vehicleWasteUsage = new Map<string, string[]>()
-  const wasteVehicleUsage = new Map<string, string[]>()
-  const turidVehicleMapping = new Map<string, string>()
-  const vehicleUsageCounts = new Map<string, number>()
+  const vehiclePrimaryWasteTypes =
+    determineVehiclePrimaryWasteTypes(vehicleGroups)
 
-  routeData.forEach((record) => {
-    const wasteType = record.Avftyp
-    const vehicleId = record.Bil
-    const turid = record.Turid
-
-    if (wasteType) {
-      wasteTypeBookingCounts.set(
-        wasteType,
-        (wasteTypeBookingCounts.get(wasteType) || 0) + 1
-      )
-
-      if (vehicleId) {
-        if (!vehicleWasteUsage.has(vehicleId)) {
-          vehicleWasteUsage.set(vehicleId, [])
-        }
-        const vehicleWastes = vehicleWasteUsage.get(vehicleId)!
-        if (!vehicleWastes.includes(wasteType)) {
-          vehicleWastes.push(wasteType)
-        }
-
-        if (!wasteVehicleUsage.has(wasteType)) {
-          wasteVehicleUsage.set(wasteType, [])
-        }
-        const wasteVehicles = wasteVehicleUsage.get(wasteType)!
-        if (!wasteVehicles.includes(vehicleId)) {
-          wasteVehicles.push(vehicleId)
-        }
-
-        vehicleUsageCounts.set(
-          vehicleId,
-          (vehicleUsageCounts.get(vehicleId) || 0) + 1
-        )
-      }
-    }
-
-    if (turid && vehicleId) {
-      turidVehicleMapping.set(turid, vehicleId)
-    }
-  })
-
-  const availableVehicles: VehicleInfo[] = Array.from(
-    vehicleUsageCounts.entries()
-  ).map(([vehicleId, usageCount]) => {
-    const bilSpec = (settings.bilar || []).find((b: any) => b.ID === vehicleId)
-    return {
-      id: vehicleId,
-      description: bilSpec?.BESKRIVNING || `Bil ${vehicleId}`,
-      fackConfiguration: extractFackConfiguration(bilSpec),
-      usageCount,
-    }
-  })
-
-  const systemWasteTypes = (settings.avftyper || [])
-    .map((avftyp: any) => avftyp.ID)
-    .filter(Boolean)
+  const fleets = createFleetsFromVehicleGroups(
+    vehicleGroups,
+    vehiclePrimaryWasteTypes,
+    settings
+  )
 
   return {
-    availableWasteTypes: Array.from(wasteTypeBookingCounts.keys()),
-    systemWasteTypes,
-    availableVehicles,
-    wasteTypeBookingCounts,
-    vehicleWasteUsage,
-    wasteVehicleUsage,
-    turidVehicleMapping,
-    totalBookings: routeData.length,
-    systemSettings: settings,
+    fleets,
+    allBookings,
   }
 }
 
-function extractFackConfiguration(bilSpec: any): FackConfig[] {
+function transformToStandardizedBookings(
+  routeData: RouteRecord[]
+): StandardizedBooking[] {
+  return routeData
+    .filter((record) => record.Avftyp && record.Bil && record.Lat && record.Lng)
+    .map((record, index) => ({
+      id: `${record.Turid}_${record.Bil}_${index}`,
+      vehicleId: record.Bil,
+      recyclingType: record.Avftyp,
+      position: {
+        lat: record.Lat,
+        lng: record.Lng,
+      },
+      destination: {
+        lat: 59.135449,
+        lng: 17.571239,
+        name: 'LERHAGA 50, 151 66 Södertälje',
+      },
+      pickup: {
+        lat: record.Lat,
+        lng: record.Lng,
+        name: `Pickup for ${record.Avftyp}`,
+        departureTime: '08:00:00',
+      },
+      serviceType: record.Tjtyp || 'standard',
+      order: record.Turordningsnr || '0',
+      sender: 'TELGE',
+      weight: 10,
+      originalRecord: record,
+    }))
+}
+
+function groupBookingsByVehicle(
+  bookings: StandardizedBooking[]
+): Map<string, StandardizedBooking[]> {
+  const groups = new Map<string, StandardizedBooking[]>()
+
+  bookings.forEach((booking) => {
+    const vehicleId = booking.vehicleId
+    if (!groups.has(vehicleId)) {
+      groups.set(vehicleId, [])
+    }
+    groups.get(vehicleId)!.push(booking)
+  })
+
+  return groups
+}
+
+function determineVehiclePrimaryWasteTypes(
+  vehicleGroups: Map<string, StandardizedBooking[]>
+): Map<string, string> {
+  const vehiclePrimaryWasteTypes = new Map<string, string>()
+
+  vehicleGroups.forEach((bookings, vehicleId) => {
+    const wasteTypeCounts = new Map<string, number>()
+
+    bookings.forEach((booking) => {
+      const wasteType = booking.recyclingType
+      wasteTypeCounts.set(wasteType, (wasteTypeCounts.get(wasteType) || 0) + 1)
+    })
+
+    let primaryWasteType = ''
+    let maxCount = 0
+
+    wasteTypeCounts.forEach((count, wasteType) => {
+      if (count > maxCount) {
+        maxCount = count
+        primaryWasteType = wasteType
+      }
+    })
+
+    vehiclePrimaryWasteTypes.set(vehicleId, primaryWasteType)
+  })
+
+  return vehiclePrimaryWasteTypes
+}
+
+function createFleetsFromVehicleGroups(
+  vehicleGroups: Map<string, StandardizedBooking[]>,
+  vehiclePrimaryWasteTypes: Map<string, string>,
+  settings: any
+): FleetConfiguration[] {
+  const wasteTypeVehicles = new Map<string, string[]>()
+
+  vehiclePrimaryWasteTypes.forEach((wasteType, vehicleId) => {
+    if (!wasteTypeVehicles.has(wasteType)) {
+      wasteTypeVehicles.set(wasteType, [])
+    }
+    wasteTypeVehicles.get(wasteType)!.push(vehicleId)
+  })
+
+  const fleets: FleetConfiguration[] = []
+
+  wasteTypeVehicles.forEach((vehicleIds, primaryWasteType) => {
+    const vehicles = vehicleIds
+      .map((vehicleId) => {
+        const vehicleBookings = vehicleGroups.get(vehicleId) || []
+        return createVehicleSpec(vehicleId, vehicleBookings, settings)
+      })
+      .filter(Boolean) as VehicleSpec[]
+
+    if (vehicles.length === 0) {
+      return
+    }
+
+    const preAssignedBookings: Record<string, StandardizedBooking[]> = {}
+    vehicleIds.forEach((vehicleId) => {
+      const vehicleBookings = vehicleGroups.get(vehicleId) || []
+      preAssignedBookings[vehicleId] = vehicleBookings
+    })
+
+    const totalBookings = vehicleIds.reduce((sum, vehicleId) => {
+      return sum + (vehicleGroups.get(vehicleId)?.length || 0)
+    }, 0)
+
+    const fleet: FleetConfiguration = {
+      name: `${primaryWasteType} Fleet`,
+      hubAddress: 'LERHAGA 50, 151 66 Södertälje',
+      recyclingTypes: [primaryWasteType],
+      vehicles,
+      preAssignedBookings,
+      bookingCount: totalBookings,
+      source: 'waste-type-based',
+    }
+
+    fleets.push(fleet)
+  })
+
+  return fleets.sort((a, b) => b.bookingCount - a.bookingCount)
+}
+
+function createVehicleSpec(
+  vehicleId: string,
+  bookings: StandardizedBooking[],
+  settings: any
+): VehicleSpec | null {
+  const bilSpec = settings.bilar?.find((bil: any) => bil.ID === vehicleId)
+  if (!bilSpec) {
+    return null
+  }
+
+  const vehicleType = mapDescriptionToVehicleClass(bilSpec.BESKRIVNING || '')
+  const vehicleBookings = bookings.filter((b) => b.vehicleId === vehicleId)
+  const fackDetails = extractFackDetails(bilSpec, vehicleBookings, settings)
+
+  return {
+    originalId: vehicleId,
+    type: vehicleType,
+    description: bilSpec.BESKRIVNING || `Bil ${vehicleId}`,
+    weight: bilSpec.FACK1_VIKT || 0,
+    parcelCapacity: calculateParcelCapacity(bilSpec, vehicleType),
+    fackDetails,
+    usageCount: vehicleBookings.length,
+  }
+}
+
+function mapDescriptionToVehicleClass(description: string): string {
+  const desc = description.toLowerCase()
+
+  if (desc.includes('matbil') || desc.includes('matavfall')) {
+    return 'matbil'
+  }
+
+  if (desc.includes('4-fack') || desc.includes('fyrfack')) {
+    return 'fyrfack'
+  }
+  if (desc.includes('2-fack')) {
+    return '2-fack'
+  }
+
+  if (desc.includes('baklastare')) {
+    return 'baklastare'
+  }
+  if (desc.includes('frontlastare')) {
+    return 'frontlastare'
+  }
+  if (desc.includes('skåpbil')) {
+    return 'skåpbil'
+  }
+  if (desc.includes('kranbil')) {
+    return 'kranbil'
+  }
+  if (desc.includes('lastväxlare') || desc.includes('lastvxl')) {
+    return 'lastväxlare'
+  }
+
+  if (desc.includes('trädgård')) {
+    return 'trädgårdsavfall'
+  }
+  if (desc.includes('spolbil') || desc.includes('avfett')) {
+    return 'spolbil'
+  }
+  if (desc.includes('sortering')) {
+    return 'sorteringsteam'
+  }
+  if (desc.includes('latrin')) {
+    return 'latrin'
+  }
+  if (desc.includes('städ') || desc.includes('åvs')) {
+    return 'städ'
+  }
+  if (desc.includes('personal') || desc.includes('åvc')) {
+    return 'personal'
+  }
+  if (desc.includes('högservice')) {
+    return 'högservice'
+  }
+
+  if (/^\d+/.test(desc) && desc.length <= 4) {
+    return 'truck'
+  }
+
+  return 'truck'
+}
+
+function extractFackDetails(
+  bilSpec: any,
+  bookings: StandardizedBooking[],
+  settings: any
+): FackDetail[] {
   if (!bilSpec?.FACK || !Array.isArray(bilSpec.FACK)) {
     return []
   }
 
-  const fackMap = new Map<number, string[]>()
+  const fackMap = new Map<number, FackWasteType[]>()
+
   bilSpec.FACK.forEach((fack: any) => {
     const fackNr = fack.FACK
     const avfallstyp = fack.AVFTYP
+
     if (fackNr && avfallstyp) {
       if (!fackMap.has(fackNr)) {
         fackMap.set(fackNr, [])
       }
-      fackMap.get(fackNr)!.push(avfallstyp)
+
+      const avftypSpec = settings.avftyper?.find(
+        (a: any) => a.ID === avfallstyp
+      )
+      const volymvikt = avftypSpec?.VOLYMVIKT || null
+      const fyllnadsgrad = getFyllnadsgradForAvftyp(
+        avfallstyp,
+        bookings,
+        settings
+      )
+
+      const wasteType: FackWasteType = {
+        avftyp: avfallstyp,
+        volymvikt,
+        fyllnadsgrad,
+        beskrivning: avftypSpec?.BESKRIVNING || null,
+      }
+
+      fackMap.get(fackNr)!.push(wasteType)
     }
   })
 
@@ -252,242 +357,86 @@ function extractFackConfiguration(bilSpec: any): FackConfig[] {
     .map(([fackNumber, avfallstyper]) => ({
       fackNumber,
       avfallstyper,
+      volym: getFackVolym(bilSpec, fackNumber),
+      vikt: getFackVikt(bilSpec, fackNumber),
     }))
-    .sort((a, b) => (a.fackNumber || 0) - (b.fackNumber || 0))
+    .sort((a, b) => a.fackNumber - b.fackNumber)
 }
 
-function createFleetsFromTemplates(
-  analysis: DataAnalysis
-): FleetConfiguration[] {
-  const fleets: FleetConfiguration[] = []
-  const coveredWasteTypes = new Set<string>()
-
-  const sortedTemplates = [...PREDEFINED_FLEET_TEMPLATES].sort(
-    (a, b) => b.priority - a.priority
-  )
-
-  for (const template of sortedTemplates) {
-    const matchingWasteTypes = template.wasteTypes.filter(
-      (wasteType) =>
-        analysis.availableWasteTypes.includes(wasteType) &&
-        !coveredWasteTypes.has(wasteType)
-    )
-
-    if (matchingWasteTypes.length === 0) {
-      continue
-    }
-
-    const compatibleVehicles = findCompatibleVehicles(
-      matchingWasteTypes,
-      analysis,
-      template
-    )
-
-    if (compatibleVehicles.length === 0) {
-      const fallbackVehicles = analysis.availableVehicles.slice(0, 1)
-      compatibleVehicles.push(...fallbackVehicles)
-    }
-
-    const fleetBookings = calculateFleetBookings(
-      matchingWasteTypes,
-      compatibleVehicles.map((v) => v.id),
-      analysis
-    )
-
-    const fleet: FleetConfiguration = {
-      name: template.name,
-      hubAddress: 'LERHAGA 50, 151 66 Södertälje',
-      recyclingTypes: matchingWasteTypes,
-      vehicles: generateVehicleConfig(
-        compatibleVehicles,
-        fleetBookings,
-        matchingWasteTypes,
-        analysis.systemSettings
-      ),
-      swedishCategory: template.category,
-      vehicleIds: compatibleVehicles.map((v) => v.id),
-      assignedTurids: getAssignedTurids(
-        compatibleVehicles.map((v) => v.id),
-        analysis
-      ),
-      bookingCount: fleetBookings,
-      source: 'template',
-      templateId: template.id,
-    }
-
-    if (fleet.bookingCount > 0) {
-      fleets.push(fleet)
-
-      matchingWasteTypes.forEach((wasteType) =>
-        coveredWasteTypes.add(wasteType)
-      )
-    }
-  }
-
-  return fleets
-}
-
-function findCompatibleVehicles(
-  wasteTypes: string[],
-  analysis: DataAnalysis,
-  template: FleetTemplate
-): VehicleInfo[] {
-  const directlyUsedVehicles = analysis.availableVehicles.filter((vehicle) =>
-    wasteTypes.some((wasteType) => {
-      const vehicleWastes = analysis.vehicleWasteUsage.get(vehicle.id) || []
-      return vehicleWastes.includes(wasteType)
-    })
-  )
-
-  if (directlyUsedVehicles.length > 0) {
-    return directlyUsedVehicles
-  }
-
-  const typeCompatibleVehicles = analysis.availableVehicles.filter((vehicle) =>
-    template.vehicleTypes.some((type) =>
-      vehicle.description.toLowerCase().includes(type.toLowerCase())
-    )
-  )
-
-  if (typeCompatibleVehicles.length > 0) {
-    return typeCompatibleVehicles.slice(0, 2)
-  }
-
-  const fackCompatibleVehicles = analysis.availableVehicles.filter((vehicle) =>
-    vehicle.fackConfiguration?.some((fack) =>
-      fack.avfallstyper.some((avfallstyp) => wasteTypes.includes(avfallstyp))
-    )
-  )
-
-  return fackCompatibleVehicles.slice(0, 2)
-}
-
-function calculateFleetBookings(
-  wasteTypes: string[],
-  vehicleIds: string[],
-  analysis: DataAnalysis
-): number {
-  let totalBookings = 0
-
-  wasteTypes.forEach((wasteType) => {
-    const wasteTypeBookings =
-      analysis.wasteTypeBookingCounts.get(wasteType) || 0
-    totalBookings += wasteTypeBookings
-  })
-
-  return totalBookings
-}
-
-function generateVehicleConfig(
-  vehicles: VehicleInfo[],
-  bookingCount: number,
-  wasteTypes: string[],
+function getFyllnadsgradForAvftyp(
+  avftyp: string,
+  bookings: StandardizedBooking[],
   settings: any
-): Record<string, number> {
-  let vehicleType = 'truck'
+): number | null {
+  const relevantBookings = bookings.filter((b) => b.recyclingType === avftyp)
 
-  if (vehicles.length > 0) {
-    const vehicle = vehicles[0]
-    if (
-      vehicle.description.toLowerCase().includes('matbil') ||
-      vehicle.description.toLowerCase().includes('matavfall')
-    ) {
-      vehicleType = 'matbil'
-    } else if (
-      vehicle.description.toLowerCase().includes('4-fack') ||
-      vehicle.description.toLowerCase().includes('fyrfack')
-    ) {
-      vehicleType = 'fyrfack'
-    } else if (vehicle.description.toLowerCase().includes('2-fack')) {
-      vehicleType = '2-fack'
-    } else if (vehicle.description.toLowerCase().includes('baklastare')) {
-      vehicleType = 'baklastare'
-    } else if (vehicle.description.toLowerCase().includes('frontlastare')) {
-      vehicleType = 'frontlastare'
-    } else if (vehicle.description.toLowerCase().includes('skåpbil')) {
-      vehicleType = 'skåpbil'
-    } else if (vehicle.description.toLowerCase().includes('kranbil')) {
-      vehicleType = 'kranbil'
-    } else if (vehicle.description.toLowerCase().includes('lastväxlare')) {
-      vehicleType = 'lastväxlare'
-    }
+  if (relevantBookings.length === 0) {
+    return null
   }
 
-  const optimalCount = calculateOptimalVehicleCount(
-    bookingCount,
-    wasteTypes,
-    settings,
-    vehicleType
-  )
+  const tjtyper = [
+    ...new Set(
+      relevantBookings.map((b) => b.originalRecord.Tjtyp).filter(Boolean)
+    ),
+  ]
 
-  return { [vehicleType]: optimalCount }
-}
+  if (tjtyper.length === 0) {
+    return null
+  }
 
-function getAssignedTurids(
-  vehicleIds: string[],
-  analysis: DataAnalysis
-): string[] {
-  const turids: string[] = []
+  let totalFyllnadsgrad = 0
+  let count = 0
 
-  analysis.turidVehicleMapping.forEach((vehicleId, turid) => {
-    if (vehicleIds.includes(vehicleId)) {
-      turids.push(turid)
+  tjtyper.forEach((tjtyp) => {
+    const tjtypSpec = settings.tjtyper?.find((t: any) => t.ID === tjtyp)
+    if (tjtypSpec?.FYLLNADSGRAD !== undefined) {
+      totalFyllnadsgrad += tjtypSpec.FYLLNADSGRAD
+      count++
     }
   })
 
-  return turids
+  return count > 0 ? Math.round(totalFyllnadsgrad / count) : null
 }
 
-const VEHICLE_BASE_CAPACITIES = {
-  truck: 200,
-  baklastare: 150,
-  fyrfack: 300,
-  '2-fack': 250,
-  matbil: 100,
-  frontlastare: 400,
-  skåpbil: 50,
-  kranbil: 300,
-  lastväxlare: 500,
+function getFackVolym(bilSpec: any, fackNumber: number): number | null {
+  const volumKey = `FACK${fackNumber}_VOLYM`
+  return bilSpec[volumKey] || null
 }
 
-function calculateOptimalVehicleCount(
-  bookings: number,
-  wasteTypes: string[],
-  settings: any,
-  vehicleType: string = 'truck'
-): number {
-  const baseCapacity =
-    VEHICLE_BASE_CAPACITIES[
-      vehicleType as keyof typeof VEHICLE_BASE_CAPACITIES
-    ] || VEHICLE_BASE_CAPACITIES.truck
+function getFackVikt(bilSpec: any, fackNumber: number): number | null {
+  const viktKey = `FACK${fackNumber}_VIKT`
+  return bilSpec[viktKey] || null
+}
 
-  let adjustedCapacity = baseCapacity
+function calculateParcelCapacity(bilSpec: any, vehicleClass: string): number {
+  const totalVolume =
+    (bilSpec.FACK1_VOLYM || 0) +
+    (bilSpec.FACK2_VOLYM || 0) +
+    (bilSpec.FACK3_VOLYM || 0) +
+    (bilSpec.FACK4_VOLYM || 0)
 
-  if (settings?.avftyper && wasteTypes.length > 0) {
-    const avgVolymvikt =
-      wasteTypes
-        .map((wasteType) => {
-          const avftyp = settings.avftyper.find((a: any) => a.ID === wasteType)
-          return avftyp?.VOLYMVIKT || 100
-        })
-        .reduce((sum: number, val: number) => sum + val, 0) / wasteTypes.length
-
-    const densityFactor = Math.min(2.0, Math.max(0.5, avgVolymvikt / 100))
-    adjustedCapacity = Math.floor(baseCapacity / densityFactor)
+  if (totalVolume > 0) {
+    return Math.floor(totalVolume / 10)
   }
 
-  if (wasteTypes.some((type) => ['MATAVF', 'LATRIN', 'FETT'].includes(type))) {
-    adjustedCapacity = Math.floor(adjustedCapacity * 0.7)
-  } else if (
-    wasteTypes.some((type) => ['GLOF', 'GLFÄ', 'BGLOF', 'BGLFÄ'].includes(type))
-  ) {
-    adjustedCapacity = Math.floor(adjustedCapacity * 0.8)
+  const defaults: Record<string, number> = {
+    truck: 200,
+    baklastare: 150,
+    fyrfack: 300,
+    '2-fack': 250,
+    matbil: 100,
+    frontlastare: 400,
+    skåpbil: 50,
+    kranbil: 300,
+    lastväxlare: 500,
+    trädgårdsavfall: 180,
+    spolbil: 200,
+    sorteringsteam: 120,
+    latrin: 150,
+    städ: 80,
+    personal: 40,
+    högservice: 350,
   }
 
-  const optimalCount = Math.max(
-    1,
-    Math.min(12, Math.ceil(bookings / Math.max(10, adjustedCapacity)))
-  )
-
-  return optimalCount
+  return defaults[vehicleClass] || 200
 }

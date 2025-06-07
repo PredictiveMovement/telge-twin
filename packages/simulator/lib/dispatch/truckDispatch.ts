@@ -3,6 +3,8 @@ const { plan, truckToVehicle, bookingToShipment } = require('../vroom')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { error, info } = require('../log')
 const { save, search } = require('../elastic')
+const Booking = require('../models/booking')
+const Position = require('../models/position')
 
 export interface Instruction {
   action: string
@@ -30,11 +32,14 @@ export async function findBestRouteToPickupBookings(
     }
 
     const vehicles = [truckToVehicle(truck, 0)]
-    const shipments = bookings.map(bookingToShipment)
+    const shipments = bookings.map((booking, index) =>
+      bookingToShipment(booking, index)
+    )
+
     const result: any = await plan({ shipments, vehicles }, 0)
 
     if (result.unassigned?.length > 0) {
-      error(`Unassigned bookings: ${result.unassigned}`)
+      error(`❌ Unassigned bookings for truck ${truck.id}:`, result.unassigned)
     }
 
     return result.routes[0]?.steps
@@ -42,7 +47,17 @@ export async function findBestRouteToPickupBookings(
         instructions.includes(type as any)
       )
       .map(({ id, type, arrival, departure }: any) => {
-        const booking = bookings[id]
+        let bookingIndex
+        if (type === 'pickup') {
+          bookingIndex = Math.floor(id / 2)
+        } else if (type === 'delivery') {
+          bookingIndex = Math.floor((id - 1) / 2)
+        } else {
+          bookingIndex = null
+        }
+
+        const booking = bookingIndex !== null ? bookings[bookingIndex] : null
+
         return {
           action: type,
           arrival,
@@ -61,25 +76,15 @@ export async function saveCompletePlanForReplay(
   truckId: string,
   fleetName: string,
   completePlan: Instruction[],
-  allBookings: any[]
+  allBookings: any[],
+  createReplay: boolean = true
 ): Promise<void> {
+  if (!createReplay) {
+    return
+  }
+
   try {
     const planId = `${experimentId}-${truckId}-complete-${Date.now()}`
-
-    const bookingOrder = completePlan
-      .filter((instruction) => instruction.booking)
-      .map((instruction, index) => ({
-        index,
-        bookingId: instruction.booking.bookingId,
-        id: instruction.booking.id,
-      }))
-
-    info(
-      `📄 SAVING plan for ${truckId} with ${bookingOrder.length} bookings in order:`,
-      bookingOrder
-        .map((b: any) => `${b.index}:${b.bookingId || b.id}`)
-        .join(' → ')
-    )
 
     const bookingMetadata = allBookings.map((booking, index) => ({
       originalIndex: index,
@@ -129,9 +134,6 @@ export async function saveCompletePlanForReplay(
       planId,
       'vroom-truck-plans'
     )
-    info(
-      `Saved complete truck plan for replay with planId: ${planId}, experiment: ${experimentId}, truckId: ${truckId}`
-    )
   } catch (err) {
     error(`Error saving complete plan to Elasticsearch: ${err}`)
   }
@@ -172,17 +174,7 @@ async function loadCompletePlanForExperiment(
     })
 
     const result = res?.body?.hits?.hits?.[0]?._source || null
-    if (result) {
-      info(
-        `Loaded complete plan from Elasticsearch for experiment: ${experimentId}, truckId: ${truckId}`
-      )
-      return result
-    } else {
-      info(
-        `No complete plan found for experiment: ${experimentId}, truckId: ${truckId}`
-      )
-    }
-    return null
+    return result
   } catch (e) {
     error(`Error loading complete plan: ${e}`)
     return null
@@ -196,49 +188,42 @@ export async function useReplayRoute(truck: any, bookings: any[]) {
   )
 
   if (completePlanData?.completePlan) {
-    info(`Using complete plan for replay: ${truck.id}`)
-
-    const savedBookingOrder = completePlanData.completePlan
-      .filter((instruction: any) => instruction.booking)
-      .map((instruction: any, index: number) => ({
-        index,
-        bookingId: instruction.booking.bookingId,
-        id: instruction.booking.id,
-      }))
-
     info(
-      `📖 LOADING plan for ${truck.id} with ${savedBookingOrder.length} bookings in order:`,
-      savedBookingOrder
-        .map((b: any) => `${b.index}:${b.bookingId || b.id}`)
-        .join(' → ')
+      `🔍 Replay route for truck ${truck.id}: ${bookings.length} bookings available`
     )
-
-    const currentBookingOrder = bookings.map((booking: any, index: number) => ({
-      index,
-      bookingId: booking.bookingId,
-      id: booking.id,
-    }))
-
     info(
-      `🔄 CURRENT queue for ${truck.id} with ${currentBookingOrder.length} bookings in order:`,
-      currentBookingOrder
-        .map((b: any) => `${b.index}:${b.bookingId || b.id}`)
-        .join(' → ')
+      `📋 Available booking IDs:`,
+      bookings.map((b: any) => ({ id: b.id, bookingId: b.bookingId }))
     )
 
     const reconstructedPlan = completePlanData.completePlan.map(
-      (instruction: any) => ({
-        action: instruction.action,
-        arrival: instruction.arrival,
-        departure: instruction.departure,
-        booking: instruction.booking
-          ? bookings.find(
-              (b: any) =>
-                b.bookingId === instruction.booking.bookingId ||
-                b.id === instruction.booking.id
-            ) || instruction.booking
-          : null,
-      })
+      (instruction: any) => {
+        let matchedBooking = null
+        if (instruction.booking) {
+          matchedBooking = bookings.find(
+            (b: any) => b.bookingId === instruction.booking.bookingId
+          )
+          if (!matchedBooking) {
+            info(
+              `⚠️ No booking found for instruction booking ${instruction.booking.bookingId}, creating from instruction data`
+            )
+            matchedBooking = createBookingFromInstructionData(
+              instruction.booking
+            )
+          } else {
+            info(
+              `✅ Found matching booking for ${instruction.booking.bookingId}`
+            )
+          }
+        }
+
+        return {
+          action: instruction.action,
+          arrival: instruction.arrival,
+          departure: instruction.departure,
+          booking: matchedBooking,
+        }
+      }
     )
 
     return reconstructedPlan
@@ -265,10 +250,39 @@ export async function useReplayRoute(truck: any, bookings: any[]) {
   )
 }
 
+function createBookingFromInstructionData(instructionBooking: any): any {
+  const bookingInput = {
+    id: instructionBooking.id,
+    bookingId: instructionBooking.bookingId,
+    recyclingType: instructionBooking.recyclingType,
+    type: instructionBooking.recyclingType,
+    pickup: instructionBooking.pickup
+      ? {
+          position: new Position({
+            lat: instructionBooking.pickup.lat,
+            lng: instructionBooking.pickup.lon,
+          }),
+          postalcode: instructionBooking.pickup.postalcode,
+        }
+      : undefined,
+    destination: instructionBooking.destination
+      ? {
+          position: new Position({
+            lat: instructionBooking.destination.lat,
+            lng: instructionBooking.destination.lon,
+          }),
+        }
+      : undefined,
+  }
+
+  return new Booking(bookingInput)
+}
+
 export default {
   findBestRouteToPickupBookings,
   useReplayRoute,
   saveCompletePlanForReplay,
+  createBookingFromInstructionData,
 }
 
 // CommonJS compatibility
@@ -279,5 +293,6 @@ if (typeof module !== 'undefined') {
     findBestRouteToPickupBookings,
     useReplayRoute,
     saveCompletePlanForReplay,
+    createBookingFromInstructionData,
   }
 }

@@ -1,13 +1,6 @@
 import axios from 'axios'
 import { SIMULATOR_CONFIG } from '../config/simulator'
-import io, { Socket } from 'socket.io-client'
-
-const generateSessionId = () => {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
-  )
-}
+import { Socket } from 'socket.io-client'
 
 const simulatorApi = axios.create({
   baseURL: SIMULATOR_CONFIG.url,
@@ -66,230 +59,170 @@ export interface Experiment {
   emitters?: string[]
 }
 
-export const fetchExperiments = async () => {
+export async function saveRouteDataset(datasetData: {
+  name: string
+  description?: string
+  originalFilename: string
+  filterCriteria: any
+  routeData: any[]
+  originalRecordCount: number
+  fleetConfiguration?: any[]
+  originalSettings?: any
+}): Promise<{
+  success: boolean
+  datasetId?: string
+  dataset?: RouteDataset
+  error?: string
+}> {
   try {
-    const response = await simulatorApi.get('/api/experiments')
+    const response = await simulatorApi.post('/api/datasets', datasetData)
+    return response.data
+  } catch (error) {
+    console.error('Error saving route dataset:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
+  }
+}
 
+export async function getRouteDatasets(): Promise<RouteDataset[]> {
+  try {
+    const response = await simulatorApi.get('/api/datasets')
     if (response.data?.success && response.data?.data) {
       return response.data.data
     }
+    return []
+  } catch (error) {
+    console.error('Error fetching route datasets:', error)
+    return []
+  }
+}
 
+export async function deleteRouteDataset(
+  datasetId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await simulatorApi.delete(`/api/datasets/${datasetId}`)
+    return response.data
+  } catch (error) {
+    console.error('Error deleting route dataset:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+export async function getExperiments(): Promise<Experiment[]> {
+  try {
+    const response = await simulatorApi.get('/api/experiments')
+    if (response.data?.success && response.data?.data) {
+      return response.data.data
+    }
     return []
   } catch (error) {
     console.error('Error fetching experiments:', error)
-    throw error
+    return []
   }
 }
 
-export const fetchExperimentIds = async () => {
-  try {
-    const experiments = await fetchExperiments()
-    return experiments.map((exp) => exp.id)
-  } catch (error) {
-    console.error('Error fetching experiment IDs:', error)
-    throw error
-  }
-}
-
-export const fetchExperimentById = async (experimentId) => {
+export async function getExperimentById(
+  experimentId: string
+): Promise<Experiment | null> {
   try {
     const response = await simulatorApi.get(`/api/experiments/${experimentId}`)
-
     if (response.data?.success && response.data?.data) {
       return response.data.data
     }
-
     return null
   } catch (error) {
     console.error('Error fetching experiment by ID:', error)
-    throw error
-  }
-}
-
-export const fetchPlanById = async (planId) => {
-  try {
-    const response = await simulatorApi.get(
-      `${SIMULATOR_CONFIG.endpoints.experimentById}/${planId}`
-    )
-
-    if (response.data?.success && response.data?.data) {
-      return response.data.data
-    }
-
     return null
-  } catch (error) {
-    console.error('Error fetching plan by ID:', error)
-    throw error
   }
 }
 
-export const fetchSimulations = async () => {
+export async function prepareReplay(experimentId: string): Promise<{
+  success: boolean
+  data?: {
+    experimentId: string
+    sessionId: string
+    parameters: any
+  }
+  error?: string
+}> {
   try {
-    const response = await simulatorApi.get('/api/simulations')
-
-    if (response.data?.success && response.data?.data) {
-      return response.data.data
-    }
-
-    return []
+    const response = await simulatorApi.post('/api/simulation/prepare-replay', {
+      experimentId,
+    })
+    return response.data
   } catch (error) {
-    console.error('Error fetching simulations:', error)
-    throw error
+    console.error('Error preparing replay:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
   }
 }
 
-export const startSessionReplay = async (socket, experimentId) => {
+export function startSimulationFromDataset(
+  socket: Socket,
+  datasetId: string,
+  datasetName: string,
+  parameters: any = {}
+): Promise<void> {
+  return new Promise((resolve) => {
+    const defaultParameters = {
+      id: null,
+      startDate: new Date().toISOString(),
+      fixedRoute: 100,
+      emitters: ['bookings', 'cars'],
+      initMapState: {
+        latitude: 65.0964472642777,
+        longitude: 17.112050188704504,
+        zoom: 5,
+      },
+    }
+
+    socket.emit(
+      'startSimulation',
+      {
+        sourceDatasetId: datasetId,
+        datasetName,
+      },
+      {
+        ...defaultParameters,
+        ...parameters,
+        routeDataSource: 'elasticsearch',
+      }
+    )
+    socket.once('simulationStarted', () => resolve())
+  })
+}
+
+export const startSessionReplay = async (
+  socket: Socket,
+  experimentId: string
+) => {
   try {
-    const experimentData = await fetchExperimentById(experimentId)
+    const replayResult = await prepareReplay(experimentId)
 
-    if (!experimentData) {
-      throw new Error(`Experiment ${experimentId} not found`)
+    if (!replayResult.success || !replayResult.data) {
+      throw new Error(replayResult.error || 'Failed to prepare replay')
     }
 
-    const sessionId = generateSessionId()
+    const { sessionId, parameters } = replayResult.data
 
-    const replayParameters = {
-      ...experimentData,
-      id: `replay_${experimentId}_${Date.now()}`,
-      isReplay: true,
-      fleets: Object.fromEntries(
-        Object.entries((experimentData as any).fleets || {}).map(
-          ([municipality, config]: [string, any]) => [
-            municipality,
-            {
-              ...config,
-              settings: {
-                ...config.settings,
-                replayExperiment: experimentId,
-              },
-            },
-          ]
-        )
-      ),
-    }
-
-    if (socket) {
-      socket.emit('startSessionReplay', {
-        sessionId,
-        experimentId,
-        parameters: replayParameters,
-      })
-    }
+    socket.emit('startSessionReplay', {
+      sessionId,
+      experimentId,
+      parameters,
+    })
 
     return sessionId
   } catch (error) {
     console.error('Error starting session replay:', error)
     throw error
-  }
-}
-
-export const joinSession = (socket, sessionId, replayId) => {
-  if (socket) {
-    socket.emit('joinSession', { sessionId, replayId })
-  }
-}
-
-export const leaveSession = (socket, sessionId) => {
-  if (socket) {
-    socket.emit('leaveSession', sessionId)
-  }
-}
-
-export const startReplaySimulation = async (socket, experimentId) => {
-  return await startSessionReplay(socket, experimentId)
-}
-
-export class SimulatorAPI {
-  private socket: Socket
-
-  constructor(url: string = 'http://localhost:3000') {
-    this.socket = io(url)
-    this.socket.connect()
-  }
-
-  saveRouteDataset(datasetData: {
-    name: string
-    description?: string
-    originalFilename: string
-    filterCriteria: any
-    routeData: any[]
-    originalRecordCount: number
-    fleetConfiguration?: any[]
-    originalSettings?: any
-  }): Promise<{
-    success: boolean
-    datasetId?: string
-    dataset?: RouteDataset
-    error?: string
-  }> {
-    return new Promise((resolve) => {
-      this.socket.emit('saveRouteDataset', datasetData)
-      this.socket.once('routeDatasetSaved', (result) => {
-        resolve(result)
-      })
-
-      setTimeout(() => {
-        console.log('SimulatorAPI: Timeout efter 10 sekunder')
-        resolve({ success: false, error: 'Timeout - no response from server' })
-      }, 10000)
-    })
-  }
-
-  getRouteDatasets(): Promise<RouteDataset[]> {
-    return new Promise((resolve) => {
-      this.socket.emit('getRouteDatasets')
-      this.socket.once('routeDatasets', resolve)
-    })
-  }
-
-  deleteRouteDataset(
-    datasetId: string
-  ): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      this.socket.emit('deleteRouteDataset', datasetId)
-      this.socket.once('routeDatasetDeleted', resolve)
-    })
-  }
-
-  getExperiments(): Promise<Experiment[]> {
-    return new Promise((resolve) => {
-      this.socket.emit('getExperiments')
-      this.socket.once('experiments', resolve)
-    })
-  }
-
-  startSimulationFromDataset(
-    datasetId: string,
-    datasetName: string,
-    parameters: any = {}
-  ): Promise<void> {
-    return new Promise((resolve) => {
-      const defaultParameters = {
-        id: null,
-        startDate: new Date().toISOString(),
-        fixedRoute: 100,
-        emitters: ['bookings', 'cars'],
-        initMapState: {
-          latitude: 65.0964472642777,
-          longitude: 17.112050188704504,
-          zoom: 5,
-        },
-      }
-
-      this.socket.emit(
-        'startSimulation',
-        {
-          sourceDatasetId: datasetId,
-          datasetName,
-        },
-        {
-          ...defaultParameters,
-          ...parameters,
-          routeDataSource: 'elasticsearch',
-        }
-      )
-      this.socket.once('simulationStarted', () => resolve())
-    })
   }
 }
 

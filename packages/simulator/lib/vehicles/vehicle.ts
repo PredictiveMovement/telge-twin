@@ -19,6 +19,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 interface VehicleConstructorArgs {
   id?: string
   position: any // Position type
+  startPosition?: any
+  destination?: any
   status?: string
   parcelCapacity?: number
   passengerCapacity?: number
@@ -69,6 +71,8 @@ class Vehicle {
     {
       id = 'v-' + safeId(),
       position,
+      startPosition,
+      destination,
       status = 'ready',
       parcelCapacity,
       passengerCapacity,
@@ -80,7 +84,10 @@ class Vehicle {
   ) {
     this.id = id
     this.position = position
-    this.origin = position
+    this.origin = startPosition || position
+    if (destination) {
+      this.destination = destination
+    }
     this.queue = []
     this.cargo = []
     this.delivered = []
