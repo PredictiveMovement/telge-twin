@@ -40,6 +40,7 @@ class Fleet {
     recyclingTypes,
     settings,
     preAssignedBookings,
+    experimentType,
   }: any) {
     info(`Fleet configuration:`, {
       id,
@@ -69,6 +70,7 @@ class Fleet {
     this.settings = settings
     ;(this as any).vehicleSpecs = vehicles || []
     ;(this as any).preAssignedBookings = preAssignedBookings || {}
+    ;(this as any).experimentType = experimentType || 'vroom'
 
     this.cars = this.createCarsFromSpecs(vehicles || [])
     this.unhandledBookings = new ReplaySubject()
@@ -172,7 +174,7 @@ class Fleet {
             }
           }),
           mergeMap(({ car, booking }: any) => {
-            if (this.settings?.optimizedRoutes) {
+            if ((this as any).experimentType === 'vroom') {
               return car.handleBooking(this.experimentId, booking)
             } else {
               return car.handleStandardBooking(booking)

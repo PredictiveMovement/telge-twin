@@ -108,6 +108,7 @@ class Municipality {
             recyclingTypes: recyclingTypes,
             preAssignedBookings: preAssignedBookings,
             settings: this.settings,
+            experimentType: this.settings?.experimentType || 'vroom',
           })
         }
       ),

@@ -31,40 +31,79 @@ export async function findBestRouteToPickupBookings(
       return []
     }
 
-    const vehicles = [truckToVehicle(truck, 0)]
+    const vehicles = [{ ...truckToVehicle(truck, 0), _cacheBuster: Date.now() }]
     const shipments = bookings.map((booking, index) =>
       bookingToShipment(booking, index)
     )
 
     const result: any = await plan({ shipments, vehicles }, 0)
 
+    let vromPlan =
+      result.routes[0]?.steps
+        .filter(({ type }: { type: string }) =>
+          instructions.includes(type as any)
+        )
+        .map(({ id, type, arrival, departure }: any) => {
+          let bookingIndex
+          if (type === 'pickup') {
+            bookingIndex = Math.floor(id / 2)
+          } else if (type === 'delivery') {
+            bookingIndex = Math.floor((id - 1) / 2)
+          } else {
+            bookingIndex = null
+          }
+
+          const booking = bookingIndex !== null ? bookings[bookingIndex] : null
+
+          return {
+            action: type,
+            arrival,
+            departure,
+            booking,
+          }
+        }) || []
+
     if (result.unassigned?.length > 0) {
       error(`❌ Unassigned bookings for truck ${truck.id}:`, result.unassigned)
+
+      const unassignedPickupIds = result.unassigned
+        .filter((item: any) => item.type === 'pickup')
+        .map((item: any) => Math.floor(item.id / 2))
+
+      const unassignedBookings = unassignedPickupIds
+        .map((id: number) => bookings[id])
+        .filter(Boolean)
+
+      info(
+        `📦 Adding ${unassignedBookings.length} unassigned bookings to sequential plan for truck ${truck.id}`
+      )
+
+      const unassignedInstructions = unassignedBookings.map((booking: any) => ({
+        action: 'pickup',
+        arrival: 0,
+        departure: 0,
+        booking,
+      }))
+
+      const pickupInstructions = vromPlan.filter(
+        (inst: any) => inst.action === 'pickup'
+      )
+      const deliveryInstructions = vromPlan.filter(
+        (inst: any) => inst.action === 'delivery'
+      )
+      const otherInstructions = vromPlan.filter(
+        (inst: any) => inst.action !== 'pickup' && inst.action !== 'delivery'
+      )
+
+      vromPlan = [
+        ...pickupInstructions,
+        ...unassignedInstructions,
+        ...deliveryInstructions,
+        ...otherInstructions,
+      ]
     }
 
-    return result.routes[0]?.steps
-      .filter(({ type }: { type: string }) =>
-        instructions.includes(type as any)
-      )
-      .map(({ id, type, arrival, departure }: any) => {
-        let bookingIndex
-        if (type === 'pickup') {
-          bookingIndex = Math.floor(id / 2)
-        } else if (type === 'delivery') {
-          bookingIndex = Math.floor((id - 1) / 2)
-        } else {
-          bookingIndex = null
-        }
-
-        const booking = bookingIndex !== null ? bookings[bookingIndex] : null
-
-        return {
-          action: type,
-          arrival,
-          departure,
-          booking,
-        }
-      })
+    return vromPlan
   } catch (vroomError) {
     error(`Failed to plan route for truck ${truck.id}:`, vroomError)
     return []

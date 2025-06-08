@@ -23,6 +23,7 @@ interface Experiment {
   datasetName?: string
   simulationStatus?: string
   routeDataSource?: string
+  experimentType?: 'vroom' | 'sequential' | 'replay'
   fleetCount: number
   vehicleCount: number
   documentId: string
@@ -180,6 +181,9 @@ export default function ExperimentsTab() {
                           Dataset
                         </th>
                         <th className="border border-gray-300 py-2 px-3 text-left">
+                          Typ
+                        </th>
+                        <th className="border border-gray-300 py-2 px-3 text-left">
                           Åtgärder
                         </th>
                       </tr>
@@ -214,17 +218,42 @@ export default function ExperimentsTab() {
                             )}
                           </td>
                           <td className="border border-gray-300 py-2 px-3">
-                            <Button
-                              onClick={() =>
-                                handleReplayExperiment(experiment.id)
+                            <Badge
+                              variant={
+                                experiment.experimentType === 'vroom'
+                                  ? 'default'
+                                  : 'secondary'
                               }
-                              size="sm"
-                              variant="outline"
-                              className="flex items-center gap-1"
+                              className="text-xs"
                             >
-                              <RotateCcw size={14} />
-                              Replay
-                            </Button>
+                              {experiment.experimentType === 'vroom'
+                                ? 'VROOM'
+                                : experiment.experimentType === 'sequential'
+                                ? 'Sekventiell'
+                                : experiment.experimentType === 'replay'
+                                ? 'Replay'
+                                : 'Okänd'}
+                            </Badge>
+                          </td>
+                          <td className="border border-gray-300 py-2 px-3">
+                            {experiment.experimentType === 'vroom' ? (
+                              <Button
+                                onClick={() =>
+                                  handleReplayExperiment(experiment.id)
+                                }
+                                size="sm"
+                                variant="outline"
+                                className="flex items-center gap-1"
+                                title="Spela upp VROOM-optimerat experiment"
+                              >
+                                <RotateCcw size={14} />
+                                Replay
+                              </Button>
+                            ) : (
+                              <span className="text-sm text-gray-500">
+                                Ingen replay tillgänglig
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}

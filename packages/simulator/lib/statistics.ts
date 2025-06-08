@@ -14,6 +14,7 @@ const collectExperimentMetadata = async (experiment: any) => {
       datasetName: experiment.datasetName,
       routeDataSource: experiment.routeDataSource,
       simulationStatus: experiment.simulationStatus,
+      experimentType: experiment.experimentType,
       initMapState: experiment.initMapState,
       fleets: experiment.fleets
         ? Object.keys(experiment.fleets).reduce((acc: any, key: string) => {
@@ -45,11 +46,9 @@ const collectExperimentMetadata = async (experiment: any) => {
 }
 
 const collectBooking = (booking: any, experimentSettings: any) => {
-  const saveToElastic =
-    experimentSettings.fleets?.['Södertälje kommun']?.settings?.saveToElastic ??
-    true
+  const shouldSave = experimentSettings.experimentType !== 'replay'
 
-  if (!saveToElastic) {
+  if (!shouldSave) {
     return Promise.resolve()
   }
 
@@ -78,11 +77,9 @@ const collectBooking = (booking: any, experimentSettings: any) => {
 }
 
 const collectCar = (car: any, experimentSettings: any) => {
-  const saveToElastic =
-    experimentSettings.fleets?.['Södertälje kommun']?.settings?.saveToElastic ??
-    true
+  const shouldSave = experimentSettings.experimentType !== 'replay'
 
-  if (!saveToElastic) {
+  if (!shouldSave) {
     return Promise.resolve()
   }
 

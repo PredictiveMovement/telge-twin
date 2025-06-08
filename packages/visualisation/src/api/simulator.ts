@@ -57,6 +57,7 @@ export interface Experiment {
   routeDataSource?: string
   fixedRoute?: number
   emitters?: string[]
+  experimentType?: 'vroom' | 'sequential' | 'replay'
 }
 
 export async function saveRouteDataset(datasetData: {

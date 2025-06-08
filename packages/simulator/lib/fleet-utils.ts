@@ -3,9 +3,7 @@ export const createFleetConfigFromDataset = (
   experimentId?: string,
   simulationSettings?: any
 ) => {
-  const optimizeRoutes = simulationSettings?.optimizeRoutes ?? true
-  const saveToElastic = simulationSettings?.saveToElastic ?? true
-  const createReplay = simulationSettings?.createReplay ?? true
+  const experimentType = simulationSettings?.experimentType || 'vroom'
 
   const fleets = fleetConfigurations.map((fleet) => {
     return {
@@ -13,7 +11,6 @@ export const createFleetConfigFromDataset = (
       hubAddress: fleet.hubAddress || 'LERHAGA 50, 151 66 Södertälje',
       recyclingTypes: fleet.recyclingTypes,
       vehicles: fleet.vehicles,
-      optimizedRoutes: optimizeRoutes,
       compartmentConfiguration: fleet.compartmentConfiguration,
       swedishCategory: fleet.swedishCategory,
       vehicleIds: fleet.vehicleIds,
@@ -26,15 +23,13 @@ export const createFleetConfigFromDataset = (
   })
 
   console.log(
-    `✅ Converted ${fleets.length} fleets successfully with optimizeRoutes: ${optimizeRoutes}`
+    `✅ Converted ${fleets.length} fleets successfully with experimentType: ${experimentType}`
   )
 
   return {
     'Södertälje kommun': {
       settings: {
-        optimizedRoutes: optimizeRoutes,
-        saveToElastic: saveToElastic,
-        createReplay: createReplay,
+        experimentType,
         ...(experimentId && { replayExperiment: experimentId }),
       },
       fleets,

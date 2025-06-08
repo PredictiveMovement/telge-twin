@@ -310,21 +310,21 @@ function register(io: Server): void {
           fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
         }
 
+        const experimentType =
+          parameters.experimentType || (isReplay ? 'replay' : 'vroom')
+
         globalExperiment = null
         createGlobalSimulation({
           ...parameters,
           ...experimentSettings,
           experimentId: currentExperimentId,
+          experimentType,
           sourceDatasetId: datasetId || simData.sourceDatasetId,
           datasetName: simData.datasetName,
           routeDataSource: 'elasticsearch',
           fleets: {
             'Södertälje kommun': {
-              settings: {
-                optimizedRoutes: true,
-                saveToElastic: true,
-                createReplay: true,
-              },
+              settings: {},
               fleets: fleetsConfig,
             },
           },

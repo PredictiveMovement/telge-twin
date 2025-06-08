@@ -23,6 +23,7 @@ export interface ExperimentParameters {
   datasetName?: string
   routeDataSource?: string
   simulationStatus?: string
+  experimentType?: string
 }
 
 export interface Experiment {
@@ -80,6 +81,7 @@ const engine = {
       datasetName: directParams?.datasetName,
       routeDataSource: directParams?.routeDataSource,
       simulationStatus: 'running',
+      experimentType: directParams?.experimentType,
     }
 
     if (!directParams?.isReplay) {

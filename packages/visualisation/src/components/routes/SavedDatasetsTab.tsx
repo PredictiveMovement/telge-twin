@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Card,
   CardContent,
@@ -10,16 +11,20 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   RouteDataset,
+  Experiment,
   getRouteDatasets,
   deleteRouteDataset,
   startSimulationFromDataset,
+  getExperiments,
 } from '@/api/simulator'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { toast } from 'sonner'
-import { Trash2, Play, Info } from 'lucide-react'
+import { Trash2, Play, Info, RotateCcw } from 'lucide-react'
 
 export default function SavedDatasetsTab() {
+  const navigate = useNavigate()
   const [datasets, setDatasets] = useState<RouteDataset[]>([])
+  const [experiments, setExperiments] = useState<Experiment[]>([])
   const [loading, setLoading] = useState(true)
   const [startingSimulation, setStartingSimulation] = useState<string | null>(
     null
@@ -32,10 +37,14 @@ export default function SavedDatasetsTab() {
 
   const loadDatasets = async () => {
     try {
-      const data = await getRouteDatasets()
-      setDatasets(data)
+      const [datasetsData, experimentsData] = await Promise.all([
+        getRouteDatasets(),
+        getExperiments(),
+      ])
+      setDatasets(datasetsData)
+      setExperiments(experimentsData)
     } catch (error) {
-      toast.error('Fel vid hämtning av datasets')
+      toast.error('Fel vid hämtning av data')
     } finally {
       setLoading(false)
     }
@@ -61,14 +70,12 @@ export default function SavedDatasetsTab() {
 
   const startSimulation = async (
     dataset: RouteDataset,
-    optimizeRoutes: boolean = true
+    experimentType: 'vroom' | 'sequential' = 'vroom'
   ) => {
     setStartingSimulation(dataset.id)
     try {
       const parameters = {
-        optimizeRoutes,
-        saveToElastic: optimizeRoutes,
-        createReplay: optimizeRoutes,
+        experimentType,
       }
 
       await startSimulationFromDataset(
@@ -78,13 +85,28 @@ export default function SavedDatasetsTab() {
         parameters
       )
 
-      const mode = optimizeRoutes ? 'VROOM-optimerad' : 'enkel sekventiell'
+      const mode =
+        experimentType === 'vroom' ? 'VROOM-optimerad' : 'enkel sekventiell'
       toast.success(`${mode} simulering startad för: ${dataset.name}`)
     } catch (error) {
       toast.error('Fel vid start av simulering')
     } finally {
       setStartingSimulation(null)
     }
+  }
+
+  const handleReplayExperiment = (experimentId: string) => {
+    navigate(`/map?replay=${experimentId}`)
+  }
+
+  const getVroomExperimentsForDataset = (
+    dataset: RouteDataset
+  ): Experiment[] => {
+    return experiments.filter(
+      (exp) =>
+        exp.sourceDatasetId === dataset.datasetId &&
+        exp.experimentType === 'vroom'
+    )
   }
 
   const formatDate = (dateString: string) => {
@@ -238,7 +260,7 @@ export default function SavedDatasetsTab() {
 
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Button
-                    onClick={() => startSimulation(dataset, true)}
+                    onClick={() => startSimulation(dataset, 'vroom')}
                     disabled={startingSimulation === dataset.id}
                     className="flex-1"
                     title="Starta simulering med VROOM route-optimering (sparar data till Elasticsearch)"
@@ -250,17 +272,33 @@ export default function SavedDatasetsTab() {
                   </Button>
 
                   <Button
-                    onClick={() => startSimulation(dataset, false)}
+                    onClick={() => startSimulation(dataset, 'sequential')}
                     disabled={startingSimulation === dataset.id}
                     variant="outline"
                     className="flex-1"
-                    title="Starta enkel sekventiell simulering (ingen VROOM, sparar inte data)"
+                    title="Starta enkel sekventiell simulering (ingen VROOM, sparar data till Elasticsearch)"
                   >
                     <Play className="w-4 h-4 mr-2" />
                     {startingSimulation === dataset.id
                       ? 'Startar...'
                       : 'Enkel Sekventiell'}
                   </Button>
+
+                  {getVroomExperimentsForDataset(dataset).length > 0 && (
+                    <Button
+                      onClick={() =>
+                        handleReplayExperiment(
+                          getVroomExperimentsForDataset(dataset)[0].id
+                        )
+                      }
+                      variant="secondary"
+                      size="sm"
+                      title="Spela upp senaste VROOM-experiment för denna dataset"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Replay
+                    </Button>
+                  )}
 
                   <Button
                     variant="destructive"

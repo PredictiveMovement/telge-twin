@@ -145,18 +145,20 @@ function bookingToShipment(
   }
 
   const now = moment()
-  const pickupStart = now.clone().add(30, 'minutes')
-  const pickupEnd = pickupStart.clone().add(30, 'minutes')
-  const deliveryStart = now.clone().add(2, 'hours')
-  const deliveryEnd = deliveryStart.clone().add(30, 'minutes')
+  const pickupStart = now.clone()
+  const pickupEnd = now.clone().add(8, 'hours')
+  const deliveryStart = now.clone()
+  const deliveryEnd = now.clone().add(8, 'hours')
+
+  const amount = groupedBookings ? groupedBookings.length : 1
 
   return {
     id: i,
-    amount: [groupedBookings?.length || 1],
+    amount: [amount],
     pickup: {
       id: i * 2,
-      time_windows: [[pickupStart.unix(), pickupEnd.unix()]],
       location: [pickupLon, pickupLat],
+      time_windows: [[pickupStart.unix(), pickupEnd.unix()]],
     },
     delivery: {
       id: i * 2 + 1,
@@ -183,10 +185,12 @@ function truckToVehicle(
   const workStart = now.clone()
   const workEnd = now.clone().add(8, 'hours')
 
+  const effectiveCapacity = parcelCapacity - cargo.length
+
   return {
     id: i,
     time_window: [workStart.unix(), workEnd.unix()],
-    capacity: [parcelCapacity - cargo.length],
+    capacity: [effectiveCapacity],
     start: [position.lon || position.lng, position.lat],
     end: destination
       ? [destination.lon || destination.lng, destination.lat]

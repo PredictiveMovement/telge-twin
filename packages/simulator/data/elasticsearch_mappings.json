@@ -377,6 +377,9 @@
         "routeDataSource": {
           "type": "keyword"
         },
+        "experimentType": {
+          "type": "keyword"
+        },
         "fleets": {
           "type": "object",
           "enabled": false

@@ -92,6 +92,7 @@ app.get('/api/experiments', async (req, res) => {
           datasetName: source.datasetName,
           routeDataSource: source.routeDataSource,
           simulationStatus: source.simulationStatus,
+          experimentType: source.experimentType,
           vehicleCount: vehicleCounts.get(source.id) || 0,
           documentId: hit._id,
         }
