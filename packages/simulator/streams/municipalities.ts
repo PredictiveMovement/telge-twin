@@ -4,7 +4,6 @@ import Municipality = require('../lib/municipality')
 import Pelias = require('../lib/pelias')
 import data from '../data/municipalities.json'
 import { municipalities as configuredMunicipalities } from '../config'
-import { info } from '../lib/log'
 
 // --------------------------------------------------------------------------------
 // Types
@@ -18,6 +17,7 @@ export interface FleetConfig {
 export interface ReadArgs {
   fleets: Record<string, FleetConfig>
   id?: string
+  virtualTime?: any
 }
 
 const activeMunicipalities: string[] = configuredMunicipalities()
@@ -29,6 +29,7 @@ const activeMunicipalities: string[] = configuredMunicipalities()
 export function read({
   fleets,
   id: experimentId,
+  virtualTime,
   ...experimentParameters
 }: ReadArgs & any): Observable<Municipality> {
   return from(data).pipe(
@@ -50,20 +51,20 @@ export function read({
         settings: fleetConfig.settings,
         experimentId,
         experimentParameters,
+        virtualTime,
       }
     }),
 
     // Resolve centre point for each municipality via Pelias
     mergeMap(
       async ({
-        geometry,
         namn: name,
         address,
-        kod,
         fleets,
         settings,
         experimentId,
         experimentParameters,
+        virtualTime,
       }) => {
         const searchQuery = address || name.split(' ')[0]
         const searchResult = await Pelias.searchOne(searchQuery)
@@ -73,7 +74,6 @@ export function read({
           )
         }
         const { position: center } = searchResult
-        info(`creating municipality ${name}`)
 
         return new Municipality({
           name,
@@ -85,6 +85,7 @@ export function read({
           settings,
           experimentId,
           experimentParameters,
+          virtualTime,
         })
       }
     ),

@@ -27,6 +27,33 @@ interface MapProps {
   onSpeedChange?: (speed: number) => void
 }
 
+interface HoverInfo {
+  id: string
+  type: 'car' | 'booking' | 'municipality' | 'dropoff'
+  x: number
+  y: number
+  viewport?: unknown
+  name?: string
+}
+
+interface LayerEvent {
+  object?: Car | Booking | { id: string; name: string }
+  x: number
+  y: number
+  viewport?: unknown
+}
+
+interface ClickEvent {
+  object?: Car | Booking
+}
+
+interface RouteData {
+  inbound: number[]
+  outbound: number[]
+  from: [number, number]
+  to: [number, number]
+}
+
 const BOOKING_COLORS = {
   DELIVERED: [128, 128, 128],
   PICKED_UP: [255, 165, 0],
@@ -59,7 +86,7 @@ const Map: React.FC<MapProps> = ({
   })
 
   const [activeCar, setActiveCar] = useState<Car | null>(null)
-  const [hoverInfo, setHoverInfo] = useState<any>(null)
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
 
   const [showArcLayer, setShowArcLayer] = useState(false)
   const [showActiveDeliveries, setShowActiveDeliveries] = useState(true)
@@ -167,7 +194,8 @@ const Map: React.FC<MapProps> = ({
         iconMapping: ICON_MAPPING,
         getIcon: (d: Car) => {
           const status = d.status.toLowerCase()
-          return ICON_MAPPING.hasOwnProperty(
+          return Object.prototype.hasOwnProperty.call(
+            ICON_MAPPING,
             status as keyof typeof ICON_MAPPING
           )
             ? status
@@ -175,26 +203,28 @@ const Map: React.FC<MapProps> = ({
         },
         sizeScale: 7,
         getPosition: (d: Car) => d.position,
-        getSize: (d: Car) => 5,
+        getSize: (_d: Car) => 5,
         getColor: getColorBasedOnStatus,
-        onHover: ({ object, x, y, viewport }: any) => {
+        onHover: ({ object, x, y, viewport }: LayerEvent) => {
           if (!object) return setHoverInfo(null)
           setHoverInfo({
-            id: object.id,
+            id: (object as Car).id,
             type: 'car',
             x,
             y,
             viewport,
           })
         },
-        onClick: ({ object }: any) => {
+        onClick: ({ object }: ClickEvent) => {
+          if (!object) return
+          const car = object as Car
           setMapState({
             ...mapState,
             zoom: 14,
-            longitude: object.position[0],
-            latitude: object.position[1],
+            longitude: car.position[0],
+            latitude: car.position[1],
           })
-          setActiveCar(object)
+          setActiveCar(car)
         },
       })
     } else {
@@ -210,28 +240,30 @@ const Map: React.FC<MapProps> = ({
         getPosition: (d: Car) => d.position,
         getRadius: () => 8,
         getFillColor: getColorBasedOnStatus,
-        onHover: ({ object, x, y, viewport }: any) => {
+        onHover: ({ object, x, y, viewport }: LayerEvent) => {
           if (!object) return setHoverInfo(null)
           setHoverInfo({
-            id: object.id,
+            id: (object as Car).id,
             type: 'car',
             x,
             y,
             viewport,
           })
         },
-        onClick: ({ object }: any) => {
+        onClick: ({ object }: ClickEvent) => {
+          if (!object) return
+          const car = object as Car
           setMapState({
             ...mapState,
             zoom: 14,
-            longitude: object.position[0],
-            latitude: object.position[1],
+            longitude: car.position[0],
+            latitude: car.position[1],
           })
-          setActiveCar(object)
+          setActiveCar(car)
         },
       })
     }
-  }, [cars, carLayer, useIcons, mapState])
+  }, [cars, carLayer, useIcons, mapState, ICON_MAPPING])
 
   const bookingLayer = useMemo(
     () =>
@@ -247,10 +279,10 @@ const Map: React.FC<MapProps> = ({
         getRadius: () => 4,
         getFillColor: (booking: Booking) => getColorBasedOnType(booking),
         pickable: true,
-        onHover: ({ object, x, y, viewport }: any) => {
+        onHover: ({ object, x, y, viewport }: LayerEvent) => {
           if (!object) return setHoverInfo(null)
           setHoverInfo({
-            id: object.id,
+            id: (object as Booking).id,
             type: 'booking',
             x,
             y,
@@ -274,11 +306,11 @@ const Map: React.FC<MapProps> = ({
     getIcon: (d: Booking) => 'marker',
     sizeScale: 7,
     getPosition: (b: Booking) => b.destination,
-    getSize: (d: Booking) => 5,
-    onHover: ({ object, x, y, viewport }: any) => {
+    getSize: (_d: Booking) => 5,
+    onHover: ({ object, x, y, viewport }: LayerEvent) => {
       if (!object) return setHoverInfo(null)
       setHoverInfo({
-        id: object.id,
+        id: (object as Booking).id,
         type: 'dropoff',
         x,
         y,
@@ -298,16 +330,17 @@ const Map: React.FC<MapProps> = ({
       filled: true,
       wireframe: true,
       lineWidthMinPixels: 1,
-      getPolygon: (d: any) => d.polygon,
+      getPolygon: (d: { polygon: number[][] }) => d.polygon,
       getFillColor: [80, 210, 0, 80],
       getLineColor: [80, 210, 0, 255],
       getLineWidth: 2,
-      onHover: ({ object, x, y, viewport }: any) => {
+      onHover: ({ object, x, y, viewport }: LayerEvent) => {
         if (!object) return setHoverInfo(null)
+        const municipality = object as { id: string; name: string }
         setHoverInfo({
-          id: object.id,
+          id: municipality.id,
           type: 'municipality',
-          name: object.name,
+          name: municipality.name,
           x,
           y,
           viewport,
@@ -358,10 +391,10 @@ const Map: React.FC<MapProps> = ({
         data: routesData,
         pickable: true,
         getWidth: 0.5,
-        getSourcePosition: (d: any) => d.from,
-        getTargetPosition: (d: any) => d.to,
-        getSourceColor: (d: any) => d.inbound,
-        getTargetColor: (d: any) => d.outbound,
+        getSourcePosition: (d: RouteData) => d.from,
+        getTargetPosition: (d: RouteData) => d.to,
+        getSourceColor: (d: RouteData) => d.inbound,
+        getTargetColor: (d: RouteData) => d.outbound,
       }),
     [routesData]
   )
@@ -385,7 +418,7 @@ const Map: React.FC<MapProps> = ({
     showArcLayer,
   ])
 
-  const HoverInfo = ({ info }: { info: any }) => {
+  const HoverInfo = ({ info }: { info: HoverInfo }) => {
     if (!info) return null
 
     const { x, y, type, id, name } = info
@@ -425,7 +458,13 @@ const Map: React.FC<MapProps> = ({
 
   return (
     <DeckGL
-      mapboxApiAccessToken={(import.meta as any).env.VITE_MAPBOX_ACCESS_TOKEN}
+      mapboxApiAccessToken={
+        (
+          import.meta as unknown as {
+            env: { VITE_MAPBOX_ACCESS_TOKEN: string }
+          }
+        ).env.VITE_MAPBOX_ACCESS_TOKEN
+      }
       viewState={mapState}
       onViewStateChange={({ viewState }) => {
         setMapState(viewState)
@@ -443,7 +482,13 @@ const Map: React.FC<MapProps> = ({
         reuseMaps
         preventStyleDiffing={true}
         mapStyle="mapbox://styles/mapbox/dark-v10"
-        mapboxApiAccessToken={(import.meta as any).env.VITE_MAPBOX_ACCESS_TOKEN}
+        mapboxApiAccessToken={
+          (
+            import.meta as unknown as {
+              env: { VITE_MAPBOX_ACCESS_TOKEN: string }
+            }
+          ).env.VITE_MAPBOX_ACCESS_TOKEN
+        }
       />
 
       {hoverInfo && <HoverInfo info={hoverInfo} />}

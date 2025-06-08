@@ -22,10 +22,6 @@ export const createFleetConfigFromDataset = (
     }
   })
 
-  console.log(
-    `✅ Converted ${fleets.length} fleets successfully with experimentType: ${experimentType}`
-  )
-
   return {
     'Södertälje kommun': {
       settings: {

@@ -10,14 +10,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getExperiments } from '@/api/simulator'
-import { RotateCcw, Info, Database, RefreshCw, Calendar } from 'lucide-react'
+import { Search, Info, Database, RefreshCw, Calendar } from 'lucide-react'
 
 interface Experiment {
   id: string
   startDate: string
   fixedRoute: number
   emitters: string[]
-  fleets: Record<string, any>
+  fleets: Record<string, unknown>
   selectedDataFile?: string
   sourceDatasetId?: string
   datasetName?: string
@@ -40,9 +40,8 @@ export default function ExperimentsTab() {
     setError(null)
     try {
       const data = await getExperiments()
-      setExperiments(data as any)
-    } catch (err) {
-      console.error('Error loading experiments:', err)
+      setExperiments(data as Experiment[])
+    } catch (_err) {
       setError('Kunde inte ladda experimentdata. Försök igen.')
     } finally {
       setLoading(false)
@@ -63,8 +62,8 @@ export default function ExperimentsTab() {
     })
   }
 
-  const handleReplayExperiment = (experimentId: string) => {
-    navigate(`/map?replay=${experimentId}`)
+  const handleOpenExperimentDetails = (experimentId: string) => {
+    navigate(`/experiment/${experimentId}`)
   }
 
   const totalVehicles = experiments.reduce(
@@ -92,8 +91,8 @@ export default function ExperimentsTab() {
           Experiment
         </CardTitle>
         <CardDescription>
-          Översikt över alla sparade experiment i systemet. Klicka på "Replay"
-          för att spela upp ett experiment på nytt.
+          Översikt över alla sparade experiment i systemet. Klicka på "Granska"
+          för att granska ett experiment i detaljerad jämförelsevy.
         </CardDescription>
         <div className="flex gap-2 mt-4">
           <Button
@@ -191,7 +190,7 @@ export default function ExperimentsTab() {
                     <tbody>
                       {experiments.map((experiment, index) => (
                         <tr
-                          key={experiment.id || index}
+                          key={experiment.documentId || index}
                           className="hover:bg-gray-50"
                         >
                           <td className="border border-gray-300 py-2 px-3 text-sm font-mono">
@@ -239,19 +238,21 @@ export default function ExperimentsTab() {
                             {experiment.experimentType === 'vroom' ? (
                               <Button
                                 onClick={() =>
-                                  handleReplayExperiment(experiment.id)
+                                  handleOpenExperimentDetails(
+                                    experiment.documentId
+                                  )
                                 }
                                 size="sm"
                                 variant="outline"
                                 className="flex items-center gap-1"
-                                title="Spela upp VROOM-optimerat experiment"
+                                title="Granska och jämför VROOM-optimerat experiment"
                               >
-                                <RotateCcw size={14} />
-                                Replay
+                                <Search size={14} />
+                                Granska
                               </Button>
                             ) : (
                               <span className="text-sm text-gray-500">
-                                Ingen replay tillgänglig
+                                Ingen granskning tillgänglig
                               </span>
                             )}
                           </td>
@@ -281,8 +282,8 @@ export default function ExperimentsTab() {
               <p className="text-sm text-blue-800">
                 Experiment skapas när du startar en simulering från en sparad
                 dataset. Varje experiment har ett unikt ID och kan reprisas för
-                att köra samma simulering igen. Klicka på "Replay" för att öppna
-                experimentet i kartvisningen.
+                att köra samma simulering igen. Klicka på "Granska" för att
+                öppna experimentet i en detaljerad jämförelsevy.
               </p>
             </div>
           </>

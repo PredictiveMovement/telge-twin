@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { SIMULATOR_CONFIG } from '../config/simulator'
 
@@ -45,7 +45,6 @@ export const useMapSocket = () => {
     })
 
     socket.on('connect_error', (error) => {
-      console.error('🔌 Map socket connection error:', error)
       setState((prev) => ({
         ...prev,
         error: `Connection error: ${error.message}`,
@@ -65,47 +64,62 @@ export const useMapSocket = () => {
     }
   }, [])
 
-  const joinMap = () => {
+  const joinMap = useCallback(() => {
     if (state.socket) {
       state.socket.emit('joinMap')
     }
-  }
+  }, [state.socket])
 
-  const leaveMap = () => {
+  const leaveMap = useCallback(() => {
     if (state.socket) {
       state.socket.emit('leaveMap')
     }
-  }
+  }, [state.socket])
 
-  const joinSession = (sessionId: string, replayId?: string) => {
-    if (state.socket) {
-      state.socket.emit('joinSession', { sessionId, replayId })
-    }
-  }
+  const joinSession = useCallback(
+    (sessionId: string, replayId?: string) => {
+      if (state.socket) {
+        state.socket.emit('joinSession', { sessionId, replayId })
+      }
+    },
+    [state.socket]
+  )
 
-  const leaveSession = (sessionId: string) => {
-    if (state.socket) {
-      state.socket.emit('leaveSession', sessionId)
-    }
-  }
+  const leaveSession = useCallback(
+    (sessionId: string) => {
+      if (state.socket) {
+        state.socket.emit('leaveSession', sessionId)
+      }
+    },
+    [state.socket]
+  )
 
-  const playTime = () => {
+  const playTime = useCallback(() => {
     if (state.socket) {
       state.socket.emit('play')
     }
-  }
+  }, [state.socket])
 
-  const pauseTime = () => {
+  const pauseTime = useCallback(() => {
     if (state.socket) {
       state.socket.emit('pause')
     }
-  }
+  }, [state.socket])
 
-  const setTimeSpeed = (speed: number) => {
+  const resetTime = useCallback(() => {
     if (state.socket) {
-      state.socket.emit('speed', speed)
+      state.socket.emit('reset')
     }
-  }
+  }, [state.socket])
+
+  const setTimeSpeed = useCallback(
+    (speed: number) => {
+      if (state.socket) {
+        state.socket.emit('speed', speed)
+      }
+    },
+    [state.socket]
+  )
 
   return {
     ...state,
@@ -115,6 +129,7 @@ export const useMapSocket = () => {
     leaveSession,
     playTime,
     pauseTime,
+    resetTime,
     setTimeSpeed,
   }
 }

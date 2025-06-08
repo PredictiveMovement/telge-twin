@@ -19,10 +19,9 @@ import {
 } from '@/api/simulator'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { toast } from 'sonner'
-import { Trash2, Play, Info, RotateCcw } from 'lucide-react'
+import { Trash2, Play, Info } from 'lucide-react'
 
 export default function SavedDatasetsTab() {
-  const navigate = useNavigate()
   const [datasets, setDatasets] = useState<RouteDataset[]>([])
   const [experiments, setExperiments] = useState<Experiment[]>([])
   const [loading, setLoading] = useState(true)
@@ -93,20 +92,6 @@ export default function SavedDatasetsTab() {
     } finally {
       setStartingSimulation(null)
     }
-  }
-
-  const handleReplayExperiment = (experimentId: string) => {
-    navigate(`/map?replay=${experimentId}`)
-  }
-
-  const getVroomExperimentsForDataset = (
-    dataset: RouteDataset
-  ): Experiment[] => {
-    return experiments.filter(
-      (exp) =>
-        exp.sourceDatasetId === dataset.datasetId &&
-        exp.experimentType === 'vroom'
-    )
   }
 
   const formatDate = (dateString: string) => {
@@ -283,22 +268,6 @@ export default function SavedDatasetsTab() {
                       ? 'Startar...'
                       : 'Enkel Sekventiell'}
                   </Button>
-
-                  {getVroomExperimentsForDataset(dataset).length > 0 && (
-                    <Button
-                      onClick={() =>
-                        handleReplayExperiment(
-                          getVroomExperimentsForDataset(dataset)[0].id
-                        )
-                      }
-                      variant="secondary"
-                      size="sm"
-                      title="Spela upp senaste VROOM-experiment för denna dataset"
-                    >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                      Replay
-                    </Button>
-                  )}
 
                   <Button
                     variant="destructive"

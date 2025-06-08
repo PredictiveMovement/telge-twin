@@ -1,73 +1,20 @@
 import { Router, Request, Response } from 'express'
-import { safeId } from '../lib/id'
 import { virtualTime } from '../lib/virtualTime'
-import { emitters } from '../config'
+import { experimentController } from './controllers/ExperimentController'
 
-const engine = require('../index')
-let globalExperiment: any = null
-let isGlobalSimulationRunning = false
-const sessionExperiments = new Map<string, any>()
 const router = Router()
-
-function createGlobalSimulation(directParams?: any) {
-  const currentEmitters = emitters()
-  const experimentId = directParams?.id || safeId()
-
-  globalExperiment = engine.createExperiment({
-    defaultEmitters: currentEmitters,
-    id: experimentId,
-    directParams: { ...directParams, isReplay: false },
-  })
-
-  if (!globalExperiment.parameters.emitters) {
-    globalExperiment.parameters.emitters = currentEmitters
-  }
-
-  globalExperiment.parameters.initMapState = {
-    latitude: parseFloat(process.env.LATITUDE || '59.1955'),
-    longitude: parseFloat(process.env.LONGITUDE || '17.6253'),
-    zoom: parseInt(process.env.ZOOM || '10', 10),
-  }
-
-  return globalExperiment
-}
-
-function createSessionSimulation(sessionId: string, directParams?: any) {
-  const currentEmitters = emitters()
-  const experimentId = directParams?.id || safeId()
-
-  const experiment = engine.createExperiment({
-    defaultEmitters: currentEmitters,
-    id: experimentId,
-    directParams: { ...directParams, isReplay: true },
-  }) as any
-
-  if (!experiment.parameters.emitters) {
-    experiment.parameters.emitters = currentEmitters
-  }
-
-  experiment.parameters.initMapState = {
-    latitude: parseFloat(process.env.LATITUDE || '59.1955'),
-    longitude: parseFloat(process.env.LONGITUDE || '17.6253'),
-    zoom: parseInt(process.env.ZOOM || '10', 10),
-  }
-
-  sessionExperiments.set(sessionId, experiment)
-  return experiment
-}
 
 router.post('/simulation/start', async (req: Request, res: Response) => {
   try {
     const { parameters } = req.body
 
-    globalExperiment = null
-    const experiment = createGlobalSimulation(parameters)
-    isGlobalSimulationRunning = true
+    const experiment = experimentController.createGlobalExperiment(parameters)
     virtualTime.reset()
 
     Object.assign(module.exports, {
-      globalExperiment,
-      isGlobalSimulationRunning,
+      globalExperiment: experimentController.currentGlobalExperiment,
+      isGlobalSimulationRunning: experimentController.isGlobalRunning,
+      sessionExperiments: experimentController.sessions,
     })
 
     res.json({
@@ -78,7 +25,6 @@ router.post('/simulation/start', async (req: Request, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Error starting simulation:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to start simulation',
@@ -88,12 +34,12 @@ router.post('/simulation/start', async (req: Request, res: Response) => {
 
 router.delete('/simulation/stop', async (req: Request, res: Response) => {
   try {
-    globalExperiment = null
-    isGlobalSimulationRunning = false
+    experimentController.stopGlobalExperiment()
 
     Object.assign(module.exports, {
-      globalExperiment,
-      isGlobalSimulationRunning,
+      globalExperiment: experimentController.currentGlobalExperiment,
+      isGlobalSimulationRunning: experimentController.isGlobalRunning,
+      sessionExperiments: experimentController.sessions,
     })
 
     res.json({
@@ -103,7 +49,6 @@ router.delete('/simulation/stop', async (req: Request, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Error stopping simulation:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to stop simulation',
@@ -116,12 +61,12 @@ router.get('/simulation/status', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        running: isGlobalSimulationRunning,
-        experimentId: globalExperiment?.parameters?.id || null,
+        running: experimentController.isGlobalRunning,
+        experimentId:
+          experimentController.currentGlobalExperiment?.parameters?.id || null,
       },
     })
   } catch (error) {
-    console.error('Error getting simulation status:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to get simulation status',
@@ -140,8 +85,16 @@ router.post('/session/replay/start', async (req: Request, res: Response) => {
       })
     }
 
-    const experiment = createSessionSimulation(sessionId, parameters)
-    virtualTime.reset()
+    const experiment = experimentController.createSessionExperiment(
+      sessionId,
+      parameters
+    )
+
+    Object.assign(module.exports, {
+      globalExperiment: experimentController.currentGlobalExperiment,
+      isGlobalSimulationRunning: experimentController.isGlobalRunning,
+      sessionExperiments: experimentController.sessions,
+    })
 
     res.json({
       success: true,
@@ -152,7 +105,6 @@ router.post('/session/replay/start', async (req: Request, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Error starting session replay:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to start session replay',
@@ -166,10 +118,16 @@ router.delete(
     try {
       const { sessionId } = req.params
 
-      const experiment = sessionExperiments.get(sessionId)
+      const experiment = experimentController.getSessionExperiment(sessionId)
       if (experiment) {
-        sessionExperiments.delete(sessionId)
+        experimentController.stopSessionExperiment(sessionId)
       }
+
+      Object.assign(module.exports, {
+        globalExperiment: experimentController.currentGlobalExperiment,
+        isGlobalSimulationRunning: experimentController.isGlobalRunning,
+        sessionExperiments: experimentController.sessions,
+      })
 
       res.json({
         success: true,
@@ -179,7 +137,6 @@ router.delete(
         },
       })
     } catch (error) {
-      console.error('Error stopping session replay:', error)
       res.status(500).json({
         success: false,
         error: 'Failed to stop session replay',
@@ -194,7 +151,7 @@ router.get(
     try {
       const { sessionId } = req.params
 
-      const experiment = sessionExperiments.get(sessionId)
+      const experiment = experimentController.getSessionExperiment(sessionId)
 
       res.json({
         success: true,
@@ -205,7 +162,6 @@ router.get(
         },
       })
     } catch (error) {
-      console.error('Error getting session status:', error)
       res.status(500).json({
         success: false,
         error: 'Failed to get session status',
@@ -214,5 +170,7 @@ router.get(
   }
 )
 
-export { globalExperiment, isGlobalSimulationRunning, sessionExperiments }
+export const globalExperiment = experimentController.currentGlobalExperiment
+export const isGlobalSimulationRunning = experimentController.isGlobalRunning
+export const sessionExperiments = experimentController.sessions
 export default router

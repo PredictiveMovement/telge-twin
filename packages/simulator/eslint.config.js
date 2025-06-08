@@ -1,28 +1,20 @@
-import js from '@eslint/js'
 import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
+import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  { ignores: ['dist', 'node_modules', '__tests__', '.cache'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['**/*.{ts,tsx}'],
+    files: ['**/*.{ts,tsx,js}'],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
-    },
-    plugins: {
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
+      },
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {
@@ -32,6 +24,16 @@ export default tseslint.config(
         },
       ],
       'no-unused-vars': 'off',
+
+      '@typescript-eslint/no-var-requires': 'warn',
+      '@typescript-eslint/no-require-imports': 'warn',
+
+      '@typescript-eslint/no-explicit-any': 'warn',
+
+      '@typescript-eslint/ban-ts-comment': 'warn',
+
+      'no-undef': 'off',
+      'sort-imports': 'warn',
     },
   }
 )

@@ -42,28 +42,29 @@ export interface Experiment {
 const engine = {
   subscriptions: [] as Array<{ unsubscribe(): void }>,
   createExperiment: (
-    { defaultEmitters, id = safeId(), directParams = null } = {} as {
+    {
+      defaultEmitters,
+      id = safeId(),
+      directParams = null,
+      virtualTime: customVirtualTime = null,
+    } = {} as {
       defaultEmitters?: any
       id?: string
       directParams?: any & { isReplay?: boolean }
+      virtualTime?: any
     }
   ): Experiment => {
-    console.log('Creating experiment')
     engine.subscriptions.forEach((subscription) => subscription.unsubscribe())
 
     const savedParams = directParams || read()
     const params = {
       ...savedParams,
       id: id,
+      virtualTime: customVirtualTime,
     }
 
-    info(`*** Starting experiment ${id} with params:`, {
+    info(`Starting experiment ${id}`, {
       id: params.id,
-      fixedRoute: params.fixedRoute,
-      emitters: params.emitters,
-      municipalities: Object.keys(params.fleets).map((municipality) => {
-        return `${municipality} (${params.fleets[municipality].fleets.length} fleets)`
-      }),
       source: directParams ? 'direct params' : 'config file',
     })
 
@@ -87,14 +88,8 @@ const engine = {
     if (!directParams?.isReplay) {
       statistics
         .collectExperimentMetadata(parameters)
-        .then(() =>
-          info(`✅ Successfully saved experiment metadata for: ${id}`)
-        )
-        .catch((err: any) =>
-          error(`❌ Error saving experiment metadata: ${err}`)
-        )
-    } else {
-      info(`🔄 Skipping experiment metadata save for replay: ${id}`)
+        .then(() => info(`Saved experiment metadata: ${id}`))
+        .catch((err: any) => error(`Error saving experiment metadata: ${err}`))
     }
     const experiment: any = {
       logStream,
@@ -108,7 +103,7 @@ const engine = {
         shareReplay()
       ),
       subscriptions: [],
-      virtualTime,
+      virtualTime: customVirtualTime || virtualTime,
       dispatchedBookings: regions.pipe(
         mergeMap((region: any) => region.dispatchedBookings)
       ),
@@ -131,12 +126,7 @@ const engine = {
       )
     )
 
-    // TODO: Rename to vehicleUpdates
-    experiment.carUpdates = merge(
-      // experiment.buses,
-      experiment.cars
-      // experiment.taxis,
-    ).pipe(
+    experiment.carUpdates = merge(experiment.cars).pipe(
       mergeMap((car: any) => car.movedEvents),
       catchError((err: Error) => error('car updates err', err)),
 

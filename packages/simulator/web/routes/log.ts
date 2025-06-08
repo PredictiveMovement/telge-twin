@@ -7,7 +7,9 @@ export function register(
   socket: Socket
 ) {
   return [
-    experiment.logStream.subscribe((item: unknown) => socket.emit('log', item)),
+    experiment.logStream.subscribe((item: unknown) => {
+      socket.emit('log', item)
+    }),
   ]
 }
 

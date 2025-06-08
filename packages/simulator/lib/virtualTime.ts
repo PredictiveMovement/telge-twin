@@ -86,9 +86,117 @@ export class VirtualTime {
   setTimeMultiplier(timeMultiplier: number): void {
     this.timeMultiplier = timeMultiplier
   }
+
+  getTimeMultiplier(): number {
+    return this.timeMultiplier
+  }
 }
 
-export const virtualTime = new VirtualTime(1, 8.0)
+class VirtualTimeManager {
+  private globalVirtualTime: VirtualTime
+  private sessionVirtualTimes: Map<string, VirtualTime>
+  private currentSessionId: string | null = null
+  private experimentToSession: Map<string, string> = new Map()
+
+  constructor() {
+    this.globalVirtualTime = new VirtualTime(1, 8.0)
+    this.sessionVirtualTimes = new Map()
+  }
+
+  registerSession(sessionId: string, sessionVirtualTime: VirtualTime) {
+    this.sessionVirtualTimes.set(sessionId, sessionVirtualTime)
+  }
+
+  unregisterSession(sessionId: string) {
+    this.sessionVirtualTimes.delete(sessionId)
+    for (const [
+      experimentId,
+      sessionIdForExp,
+    ] of this.experimentToSession.entries()) {
+      if (sessionIdForExp === sessionId) {
+        this.experimentToSession.delete(experimentId)
+      }
+    }
+  }
+
+  setCurrentSession(sessionId: string | null) {
+    this.currentSessionId = sessionId
+  }
+
+  registerExperiment(experimentId: string, sessionId: string) {
+    this.experimentToSession.set(experimentId, sessionId)
+  }
+
+  private getCurrentVirtualTime(): VirtualTime {
+    if (
+      this.currentSessionId &&
+      this.sessionVirtualTimes.has(this.currentSessionId)
+    ) {
+      return this.sessionVirtualTimes.get(this.currentSessionId)!
+    }
+
+    if (!this.currentSessionId && this.sessionVirtualTimes.size === 1) {
+      const singleSession = Array.from(this.sessionVirtualTimes.values())[0]
+      return singleSession
+    }
+
+    return this.globalVirtualTime
+  }
+
+  reset(): void {
+    return this.getCurrentVirtualTime().reset()
+  }
+
+  getTimeStream() {
+    return this.getCurrentVirtualTime().getTimeStream()
+  }
+
+  getTimeInMilliseconds() {
+    return this.getCurrentVirtualTime().getTimeInMilliseconds()
+  }
+
+  getTimeInMillisecondsAsPromise(): Promise<number> {
+    return this.getCurrentVirtualTime().getTimeInMillisecondsAsPromise()
+  }
+
+  now(): number {
+    return this.getCurrentVirtualTime().now()
+  }
+
+  play(): void {
+    return this.getCurrentVirtualTime().play()
+  }
+
+  pause(): void {
+    return this.getCurrentVirtualTime().pause()
+  }
+
+  async waitUntil(time: number): Promise<any> {
+    return this.getCurrentVirtualTime().waitUntil(time)
+  }
+
+  async wait(ms: number): Promise<any> {
+    return this.getCurrentVirtualTime().wait(ms)
+  }
+
+  setTimeMultiplier(timeMultiplier: number): void {
+    return this.getCurrentVirtualTime().setTimeMultiplier(timeMultiplier)
+  }
+
+  getTimeMultiplier(): number {
+    return this.getCurrentVirtualTime().getTimeMultiplier()
+  }
+
+  getGlobalVirtualTime(): VirtualTime {
+    return this.globalVirtualTime
+  }
+
+  getSessionVirtualTime(sessionId: string): VirtualTime | undefined {
+    return this.sessionVirtualTimes.get(sessionId)
+  }
+}
+
+export const virtualTime = new VirtualTimeManager()
 
 // CJS fallback
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

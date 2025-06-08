@@ -1,24 +1,16 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useState, useCallback } from 'react'
 import Layout from '@/components/layout/Layout'
 import { Car, Booking } from '@/types/map'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  MapIcon,
-  Square,
-  RotateCcw,
-  WifiOff,
-  AlertTriangle,
-} from 'lucide-react'
+import { MapIcon, Square, WifiOff, AlertTriangle } from 'lucide-react'
 import Map from '@/components/Map'
 import StatusBadges from '@/components/StatusBadges'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { useMapStatus } from '@/hooks/useMapStatus'
 import { toLonLatArray } from '@/utils/geo'
-import * as simulator from '@/api/simulator'
 
 const MapPage = () => {
   const {
@@ -28,30 +20,18 @@ const MapPage = () => {
     virtualTime,
     joinMap,
     leaveMap,
-    joinSession,
-    leaveSession,
     playTime,
     pauseTime,
     setTimeSpeed: setSocketTimeSpeed,
   } = useMapSocket()
 
-  const {
-    status,
-    setLoading,
-    setError,
-    setRunning,
-    setTimeState,
-    setSessionId,
-    reset,
-    isReplayMode,
-  } = useMapStatus()
+  const { status, setRunning, setTimeState } = useMapStatus()
 
-  const [searchParams, setSearchParams] = useSearchParams()
   const [cars, setCars] = useState<Car[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isMapActive, setIsMapActive] = useState(false)
 
-  const upsertList = <T extends { id: any }>(
+  const upsertList = <T extends { id: string | number }>(
     prev: T[],
     incoming: T | T[],
     mapper: (item: T) => T
@@ -61,147 +41,95 @@ const MapPage = () => {
     list.forEach((raw) => {
       const item = mapper(raw)
       const i = next.findIndex((x) => x.id === item.id)
-      i >= 0 ? (next[i] = item) : next.push(item)
+      if (i >= 0) {
+        next[i] = item
+      } else {
+        next.push(item)
+      }
     })
     return next
   }
-
-  useEffect(() => {
-    const replayParam = searchParams.get('replay')
-    const sessionParam = searchParams.get('session')
-
-    if (replayParam && !sessionParam && socket && isConnected) {
-      handleReplaySimulation(replayParam)
-    }
-  }, [searchParams, socket, isConnected])
 
   useEffect(() => {
     if (!socket) {
       return
     }
 
-    if (status.sessionId) {
-      const replayParam = searchParams.get('replay')
-      joinSession(status.sessionId, replayParam)
-      setIsMapActive(true)
-    } else {
-      joinMap()
-      setIsMapActive(true)
-    }
+    joinMap()
+    setIsMapActive(true)
 
     return () => {
-      if (status.sessionId) {
-        leaveSession(status.sessionId)
-      } else {
-        leaveMap()
-      }
+      leaveMap()
       setIsMapActive(false)
     }
-  }, [socket, status.sessionId])
+  }, [socket, joinMap, leaveMap])
+
+  const handleSimulationStatus = useCallback(
+    (socketStatus: {
+      running: boolean
+      experimentId?: string
+      timeRunning?: boolean
+      timeSpeed?: number
+    }) => {
+      setRunning(socketStatus.running, socketStatus.experimentId)
+
+      if (socketStatus.running) {
+        const backendTimeRunning = socketStatus.timeRunning ?? true
+        const backendTimeSpeed = socketStatus.timeSpeed ?? 60
+        setTimeState(backendTimeRunning, backendTimeSpeed)
+      }
+    },
+    [setRunning, setTimeState]
+  )
+
+  const handleSimulationStarted = useCallback(
+    (data: { experimentId: string }) => {
+      setRunning(true, data.experimentId)
+      setCars([])
+      setBookings([])
+      setSocketTimeSpeed(status.timeSpeed)
+    },
+    [setRunning, status.timeSpeed, setSocketTimeSpeed]
+  )
+
+  const handleSimulationStopped = useCallback(() => {
+    setRunning(false, null)
+    setCars([])
+    setBookings([])
+    setTimeState(false)
+    pauseTime()
+  }, [setRunning, setTimeState, pauseTime])
+
+  const handleSimulationFinished = useCallback(() => {
+    setRunning(false, null)
+    setTimeState(false)
+    pauseTime()
+  }, [setRunning, setTimeState, pauseTime])
+
+  const handleCars = useCallback((payload: Car | Car[]) => {
+    setCars((prev) =>
+      upsertList(prev, payload, (car) => ({
+        ...car,
+        position: toLonLatArray(car.position),
+      }))
+    )
+  }, [])
+
+  const handleBookings = useCallback((payload: Booking | Booking[]) => {
+    setBookings((prev) =>
+      upsertList(prev, payload, (b) => {
+        const processed = {
+          ...b,
+          pickup: b.pickup ? toLonLatArray(b.pickup) : null,
+          destination: b.destination ? toLonLatArray(b.destination) : null,
+        }
+        return processed
+      })
+    )
+  }, [])
 
   useEffect(() => {
     if (!socket || !isMapActive) return
-
-    const handleSimulationStatus = (socketStatus: any) => {
-      if (!status.sessionId) {
-        setRunning(socketStatus.running, socketStatus.experimentId)
-        if (socketStatus.running) {
-          setTimeState(true, status.timeSpeed)
-          playTime()
-          setSocketTimeSpeed(status.timeSpeed)
-        }
-      }
-    }
-
-    const handleSimulationStarted = (data: any) => {
-      if (!status.sessionId) {
-        setRunning(true, data.experimentId)
-        setCars([])
-        setBookings([])
-        setTimeState(true, status.timeSpeed)
-        playTime()
-        setSocketTimeSpeed(status.timeSpeed)
-      }
-    }
-
-    const handleSimulationStopped = () => {
-      if (!status.sessionId) {
-        setRunning(false, null)
-        setCars([])
-        setBookings([])
-        setTimeState(false)
-        pauseTime()
-      }
-    }
-
-    const handleSimulationFinished = () => {
-      if (!status.sessionId) {
-        setRunning(false, null)
-        setTimeState(false)
-        pauseTime()
-      }
-    }
-
-    const handleSessionStatus = (socketStatus: any) => {
-      if (status.sessionId && socketStatus.sessionId === status.sessionId) {
-        if (!socketStatus.running && socketStatus.experimentId === null) {
-          setError('Replay experiment not found or stopped')
-          setRunning(false, null)
-        } else if (socketStatus.running) {
-          setError(null)
-          setRunning(true, socketStatus.experimentId)
-          setTimeState(true, status.timeSpeed)
-          playTime()
-          setSocketTimeSpeed(status.timeSpeed)
-        } else {
-          setRunning(false, socketStatus.experimentId)
-        }
-      }
-    }
-
-    const handleSessionStarted = (data: any) => {
-      if (status.sessionId && data.sessionId === status.sessionId) {
-        setRunning(true, data.experimentId)
-        setCars([])
-        setBookings([])
-        setTimeState(true, status.timeSpeed)
-        setError(null)
-        playTime()
-        setSocketTimeSpeed(status.timeSpeed)
-      }
-    }
-
-    const handleSessionStopped = (stoppedSessionId: string) => {
-      if (status.sessionId && stoppedSessionId === status.sessionId) {
-        setRunning(false, null)
-        setCars([])
-        setBookings([])
-        setTimeState(false)
-        pauseTime()
-      }
-    }
-
-    const handleCars = (payload: any | any[]) => {
-      setCars((prev) =>
-        upsertList(prev, payload, (car) => ({
-          ...car,
-          position: toLonLatArray(car.position),
-        }))
-      )
-    }
-
-    const handleBookings = (payload: any | any[]) => {
-      setBookings((prev) =>
-        upsertList(prev, payload, (b) => {
-          const processed = {
-            ...b,
-            pickup: b.pickup ? toLonLatArray(b.pickup) : null,
-            destination: b.destination ? toLonLatArray(b.destination) : null,
-          }
-          return processed
-        })
-      )
-    }
 
     socket.on('simulationStatus', handleSimulationStatus)
     socket.on('simulationStarted', handleSimulationStarted)
@@ -210,10 +138,6 @@ const MapPage = () => {
     socket.on('cars', handleCars)
     socket.on('bookings', handleBookings)
 
-    socket.on('sessionStatus', handleSessionStatus)
-    socket.on('sessionStarted', handleSessionStarted)
-    socket.on('sessionStopped', handleSessionStopped)
-
     return () => {
       socket.off('simulationStatus', handleSimulationStatus)
       socket.off('simulationStarted', handleSimulationStarted)
@@ -221,11 +145,17 @@ const MapPage = () => {
       socket.off('simulationFinished', handleSimulationFinished)
       socket.off('cars', handleCars)
       socket.off('bookings', handleBookings)
-      socket.off('sessionStatus', handleSessionStatus)
-      socket.off('sessionStarted', handleSessionStarted)
-      socket.off('sessionStopped', handleSessionStopped)
     }
-  }, [socket, isMapActive, status.sessionId, status.timeSpeed])
+  }, [
+    socket,
+    isMapActive,
+    handleSimulationStatus,
+    handleSimulationStarted,
+    handleSimulationStopped,
+    handleSimulationFinished,
+    handleCars,
+    handleBookings,
+  ])
 
   const handlePlayTime = () => {
     setTimeState(true, status.timeSpeed)
@@ -242,80 +172,35 @@ const MapPage = () => {
     setSocketTimeSpeed(speed)
   }
 
-  const handleReplaySimulation = async (replayExperimentId: string) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const sessionId = await simulator.startSessionReplay(
-        socket,
-        replayExperimentId
-      )
-      setSessionId(sessionId)
-
-      const newSearchParams = new URLSearchParams(searchParams)
-      newSearchParams.set('session', sessionId)
-      setSearchParams(newSearchParams)
-    } catch (error) {
-      console.error('Failed to start replay simulation:', error)
-      setError('Failed to start replay simulation')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleStopSimulation = () => {
-    if (socket && !isReplayMode) {
+    if (socket) {
       socket.emit('stopSimulation')
     }
   }
 
-  const handleExitReplay = async () => {
-    if (status.sessionId) {
-      leaveSession(status.sessionId)
-    }
-
-    reset()
-    setSearchParams({})
-    setCars([])
-    setBookings([])
-  }
-
-  const displayError = status.error || socketError
+  const displayError = socketError
 
   return (
     <Layout>
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-normal">
-              {isReplayMode ? 'Karta - Replay' : 'Karta'}
-            </h1>
+            <h1 className="text-4xl font-normal">Karta</h1>
             <p className="text-muted-foreground mt-1 mb-1">
-              {isReplayMode
-                ? `Spelar upp experiment: ${searchParams.get('replay')}`
-                : 'Visualisera och övervaka rutter i realtid'}
+              Visualisera och övervaka rutter i realtid
             </p>
             <StatusBadges
-              sessionId={status.sessionId}
               mode={status.mode}
               experimentId={status.experimentId}
             />
           </div>
           <div className="flex items-center space-x-3">
             <div className="flex space-x-2">
-              {isReplayMode ? (
-                <Button variant="outline" onClick={handleExitReplay}>
-                  <RotateCcw size={16} className="mr-2" />
-                  Lämna replay
+              {status.running && (
+                <Button variant="destructive" onClick={handleStopSimulation}>
+                  <Square size={16} className="mr-2" />
+                  Stoppa simulering
                 </Button>
-              ) : (
-                status.running && (
-                  <Button variant="destructive" onClick={handleStopSimulation}>
-                    <Square size={16} className="mr-2" />
-                    Stoppa simulering
-                  </Button>
-                )
               )}
             </div>
           </div>
@@ -356,15 +241,11 @@ const MapPage = () => {
                 Ingen aktiv simulering
               </h3>
               <p className="text-gray-600 mb-4">
-                {isReplayMode
-                  ? 'Replay-sessionen är pausad eller har avslutats.'
-                  : 'Starta en simulering för att visa kartdata i realtid.'}
+                Starta en simulering för att visa kartdata i realtid.
               </p>
-              {!isReplayMode && (
-                <p className="text-sm text-gray-500">
-                  Gå till simuleringssektionen för att starta en ny simulering.
-                </p>
-              )}
+              <p className="text-sm text-gray-500">
+                Gå till simuleringssektionen för att starta en ny simulering.
+              </p>
             </CardContent>
           </Card>
         ) : (

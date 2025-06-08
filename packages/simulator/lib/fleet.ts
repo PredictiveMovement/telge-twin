@@ -8,7 +8,6 @@ const {
   withLatestFrom,
   map,
   filter,
-  tap,
 } = require('rxjs/operators')
 const Truck = require('./vehicles/truck')
 const Position = require('./models/position')
@@ -28,6 +27,7 @@ class Fleet {
   public cars: any
   public unhandledBookings: any
   public dispatchedBookings: any
+  public virtualTime: any
 
   constructor({
     id,
@@ -41,23 +41,12 @@ class Fleet {
     settings,
     preAssignedBookings,
     experimentType,
+    virtualTime,
   }: any) {
-    info(`Fleet configuration:`, {
-      id,
-      experimentId,
-      name,
-      type,
-      vehiclesProvided: vehicles ? vehicles.length : 0,
+    info(`Fleet created: ${name}`, {
+      vehicles: vehicles ? vehicles.length : 0,
       recyclingTypes,
-      preAssignedBookingsProvided: !!preAssignedBookings,
-      preAssignedBookingsKeys: preAssignedBookings
-        ? Object.keys(preAssignedBookings)
-        : [],
-      settingsOptimizedRoutes: settings?.optimizedRoutes,
     })
-
-    if (vehicles && vehicles.length > 0) {
-    }
 
     this.id = id
     this.experimentId = experimentId
@@ -68,6 +57,7 @@ class Fleet {
     this.recyclingTypes = recyclingTypes
     this.vehiclesCount = 0
     this.settings = settings
+    this.virtualTime = virtualTime
     ;(this as any).vehicleSpecs = vehicles || []
     ;(this as any).preAssignedBookings = preAssignedBookings || {}
     ;(this as any).experimentType = experimentType || 'vroom'
@@ -105,6 +95,7 @@ class Fleet {
         destination: this.hub.position,
         recyclingTypes: this.recyclingTypes,
         vehicleType: spec.type,
+        virtualTime: this.virtualTime,
       })
     })
 
@@ -112,14 +103,10 @@ class Fleet {
   }
 
   canHandleBooking(booking: any) {
-    debug(
-      `Checking if ${this.name} can handle booking ${booking.recyclingType}`
-    )
     return this.recyclingTypes.includes(booking.recyclingType)
   }
 
   handleBooking(booking: any) {
-    debug(`Fleet ${this.name} received booking ${booking.bookingId}`)
     booking.fleet = this
     this.unhandledBookings.next(booking)
     return booking
@@ -130,11 +117,7 @@ class Fleet {
       bufferTime(1000),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
-      tap(([bookings, cars]: any) => {
-        info(
-          `Fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars`
-        )
-      }),
+
       mergeMap(([bookings, cars]: any) => {
         return from(bookings).pipe(
           filter((booking: any) => !booking.assigned),
@@ -146,22 +129,10 @@ class Fleet {
 
               if (!car) {
                 error(
-                  `⚠️ Could not find vehicle ${targetVehicleId} for booking ${booking.id}`
+                  `Vehicle ${targetVehicleId} not found for booking ${booking.id}`
                 )
-                error(
-                  '📋 Available vehicles:',
-                  cars.map((c: any) => ({ id: c.id, type: c.vehicleType }))
-                )
-                error('🔍 Booking details:', {
-                  id: booking.id,
-                  bookingId: booking.bookingId,
-                  vehicleId: booking.vehicleId,
-                  originalVehicleId: booking.originalVehicleId,
-                  recyclingType: booking.recyclingType,
-                })
                 const fallbackCar = cars.shift()
                 cars.push(fallbackCar)
-
                 return { car: fallbackCar, booking }
               }
 
@@ -191,19 +162,12 @@ class Fleet {
   }
 
   startReplayDispatcher(replayExperimentId: string) {
-    info(
-      `🔄 Starting replay dispatcher for fleet ${this.name} with experiment ${replayExperimentId}`
-    )
+    info(`Starting replay dispatcher for fleet ${this.name}`)
 
     this.dispatchedBookings = this.unhandledBookings.pipe(
       bufferTime(1000),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
-      tap(([bookings, cars]: any) => {
-        info(
-          `🔄 Replay fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars`
-        )
-      }),
       mergeMap(([bookings, cars]: any) => {
         const assignedBookings: any[] = []
 
@@ -218,7 +182,7 @@ class Fleet {
 
                 if (!car) {
                   error(
-                    `⚠️ Could not find vehicle ${targetVehicleId} for booking ${booking.id}`
+                    `Vehicle ${targetVehicleId} not found for booking ${booking.id}`
                   )
                   const fallbackCar = cars.shift()
                   cars.push(fallbackCar)
@@ -267,8 +231,6 @@ class Fleet {
                     },
                   }
 
-                  info(`🔍 Loading replay plan for truck ${truck.id}`)
-
                   const planResult = await require('./elastic').search(
                     searchQuery
                   )
@@ -276,12 +238,6 @@ class Fleet {
                   if (planResult?.body?.hits?.hits?.length > 0) {
                     const planData = planResult.body.hits.hits[0]._source
                     const plan = planData.completePlan || planData.plan
-
-                    info(
-                      `✅ Loaded replay plan for truck ${truck.id} with ${
-                        plan?.length || 0
-                      } steps`
-                    )
 
                     truck.setReplayPlan(plan)
 
@@ -295,7 +251,7 @@ class Fleet {
                       return from(truck.queue || [])
                     }
                   } else {
-                    error(`❌ No replay plan found for truck ${truck.id}`)
+                    error(`No replay plan found for truck ${truck.id}`)
                     const truckBookings = assignedBookings.filter(
                       (booking: any) => booking.car?.id === truck.id
                     )
@@ -303,7 +259,7 @@ class Fleet {
                   }
                 } catch (err) {
                   error(
-                    `❌ Failed to load replay plan for truck ${truck.id}:`,
+                    `Failed to load replay plan for truck ${truck.id}:`,
                     err
                   )
                   const truckBookings = assignedBookings.filter(

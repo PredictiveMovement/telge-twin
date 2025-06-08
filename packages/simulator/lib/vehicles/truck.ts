@@ -15,6 +15,7 @@ interface TruckConstructorArgs {
   recyclingTypes?: string[]
   weight?: number
   fackDetails?: any[]
+  virtualTime?: any
 }
 
 class Truck extends Vehicle {
@@ -30,7 +31,10 @@ class Truck extends Vehicle {
   _timeout?: NodeJS.Timeout // For setTimeout
 
   constructor(args: TruckConstructorArgs) {
-    super(args)
+    super({
+      ...args,
+      virtualTime: args.virtualTime,
+    })
     this.vehicleType = 'truck'
     this.isPrivateCar = false
     this.co2PerKmKg = 0.000065
@@ -53,9 +57,7 @@ class Truck extends Vehicle {
       this.booking = realBooking || this.instruction.booking
 
       if (!realBooking) {
-        info(
-          `⚠️ Could not find real Booking object for ${this.instruction.booking.id}, using instruction booking`
-        )
+        warn(`Booking object not found for ${this.instruction.booking.id}`)
       }
     } else {
       this.booking = null
@@ -66,7 +68,7 @@ class Truck extends Vehicle {
     switch (this.status) {
       case 'start':
         return this.navigateTo(this.startPosition)
-      case 'pickup':
+      case 'pickup': {
         this.status = 'toPickup'
 
         let pickupPosition = null
@@ -87,10 +89,10 @@ class Truck extends Vehicle {
         }
 
         return this.navigateTo(pickupPosition)
+      }
       case 'delivery':
         return this.navigateTo(this.startPosition)
       default:
-        warn('Unknown status', this.status, this.instruction)
         if (!this.plan.length) this.status = 'returning'
         return this.navigateTo(this.startPosition)
     }
@@ -98,12 +100,6 @@ class Truck extends Vehicle {
 
   stopped() {
     super.stopped()
-    if (this.status === 'toPickup') {
-      // In Vehicle.stopped, for 'toPickup', it calls this.pickup().
-      // If Truck needs different logic, it can be here.
-      // For now, assume super.stopped() handles calling pickup if necessary.
-      // this.delivered.push(this.position); // This was in original truck.ts, but delivered is usually for actual drop-offs
-    }
     if (this.plan.length === 0) {
       if (
         this.status === 'end' &&
@@ -137,8 +133,7 @@ class Truck extends Vehicle {
   }
 
   async dropOff() {
-    // This implies a booking was delivered at a specific point, usually the startPosition for trucks
-    if (!this.booking) return // Should have a booking to drop off
+    if (!this.booking) return
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.delivered) this.booking.delivered(this.position)
@@ -148,7 +143,6 @@ class Truck extends Vehicle {
     return booking && this.queue.length < this.parcelCapacity
   }
 
-  // This method seems to be unused due to handleBooking override. Consider removing or renaming.
   async handleStandardBooking(booking: any) {
     if (this.queue.indexOf(booking) > -1) throw new Error('Already queued')
     this.queue.push(booking)
@@ -236,11 +230,6 @@ class Truck extends Vehicle {
   }
 
   setReplayPlan(replayPlan: any[]) {
-    info(
-      `🔄 Setting replay plan for truck ${this.id} with ${
-        replayPlan?.length || 0
-      } steps`
-    )
     this.plan = replayPlan || []
 
     if (!this.instruction && this.plan.length > 0) {

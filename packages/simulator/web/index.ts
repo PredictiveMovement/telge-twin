@@ -10,6 +10,7 @@ import apiRouter from './api'
 import { search } from '../lib/elastic'
 import { Client } from '@elastic/elasticsearch'
 import { safeId } from '../lib/id'
+import { elasticsearchService } from './services/ElasticsearchService'
 
 const port = env.PORT || 4000
 const client = new Client({
@@ -28,59 +29,17 @@ app.get('/', (_req, res) => {
 
 app.get('/api/experiments', async (req, res) => {
   try {
-    const searchResult = await search({
-      index: 'experiments',
-      body: {
-        query: {
-          match_all: {},
-        },
-        sort: [
-          {
-            startDate: {
-              order: 'desc',
-            },
-          },
-        ],
-        size: 100,
-      },
-    })
+    const experimentHits = await elasticsearchService.getAllExperiments()
+    const experimentIds = experimentHits
+      .map((hit: any) => hit._source.id)
+      .filter(Boolean)
 
-    const experimentIds =
-      searchResult?.body?.hits?.hits
-        ?.map((hit: any) => hit._source.id)
-        .filter(Boolean) || []
-
-    const vehicleCounts = new Map()
-    if (experimentIds.length > 0) {
-      const vehicleCountResult = await search({
-        index: 'vroom-truck-plans',
-        body: {
-          query: {
-            terms: { 'experiment.keyword': experimentIds },
-          },
-          aggs: {
-            vehicles_per_experiment: {
-              terms: { field: 'experiment.keyword', size: 1000 },
-              aggs: {
-                unique_vehicles: {
-                  cardinality: { field: 'truckId' },
-                },
-              },
-            },
-          },
-          size: 0,
-        },
-      })
-
-      vehicleCountResult?.body?.aggregations?.vehicles_per_experiment?.buckets?.forEach(
-        (bucket: any) => {
-          vehicleCounts.set(bucket.key, bucket.unique_vehicles.value)
-        }
-      )
-    }
+    const vehicleCounts = await elasticsearchService.getVehicleCounts(
+      experimentIds
+    )
 
     const experiments =
-      searchResult?.body?.hits?.hits?.map((hit: any) => {
+      experimentHits?.map((hit: any) => {
         const source = hit._source
         return {
           id: source.id,
@@ -100,7 +59,6 @@ app.get('/api/experiments', async (req, res) => {
 
     res.json({ success: true, data: experiments })
   } catch (error) {
-    console.error('Error fetching experiments:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred'
     res.status(500).json({ success: false, error: errorMessage })
@@ -114,19 +72,22 @@ app.get('/api/experiments/:experimentId', async (req, res) => {
       index: 'experiments',
       body: {
         query: {
-          term: { 'id.keyword': experimentId },
+          term: { _id: experimentId },
         },
       },
     })
 
     if (searchResult?.body?.hits?.hits?.length > 0) {
-      const experimentData = searchResult.body.hits.hits[0]._source
+      const hit = searchResult.body.hits.hits[0]
+      const experimentData = {
+        ...hit._source,
+        documentId: hit._id,
+      }
       res.json({ success: true, data: experimentData })
     } else {
       res.status(404).json({ success: false, error: 'Experiment not found' })
     }
   } catch (error) {
-    console.error('Error fetching experiment by ID:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred'
     res.status(500).json({ success: false, error: errorMessage })
@@ -152,7 +113,6 @@ app.get('/api/datasets/:datasetId', async (req, res) => {
       res.status(404).json({ success: false, error: 'Dataset not found' })
     }
   } catch (error) {
-    console.error('Error fetching dataset by ID:', error)
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred'
     res.status(500).json({ success: false, error: errorMessage })
@@ -194,7 +154,6 @@ app.post('/api/datasets', async (req, res) => {
       dataset: routeDataset,
     })
   } catch (error) {
-    console.error('Error saving route dataset:', error)
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -220,7 +179,6 @@ app.get('/api/datasets', async (req, res) => {
 
     res.json({ success: true, data: datasets })
   } catch (error) {
-    console.error('Error fetching route datasets:', error)
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -303,89 +261,178 @@ app.post('/api/simulation/start-from-dataset', async (req, res) => {
   }
 })
 
-app.post('/api/simulation/prepare-replay', async (req, res) => {
+app.get('/api/datasets/:datasetId/bookings', async (req, res) => {
   try {
-    const { experimentId } = req.body
-
-    if (!experimentId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Experiment ID is required',
-      })
-    }
-
-    const experimentResult = await search({
-      index: 'experiments',
-      body: {
-        query: {
-          term: { 'id.keyword': experimentId },
-        },
-      },
-    })
-
-    if (!experimentResult?.body?.hits?.hits?.length) {
-      return res.status(404).json({
-        success: false,
-        error: `Experiment ${experimentId} not found`,
-      })
-    }
-
-    const experimentData = experimentResult.body.hits.hits[0]._source
-    const sourceDatasetId = experimentData.sourceDatasetId
-
-    if (!sourceDatasetId) {
-      return res.status(400).json({
-        success: false,
-        error: `No sourceDatasetId found for experiment ${experimentId}`,
-      })
-    }
-
-    const datasetResult = await search({
+    const { datasetId } = req.params
+    const searchResult = await search({
       index: 'route-datasets',
       body: {
         query: {
-          term: { _id: sourceDatasetId },
+          term: { _id: datasetId },
         },
       },
     })
 
-    if (!datasetResult?.body?.hits?.hits?.length) {
-      return res.status(404).json({
-        success: false,
-        error: `Dataset ${sourceDatasetId} not found`,
-      })
+    if (searchResult?.body?.hits?.hits?.length > 0) {
+      const dataset = searchResult.body.hits.hits[0]._source
+      res.json({ success: true, data: dataset.routeData || [] })
+    } else {
+      res.status(404).json({ success: false, error: 'Dataset not found' })
     }
+  } catch (error) {
+    console.error('Error fetching original bookings:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    res.status(500).json({ success: false, error: errorMessage })
+  }
+})
 
-    const dataset = datasetResult.body.hits.hits[0]._source
-    const datasetFleetConfig = dataset.fleetConfiguration || []
-
-    const { createFleetConfigFromDataset } = require('../lib/fleet-utils')
-    const fleetConfig = createFleetConfigFromDataset(
-      datasetFleetConfig,
-      experimentId
-    )
-
-    const replayParameters = {
-      ...experimentData,
-      id: `replay_${experimentId}_${Date.now()}`,
-      isReplay: true,
-      fleets: fleetConfig,
-    }
-
-    res.json({
-      success: true,
-      data: {
-        experimentId,
-        sessionId: `session_${Date.now()}`,
-        parameters: replayParameters,
+app.get('/api/experiments/:experimentId/vroom-plan', async (req, res) => {
+  try {
+    const { experimentId } = req.params
+    const searchResult = await search({
+      index: 'vroom-truck-plans',
+      body: {
+        query: {
+          term: { 'experiment.keyword': experimentId },
+        },
+        size: 100,
       },
     })
+
+    if (searchResult?.body?.hits?.hits?.length > 0) {
+      const truckPlans = searchResult.body.hits.hits.map(
+        (hit: any) => hit._source
+      )
+
+      const consolidatedPlan = {
+        code: 0,
+        summary: {
+          cost: 0,
+          routes: truckPlans.length,
+          unassigned: 0,
+          delivery: [0],
+          amount: [0],
+          pickup: [0],
+          setup: 0,
+          service: 0,
+          duration: 0,
+          waiting_time: 0,
+          priority: 0,
+          violations: [],
+          computing_times: {
+            loading: 0,
+            solving: 0,
+          },
+        },
+        routes: truckPlans.map((plan: any) => ({
+          vehicle: plan.truckId,
+          fleet: plan.fleet,
+          steps: plan.completePlan || [],
+          cost: 0,
+          setup: 0,
+          service: 0,
+          duration: 0,
+          waiting_time: 0,
+          priority: 0,
+          delivery: plan.bookingMetadata?.length || 0,
+          pickup: plan.bookingMetadata?.length || 0,
+          violations: [],
+        })),
+      }
+
+      consolidatedPlan.routes.forEach((route: any) => {
+        consolidatedPlan.summary.delivery[0] += route.delivery
+        consolidatedPlan.summary.pickup[0] += route.pickup
+      })
+
+      res.json({ success: true, data: consolidatedPlan })
+    } else {
+      res
+        .status(404)
+        .json({ success: false, error: 'VROOM plan not found for experiment' })
+    }
   } catch (error) {
-    console.error('Error preparing replay:', error)
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
+    console.error('Error fetching VROOM plan:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    res.status(500).json({ success: false, error: errorMessage })
+  }
+})
+
+app.post('/api/simulation/prepare-replay', async (req, res) => {
+  try {
+    const { experimentId } = req.body
+    const experimentResponse = await client.get({
+      index: 'experiments',
+      id: experimentId,
     })
+
+    if (!experimentResponse.body._source) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Experiment to replay not found' })
+    }
+
+    const sessionId = safeId()
+
+    const parameters = {
+      id: experimentId,
+      startDate: new Date().toISOString(),
+      fixedRoute: 100,
+      emitters: ['bookings', 'cars'],
+      initMapState: {
+        latitude: 65.0964472642777,
+        longitude: 17.112050188704504,
+        zoom: 5,
+      },
+    }
+
+    res.json({ success: true, data: { sessionId, parameters } })
+  } catch (error) {
+    console.error('Error preparing replay session:', error)
+    res.status(500).json({ success: false, error: 'Failed to prepare replay' })
+  }
+})
+
+app.post('/api/simulation/prepare-sequential', async (req, res) => {
+  try {
+    const { datasetId } = req.body
+    const datasetResponse = await client.get({
+      index: 'route-datasets',
+      id: datasetId,
+    })
+
+    if (!datasetResponse.body._source) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Dataset not found' })
+    }
+    const dataset = datasetResponse.body._source
+    const sessionId = safeId()
+
+    const parameters = {
+      sourceDatasetId: datasetId,
+      datasetName: dataset.name,
+      isReplay: false,
+      experimentType: 'sequential',
+      fleets: {
+        'Södertälje kommun': {
+          settings: {
+            ...dataset.originalSettings,
+            experimentType: 'sequential',
+          },
+          fleets: dataset.fleetConfiguration || [],
+        },
+      },
+    }
+
+    res.json({ success: true, data: { sessionId, parameters } })
+  } catch (error) {
+    console.error('Error preparing sequential session:', error)
+    res
+      .status(500)
+      .json({ success: false, error: 'Failed to prepare sequential session' })
   }
 })
 

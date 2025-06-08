@@ -4,7 +4,6 @@ const {
   Subject,
   mergeMap,
   catchError,
-  tap,
   toArray,
   ReplaySubject,
   map,
@@ -33,6 +32,7 @@ class Municipality {
   public cars: any
   public dispatchedBookings: any
   public experimentId: any
+  public virtualTime: any
 
   constructor({
     geometry,
@@ -43,37 +43,12 @@ class Municipality {
     citizens,
     fleetsConfig,
     settings,
-    preAssignedBookings,
     experimentId,
+    virtualTime,
   }: any) {
-    info('📋 Municipality config:', {
-      name,
-      experimentId,
-      fleetsConfigType: typeof fleetsConfig,
-      fleetsConfigCount: Array.isArray(fleetsConfig)
-        ? fleetsConfig.length
-        : 'not array',
-      preAssignedBookingsProvided: !!preAssignedBookings,
-      settingsProvided: !!settings,
+    info(`Municipality created: ${name}`, {
+      fleets: Array.isArray(fleetsConfig) ? fleetsConfig.length : 0,
     })
-
-    if (Array.isArray(fleetsConfig)) {
-      info(
-        '🚛 Fleet configs received:',
-        fleetsConfig.map((fleet: any) => ({
-          name: fleet.name,
-          vehicleCount: fleet.vehicles?.length || 0,
-          recyclingTypes: fleet.recyclingTypes,
-          bookingCount: fleet.bookingCount,
-          preAssignedBookingsKeys: Object.keys(fleet.preAssignedBookings || {}),
-          vehicles: fleet.vehicles?.map((v: any) => ({
-            originalId: v.originalId,
-            type: v.type,
-            description: v.description,
-          })),
-        }))
-      )
-    }
 
     this.squares = []
     this.geometry = geometry
@@ -89,10 +64,10 @@ class Municipality {
     this.fleetsConfig = fleetsConfig
     this.settings = settings
     this.experimentId = experimentId
+    this.virtualTime = virtualTime
 
     const fleetExperimentId = this.experimentId || this.id
 
-    info('🏭 Creating fleets from config...')
     this.fleets = from(this.fleetsConfig).pipe(
       map(
         (
@@ -109,13 +84,9 @@ class Municipality {
             preAssignedBookings: preAssignedBookings,
             settings: this.settings,
             experimentType: this.settings?.experimentType || 'vroom',
+            virtualTime: this.virtualTime,
           })
         }
-      ),
-      tap((fleet: any) =>
-        info(
-          `✅ Fleet skapad: ${fleet.name} med ${fleet.vehiclesCount} fordon för [${fleet.recyclingTypes}]`
-        )
       ),
       catchError((err: any) => {
         error('Fleet creation error:', err)
@@ -129,7 +100,6 @@ class Municipality {
     this.dispatchedBookings = this.fleets.pipe(
       toArray(),
       mergeMap((fleets: any[]) => {
-        info('🎯 Använder pre-assigned booking system för alla fleets')
         return this.handlePreAssignedBookings(fleets)
       }),
       catchError((err: any) => {
@@ -140,18 +110,12 @@ class Municipality {
   }
 
   handlePreAssignedBookings(fleets: any[]) {
-    info('🚀 Startar pre-assigned booking hantering för waste-type fleets')
-
     const allCreatedBookings: any[] = []
 
     return from(fleets).pipe(
       mergeMap((fleet: any) => {
         const preAssignedBookings = fleet.preAssignedBookings || {}
         const vehicleIds = Object.keys(preAssignedBookings)
-
-        info(
-          `Fleet ${fleet.name}: ${vehicleIds.length} fordon med förförderade bokningar`
-        )
 
         vehicleIds.forEach((vehicleId) => {
           const standardizedBookings = preAssignedBookings[vehicleId]
@@ -169,29 +133,8 @@ class Municipality {
               typeof pickupLat !== 'number' ||
               typeof pickupLng !== 'number'
             ) {
-              error(
-                `❌ Invalid coordinates for booking ${standardizedBooking.id}:`,
-                {
-                  lat: pickupLat,
-                  lng: pickupLng,
-                }
-              )
+              error(`Invalid coordinates for booking ${standardizedBooking.id}`)
               return
-            }
-
-            if (
-              pickupLat < 55 ||
-              pickupLat > 70 ||
-              pickupLng < 10 ||
-              pickupLng > 25
-            ) {
-              error(
-                `⚠️ Coordinates outside Sweden bounds for booking ${standardizedBooking.id}:`,
-                {
-                  lat: pickupLat,
-                  lng: pickupLng,
-                }
-              )
             }
 
             const destinationLat =
@@ -248,11 +191,11 @@ class Municipality {
           })
         })
 
-        const dispatcherStream = this.settings?.replayExperiment
-          ? fleet.startReplayDispatcher(this.settings.replayExperiment)
-          : fleet.startDispatcher()
+        const dispatcherStream =
+          this.settings?.experimentType === 'replay'
+            ? fleet.startReplayDispatcher(this.settings.replayExperiment)
+            : fleet.startDispatcher()
 
-        console.log('🏗️ Fleet dispatcher stream created for:', fleet.name)
         return dispatcherStream
       })
     )

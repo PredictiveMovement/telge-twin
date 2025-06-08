@@ -30,7 +30,7 @@ export interface RouteDataset {
   status: string
   associatedExperiments: string[]
   fleetConfiguration?: FleetConfiguration[]
-  originalSettings?: any
+  originalSettings?: Record<string, unknown>
 }
 
 export interface FleetConfiguration {
@@ -38,7 +38,7 @@ export interface FleetConfiguration {
   hubAddress: string
   recyclingTypes: string[]
   vehicles: Record<string, number>
-  compartmentConfiguration?: any[]
+  compartmentConfiguration?: Record<string, unknown>[]
   swedishCategory: string
   vehicleIds: string[]
   assignedTurids: string[]
@@ -64,11 +64,11 @@ export async function saveRouteDataset(datasetData: {
   name: string
   description?: string
   originalFilename: string
-  filterCriteria: any
-  routeData: any[]
+  filterCriteria: Record<string, unknown>
+  routeData: Record<string, unknown>[]
   originalRecordCount: number
-  fleetConfiguration?: any[]
-  originalSettings?: any
+  fleetConfiguration?: Record<string, unknown>[]
+  originalSettings?: Record<string, unknown>
 }): Promise<{
   success: boolean
   datasetId?: string
@@ -78,11 +78,11 @@ export async function saveRouteDataset(datasetData: {
   try {
     const response = await simulatorApi.post('/api/datasets', datasetData)
     return response.data
-  } catch (error) {
-    console.error('Error saving route dataset:', error)
+  } catch (_error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
     }
   }
 }
@@ -94,8 +94,7 @@ export async function getRouteDatasets(): Promise<RouteDataset[]> {
       return response.data.data
     }
     return []
-  } catch (error) {
-    console.error('Error fetching route datasets:', error)
+  } catch (_error) {
     return []
   }
 }
@@ -106,11 +105,11 @@ export async function deleteRouteDataset(
   try {
     const response = await simulatorApi.delete(`/api/datasets/${datasetId}`)
     return response.data
-  } catch (error) {
-    console.error('Error deleting route dataset:', error)
+  } catch (_error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
     }
   }
 }
@@ -122,13 +121,12 @@ export async function getExperiments(): Promise<Experiment[]> {
       return response.data.data
     }
     return []
-  } catch (error) {
-    console.error('Error fetching experiments:', error)
+  } catch (_error) {
     return []
   }
 }
 
-export async function getExperimentById(
+export async function getExperiment(
   experimentId: string
 ): Promise<Experiment | null> {
   try {
@@ -137,8 +135,39 @@ export async function getExperimentById(
       return response.data.data
     }
     return null
-  } catch (error) {
-    console.error('Error fetching experiment by ID:', error)
+  } catch (_error) {
+    return null
+  }
+}
+
+export async function getVroomPlan(
+  experimentId: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await simulatorApi.get(
+      `/api/experiments/${experimentId}/vroom-plan`
+    )
+    if (response.data?.success && response.data?.data) {
+      return response.data.data
+    }
+    return null
+  } catch (_error) {
+    return null
+  }
+}
+
+export async function getOriginalBookings(
+  datasetId: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await simulatorApi.get(
+      `/api/datasets/${datasetId}/bookings`
+    )
+    if (response.data?.success && response.data?.data) {
+      return response.data.data
+    }
+    return null
+  } catch (_error) {
     return null
   }
 }
@@ -148,7 +177,7 @@ export async function prepareReplay(experimentId: string): Promise<{
   data?: {
     experimentId: string
     sessionId: string
-    parameters: any
+    parameters: Record<string, unknown>
   }
   error?: string
 }> {
@@ -157,11 +186,36 @@ export async function prepareReplay(experimentId: string): Promise<{
       experimentId,
     })
     return response.data
-  } catch (error) {
-    console.error('Error preparing replay:', error)
+  } catch (_error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+export async function prepareSequentialSession(datasetId: string): Promise<{
+  success: boolean
+  data?: {
+    sessionId: string
+    parameters: Record<string, unknown>
+  }
+  error?: string
+}> {
+  try {
+    const response = await simulatorApi.post(
+      '/api/simulation/prepare-sequential',
+      {
+        datasetId,
+      }
+    )
+    return response.data
+  } catch (_error) {
+    return {
+      success: false,
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
     }
   }
 }
@@ -170,7 +224,7 @@ export function startSimulationFromDataset(
   socket: Socket,
   datasetId: string,
   datasetName: string,
-  parameters: any = {}
+  parameters: Record<string, unknown> = {}
 ): Promise<void> {
   return new Promise((resolve) => {
     const defaultParameters = {
@@ -223,6 +277,34 @@ export const startSessionReplay = async (
     return sessionId
   } catch (error) {
     console.error('Error starting session replay:', error)
+    throw error
+  }
+}
+
+export const startSequentialSession = async (
+  socket: Socket,
+  datasetId: string
+) => {
+  try {
+    const sessionResult = await prepareSequentialSession(datasetId)
+
+    if (!sessionResult.success || !sessionResult.data) {
+      throw new Error(
+        sessionResult.error || 'Failed to prepare sequential session'
+      )
+    }
+
+    const { sessionId, parameters } = sessionResult.data
+
+    socket.emit('startSequentialSession', {
+      sessionId,
+      datasetId,
+      parameters,
+    })
+
+    return sessionId
+  } catch (error) {
+    console.error('Error starting sequential session:', error)
     throw error
   }
 }

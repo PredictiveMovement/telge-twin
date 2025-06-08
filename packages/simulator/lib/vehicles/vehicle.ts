@@ -11,7 +11,6 @@ const interpolate = require('../interpolate')
 const Booking = require('../models/booking')
 const { safeId } = require('../id')
 const { error } = require('../log')
-const { virtualTime } = require('../virtualTime')
 const Position = require('../models/position')
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -28,6 +27,7 @@ interface VehicleConstructorArgs {
   fleet?: any
   co2PerKmKg?: number // Will be non-optional on class
   recyclingTypes?: any[]
+  virtualTime?: any
 }
 
 class Vehicle {
@@ -49,6 +49,7 @@ class Vehicle {
   co2PerKmKg: number // Changed to non-optional
   vehicleType: string
   recyclingTypes?: any[] // Added
+  virtualTime: any
 
   movedEvents: any // ReplaySubject
   cargoEvents: any // ReplaySubject
@@ -80,6 +81,7 @@ class Vehicle {
       fleet,
       co2PerKmKg = 0.013 / 1000,
       recyclingTypes, // Added
+      virtualTime,
     }: VehicleConstructorArgs = {} as VehicleConstructorArgs
   ) {
     this.id = id
@@ -99,11 +101,19 @@ class Vehicle {
     this.distance = 0
     this.status = status
     this.fleet = fleet
-    this.created = this.time()
     this.co2PerKmKg = co2PerKmKg // Always assigned
     this.vehicleType = 'default'
     this.recyclingTypes = recyclingTypes // Added
     this.lastPositionUpdate = 0 // Initialize, or use this.time() if appropriate at construction
+
+    if (virtualTime) {
+      this.virtualTime = virtualTime
+    } else {
+      const { virtualTime: globalVirtualTime } = require('../virtualTime')
+      this.virtualTime = globalVirtualTime
+    }
+
+    this.created = this.time()
 
     this.movedEvents = new ReplaySubject()
     this.cargoEvents = new ReplaySubject()
@@ -116,7 +126,7 @@ class Vehicle {
   }
 
   time(): Promise<number> {
-    return virtualTime.getTimeInMillisecondsAsPromise()
+    return this.virtualTime.getTimeInMillisecondsAsPromise()
   }
 
   async simulate(route: any) {
@@ -125,11 +135,11 @@ class Vehicle {
     }
     if (!route) return
 
-    if (virtualTime.timeMultiplier === Infinity) {
+    if (this.virtualTime.timeMultiplier === Infinity) {
       return this.updatePosition(route, [], await this.time())
     }
 
-    this.movementSubscription = virtualTime
+    this.movementSubscription = this.virtualTime
       .getTimeInMilliseconds()
       .pipe(
         scan((prevRemainingPointsInRoute: any, currentTimeInMs: any) => {
@@ -190,7 +200,7 @@ class Vehicle {
 
   async handleBooking(booking: any /* Booking */) {
     consoleAssert(
-      booking instanceof Booking, // This check will be more meaningful with proper types
+      booking instanceof Booking,
       'Booking needs to be of type Booking'
     )
 
@@ -202,29 +212,24 @@ class Vehicle {
 
       this.navigateTo(booking.pickup.position)
     } else {
-      // TODO: switch places with current booking if it makes more sense to pick this package up before picking up current
       this.queue.push(booking)
-      // TODO: use vroom to optimize the queue
       booking.assign(this)
-
       booking.queued(this)
     }
     return booking
   }
 
   async waitAtPickup() {
-    if (!this.booking || !this.booking.pickup) return // Guard added
+    if (!this.booking || !this.booking.pickup) return
     const departure = moment(
-      this.booking.pickup.departureTime, // Potential type issue if booking.pickup.departureTime is not string
+      this.booking.pickup.departureTime,
       'hh:mm:ss'
     ).valueOf()
-    const waitingtime = moment(departure).diff(
-      moment(await virtualTime.getTimeInMillisecondsAsPromise())
-    )
+    const waitingtime = moment(departure).diff(moment(await this.time()))
 
     if (waitingtime > 0) {
-      this.simulate(false) // pause interpolation while we wait
-      await virtualTime.waitUntil(departure)
+      this.simulate(false)
+      await this.virtualTime.waitUntil(departure)
     }
   }
   async pickup() {
