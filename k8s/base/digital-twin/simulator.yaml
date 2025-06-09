@@ -22,6 +22,22 @@ spec:
       labels:
         app: simulator
     spec:
+      initContainers:
+        - name: cache-init
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.61 # {"$imagepolicy": "flux-system:simulator"}
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Copying cache from image to volume..."
+              if [ -d "/app/.cache" ]; then
+                cp -r /app/.cache/* /cache-volume/ 2>/dev/null || true
+                echo "Cache copy completed"
+              else
+                echo "No cache directory found in image"
+              fi
+          volumeMounts:
+            - mountPath: /cache-volume
+              name: cache-volume
       containers:
         - name: simulator
           image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.61 # {"$imagepolicy": "flux-system:simulator"}
