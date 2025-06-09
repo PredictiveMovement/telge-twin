@@ -12,7 +12,6 @@ const vroom = (module.exports = {
   bookingToShipment({ id, pickup, destination, groupedBookings }, i) {
     const shipment = {
       id: i,
-      //description: id,
       amount: [groupedBookings?.length || 1],
       pickup: {
         id: i,
@@ -49,7 +48,6 @@ const vroom = (module.exports = {
   bookingToJob({ pickup, groupedBookings }, i) {
     const job = {
       id: i,
-      //description: id,
       location: [pickup.position.lon, pickup.position.lat],
       pickup: [groupedBookings?.length || 1],
     }
@@ -58,7 +56,6 @@ const vroom = (module.exports = {
   truckToVehicle({ position, parcelCapacity, destination, cargo }, i) {
     return {
       id: i,
-      //description: id,
       time_window: [
         moment('05:00:00', 'hh:mm:ss').unix(),
         moment('15:00:00', 'hh:mm:ss').unix(),

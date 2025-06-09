@@ -11,7 +11,7 @@ const clusterPositions = (input, nrOfClusters = 5) => {
   ])
   info('Clustering', vectors.length, 'positions into', nrOfClusters, 'clusters')
   assert(
-    vectors.length < 301,
+    vectors.length < 1001,
     'Too many positions to cluster:' + vectors.length
   )
   vectors.forEach((vector, index) => {
