@@ -6,6 +6,8 @@ typings.json
 typings
 data/pm*
 data/parameteres.json
-.cache
+.cache/osrm
+.cache/*
+!.cache/pelias/
 .env
 *.zip

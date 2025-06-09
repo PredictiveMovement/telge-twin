@@ -35,6 +35,9 @@ async function getFromCache(cacheKey) {
 
 async function saveToCache(cacheKey, data) {
   try {
+    if (data === undefined || data === null) {
+      return
+    }
     const cacheFile = path.join(CACHE_DIR, `${cacheKey}.json`)
     await fs.writeFile(cacheFile, JSON.stringify(data))
   } catch (error) {
@@ -59,18 +62,19 @@ async function cachedFetch(method, params, fetchFunc, forceFetch = false) {
 const nearest = (position, layers = 'address,venue') => {
   const { lon, lat } = position
 
-  const url = `${peliasUrl}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=1&layers=${layers}`
+  const url = `${peliasUrl}/v1/reverse?point.lat=${lat}&point.lon=${lon}&size=3&layers=${layers}&boundary.circle.radius=500`
   return cachedFetch('nearest', { position, layers }, () =>
     queue(() => fetch(url))
       .then((response) => {
         if (!response.ok) throw 'pelias error: ' + response.statusText
         return response.json()
       })
-      .then((p) =>
-        p.features[0]?.geometry?.coordinates?.length
-          ? p
-          : Promise.reject('No coordinates found' + position.toString())
-      )
+      .then((p) => {
+        if (p.features && p.features.length > 0 && p.features[0]) {
+          return p
+        }
+        return Promise.reject('No coordinates found' + position.toString())
+      })
       .then(
         ({
           features: [
@@ -102,6 +106,7 @@ const nearest = (position, layers = 'address,venue') => {
       .catch((e) => {
         const err = new Error().stack
         error(`Error in pelias nearest\n${err}\n${e}\n\n`)
+        return null
       })
   )
 }

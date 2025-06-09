@@ -6,7 +6,6 @@ packages/map/lib
 node_modules
 .envrc
 .vscode/
-.cache
 k8s/dependencies
 .aider.tags.cache.v3
 .aider*
