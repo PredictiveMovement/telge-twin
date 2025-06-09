@@ -24,7 +24,7 @@ spec:
     spec:
       initContainers:
         - name: cache-init
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.61 # {"$imagepolicy": "flux-system:simulator"}
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.62 # {"$imagepolicy": "flux-system:simulator"}
           command: ["sh", "-c"]
           args:
             - |
@@ -40,7 +40,7 @@ spec:
               name: cache-volume
       containers:
         - name: simulator
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.61 # {"$imagepolicy": "flux-system:simulator"}
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.62 # {"$imagepolicy": "flux-system:simulator"}
           # resources:
           #   requests:
           #     cpu: "1"
