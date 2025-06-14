@@ -46,6 +46,20 @@ export interface StandardizedBooking {
   sender: string
   weight: number
   originalRecord: any
+
+  originalTurid: string
+  originalKundnr: number
+  originalHsnr: number
+  originalTjnr: number
+  originalAvftyp: string
+  originalTjtyp: string
+  originalFrekvens: string
+  originalDatum: string
+  originalBil: string
+  originalSchemalagd: number
+  originalDec: string
+  originalTurordningsnr: number
+  standardBookingId: string
 }
 
 export interface FleetConfiguration {
@@ -71,6 +85,13 @@ interface RouteRecord {
   Lng: number
   Tjtyp?: string
   Turordningsnr?: string
+  Kundnr?: number
+  Hsnr?: number
+  Tjnr?: number
+  Frekvens?: string
+  Datum?: string
+  Dec?: string
+  Schemalagd?: number
   [key: string]: any
 }
 
@@ -126,6 +147,26 @@ function transformToStandardizedBookings(
       sender: 'TELGE',
       weight: 10,
       originalRecord: record,
+
+      originalTurid: record.Turid,
+      originalKundnr: record.Kundnr || 0,
+      originalHsnr: record.Hsnr || 0,
+      originalTjnr: record.Tjnr || 0,
+      originalAvftyp: record.Avftyp,
+      originalTjtyp: record.Tjtyp || 'standard',
+      originalFrekvens: record.Frekvens || '',
+      originalDatum: record.Datum || '',
+      originalBil: record.Bil,
+      originalSchemalagd: record.Schemalagd || 0,
+      originalDec: record.Dec || '',
+      originalTurordningsnr:
+        typeof record.Turordningsnr === 'number'
+          ? record.Turordningsnr
+          : parseInt(record.Turordningsnr) || 0,
+
+      standardBookingId: `${record.Turid}-${record.Kundnr || 0}-${
+        record.Hsnr || 0
+      }-${record.Tjnr || 0}`,
     }))
 }
 

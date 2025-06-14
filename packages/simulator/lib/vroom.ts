@@ -1,8 +1,9 @@
 import fetch, { Response } from 'node-fetch'
-import moment from 'moment'
 import { error, info } from './log'
 import { getFromCache, updateCache } from './cache'
 import queue from './queueSubject'
+import { virtualTime } from './virtualTime'
+import { CLUSTERING_CONFIG } from './config'
 
 // eslint-disable-next-line no-undef
 const vroomUrl: string =
@@ -10,6 +11,41 @@ const vroomUrl: string =
 
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
+
+// Cache statistics
+let vroomCacheStats = { hits: 0, misses: 0 }
+
+// Normalize input for cache key generation while preserving original data for VROOM API
+function normalizeCacheInput(
+  jobs: any[],
+  shipments: Shipment[],
+  vehicles: Vehicle[]
+) {
+  // Normalize shipments - replace time-dependent fields with constants for cache
+  const normalizedShipments = shipments.map((s) => ({
+    ...s,
+    pickup: {
+      ...s.pickup,
+      time_windows: 'NORMALIZED', // Replace with constant for cache
+    },
+    delivery: {
+      ...s.delivery,
+      time_windows: 'NORMALIZED',
+    },
+  }))
+
+  // Normalize vehicles - replace time-dependent fields with constants
+  const normalizedVehicles = vehicles.map((v) => ({
+    ...v,
+    time_window: 'NORMALIZED', // Replace with constant for cache
+  }))
+
+  return {
+    jobs,
+    shipments: normalizedShipments,
+    vehicles: normalizedVehicles,
+  }
+}
 
 export interface Shipment {
   id: number
@@ -27,12 +63,6 @@ export interface Shipment {
   service: number
 }
 
-export interface Job {
-  id: number
-  location: [number, number]
-  pickup: number[]
-}
-
 export interface Vehicle {
   id: number
   time_window: [number, number]
@@ -42,7 +72,7 @@ export interface Vehicle {
 }
 
 export interface PlanInput {
-  jobs?: Job[]
+  jobs?: any[]
   shipments?: Shipment[]
   vehicles: Vehicle[]
 }
@@ -51,25 +81,35 @@ async function plan(
   { jobs = [], shipments = [], vehicles }: PlanInput,
   retryCount = 0
 ): Promise<any> {
-  if (jobs?.length > 200) throw new Error('Too many jobs to plan')
-  if (shipments?.length > 200) throw new Error('Too many shipments to plan')
-  if (vehicles.length > 200) throw new Error('Too many vehicles to plan')
+  if (!vehicles || !Array.isArray(vehicles) || vehicles.length === 0) {
+    throw new Error('No vehicles provided for VROOM planning')
+  }
 
-  const cached = await getFromCache({ jobs, shipments, vehicles })
+  if (jobs?.length > CLUSTERING_CONFIG.MAX_VROOM_JOBS)
+    throw new Error(`Too many jobs to plan: ${jobs.length}`)
+  if (shipments?.length > CLUSTERING_CONFIG.MAX_VROOM_SHIPMENTS)
+    throw new Error(`Too many shipments to plan: ${shipments.length}`)
+  if (vehicles.length > CLUSTERING_CONFIG.MAX_VROOM_VEHICLES)
+    throw new Error(`Too many vehicles to plan: ${vehicles.length}`)
+
+  // 🔑 CACHE LOOKUP with normalized input
+  const normalizedInput = normalizeCacheInput(jobs, shipments, vehicles)
+  const cached = await getFromCache(normalizedInput)
   if (cached) {
+    vroomCacheStats.hits++
     return cached
   }
 
+  vroomCacheStats.misses++
+
   const before = Date.now()
-  const interval = setInterval(() => {
-    info(`VROOM still planning... ${Math.round((Date.now() - before) / 1000)}s`)
-  }, 5000)
+  const interval = setInterval(() => {}, 5000)
 
   try {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(
         () => reject(new Error('VROOM timeout after 30 seconds')),
-        30000
+        300000
       )
     })
 
@@ -98,15 +138,16 @@ async function plan(
     const json = await Promise.race([vroomPromise, timeoutPromise])
 
     clearInterval(interval)
+    const duration = Date.now() - before
 
-    return updateCache({ jobs, shipments, vehicles }, json)
+    return updateCache(normalizedInput, json)
   } catch (vroomError) {
     clearInterval(interval)
     error('Vroom error', vroomError)
 
     if (retryCount < 3) {
-      info(`Retrying VROOM (attempt ${retryCount + 1}/3)...`)
-      await delay(2000)
+      const backoffDelay = Math.pow(2, retryCount + 1) * 1000
+      await delay(backoffDelay)
       return plan({ jobs, shipments, vehicles }, retryCount + 1)
     } else {
       error('Max VROOM retries reached, giving up', vroomError)
@@ -144,11 +185,13 @@ function bookingToShipment(
     })
   }
 
-  const now = moment()
-  const pickupStart = now.clone()
-  const pickupEnd = now.clone().add(8, 'hours')
-  const deliveryStart = now.clone()
-  const deliveryEnd = now.clone().add(8, 'hours')
+  // 🕐 Use virtual time instead of moment() for consistent simulation time
+  const nowMs = virtualTime.now()
+  const nowUnix = Math.floor(nowMs / 1000)
+  const pickupStart = nowUnix
+  const pickupEnd = nowUnix + 8 * 60 * 60 // +8 hours
+  const deliveryStart = nowUnix
+  const deliveryEnd = nowUnix + 8 * 60 * 60
 
   const amount = groupedBookings ? groupedBookings.length : 1
 
@@ -158,22 +201,14 @@ function bookingToShipment(
     pickup: {
       id: i * 2,
       location: [pickupLon, pickupLat],
-      time_windows: [[pickupStart.unix(), pickupEnd.unix()]],
+      time_windows: [[pickupStart, pickupEnd]],
     },
     delivery: {
       id: i * 2 + 1,
       location: [deliveryLon, deliveryLat],
-      time_windows: [[deliveryStart.unix(), deliveryEnd.unix()]],
+      time_windows: [[deliveryStart, deliveryEnd]],
     },
     service: 30,
-  }
-}
-
-function bookingToJob({ pickup, groupedBookings }: any, i: number): Job {
-  return {
-    id: i,
-    location: [pickup.position.lon || pickup.position.lng, pickup.position.lat],
-    pickup: [groupedBookings?.length || 1],
   }
 }
 
@@ -181,15 +216,17 @@ function truckToVehicle(
   { position, parcelCapacity, destination, cargo }: any,
   i: number
 ): Vehicle {
-  const now = moment()
-  const workStart = now.clone()
-  const workEnd = now.clone().add(8, 'hours')
+  // 🕐 Use virtual time instead of moment() for consistent simulation time
+  const nowMs = virtualTime.now()
+  const nowUnix = Math.floor(nowMs / 1000)
+  const workStart = nowUnix
+  const workEnd = nowUnix + 8 * 60 * 60 // +8 hours
 
   const effectiveCapacity = parcelCapacity - cargo.length
 
   return {
     id: i,
-    time_window: [workStart.unix(), workEnd.unix()],
+    time_window: [workStart, workEnd],
     capacity: [effectiveCapacity],
     start: [position.lon || position.lng, position.lat],
     end: destination
@@ -200,7 +237,6 @@ function truckToVehicle(
 
 export default {
   bookingToShipment,
-  bookingToJob,
   truckToVehicle,
   plan,
 }
@@ -211,7 +247,6 @@ export default {
 if (typeof module !== 'undefined') {
   module.exports = {
     bookingToShipment,
-    bookingToJob,
     truckToVehicle,
     plan,
   }

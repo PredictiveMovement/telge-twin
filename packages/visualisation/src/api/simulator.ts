@@ -48,6 +48,20 @@ export interface FleetConfiguration {
   isEmergency?: boolean
 }
 
+export interface AreaPartition {
+  id: string
+  center: { lat: number; lon: number }
+  bounds: {
+    minLat: number
+    minLng: number
+    maxLat: number
+    maxLng: number
+  }
+  count: number
+  recyclingTypes: string[]
+  polygon: number[][]
+}
+
 export interface Experiment {
   id: string
   startDate: string
@@ -58,6 +72,7 @@ export interface Experiment {
   fixedRoute?: number
   emitters?: string[]
   experimentType?: 'vroom' | 'sequential' | 'replay'
+  areaPartitions?: AreaPartition[]
 }
 
 export async function saveRouteDataset(datasetData: {
@@ -306,6 +321,39 @@ export const startSequentialSession = async (
   } catch (error) {
     console.error('Error starting sequential session:', error)
     throw error
+  }
+}
+
+export async function getTuridComparison(experimentId: string) {
+  try {
+    const response = await fetch(
+      `${SIMULATOR_CONFIG.url}/api/experiments/${experimentId}/turid-comparison`
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (Array.isArray(data)) {
+      return { success: true, data }
+    }
+
+    if (data.success !== undefined) {
+      return data
+    }
+
+    throw new Error('Unexpected response format')
+  } catch (error) {
+    console.error('Error fetching turid comparison:', error)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch turid comparison',
+    }
   }
 }
 

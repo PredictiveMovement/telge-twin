@@ -7,6 +7,7 @@ import {
   Car,
   Image,
   Palette,
+  Grid3x3,
 } from 'lucide-react'
 import { LayerSection, LayersMenuProps } from '../types'
 
@@ -60,6 +61,13 @@ export const useLayersMenu = (props: LayersMenuProps): LayerSection[] => {
             icon: Map,
             checked: activeLayers.municipalityLayer,
             onChange: () => activeLayers.setMunicipalityLayer((on) => !on),
+          },
+          {
+            id: 'areaPartitions',
+            label: 'Area partitioner (kluster)',
+            icon: Grid3x3,
+            checked: activeLayers.showAreaPartitions,
+            onChange: () => activeLayers.setShowAreaPartitions((on) => !on),
           },
         ],
       },

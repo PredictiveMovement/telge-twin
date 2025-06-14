@@ -171,7 +171,22 @@ class Municipality {
                 arrivalTime: '17:00:00',
               },
               carId: vehicleId,
-              order: standardizedBooking.order || '0',
+              turordningsnr:
+                standardizedBooking.originalTurordningsnr ||
+                standardizedBooking.Turordningsnr,
+              originalTurid: standardizedBooking.originalTurid,
+              originalKundnr: standardizedBooking.originalKundnr,
+              originalHsnr: standardizedBooking.originalHsnr,
+              originalTjnr: standardizedBooking.originalTjnr,
+              originalAvftyp: standardizedBooking.originalAvftyp,
+              originalTjtyp: standardizedBooking.originalTjtyp,
+              originalFrekvens: standardizedBooking.originalFrekvens,
+              originalDatum: standardizedBooking.originalDatum,
+              originalBil: standardizedBooking.originalBil,
+              originalSchemalagd: standardizedBooking.originalSchemalagd,
+              originalDec: standardizedBooking.originalDec,
+              originalRouteRecord: standardizedBooking.originalRecord,
+              standardBookingId: standardizedBooking.standardBookingId,
             })
 
             properBooking.weight = standardizedBooking.weight || 10
@@ -191,10 +206,23 @@ class Municipality {
           })
         })
 
-        const dispatcherStream =
-          this.settings?.experimentType === 'replay'
-            ? fleet.startReplayDispatcher(this.settings.replayExperiment)
-            : fleet.startDispatcher()
+        let dispatcherStream
+        if (this.settings?.experimentType === 'replay') {
+          info(`Municipality ${this.name}: Using replay dispatcher`)
+          dispatcherStream = fleet.startReplayDispatcher(
+            this.settings.replayExperiment
+          )
+        } else if (this.settings?.experimentType === 'vroom') {
+          info(
+            `Municipality ${this.name}: Using VROOM dispatcher with truck-level clustering`
+          )
+          dispatcherStream = fleet.startVroomDispatcher()
+        } else {
+          info(
+            `Municipality ${this.name}: Using standard dispatcher (no clustering)`
+          )
+          dispatcherStream = fleet.startStandardDispatcher()
+        }
 
         return dispatcherStream
       })

@@ -13,6 +13,7 @@ import PlaybackControls from './PlaybackControls'
 import { VirtualTimeDisplay } from './map/VirtualTimeDisplay'
 import { BookingFilters } from './BookingLegend/types'
 import { DEFAULT_FILTERS } from './BookingLegend/constants'
+import { AreaPartition } from '@/api/simulator'
 
 interface MapProps {
   cars: Car[]
@@ -25,11 +26,12 @@ interface MapProps {
   onPlayTime?: () => void
   onPauseTime?: () => void
   onSpeedChange?: (speed: number) => void
+  areaPartitions?: AreaPartition[]
 }
 
 interface HoverInfo {
   id: string
-  type: 'car' | 'booking' | 'municipality' | 'dropoff'
+  type: 'car' | 'municipality' | 'dropoff' | 'area-partition' | 'booking'
   x: number
   y: number
   viewport?: unknown
@@ -65,6 +67,26 @@ const BOOKING_COLORS = {
   default: [254, 254, 254],
 }
 
+const PARTITION_COLORS = [
+  [255, 140, 0],
+  [0, 150, 200],
+  [150, 50, 200],
+  [200, 50, 100],
+  [50, 200, 50],
+  [200, 200, 50],
+  [200, 100, 50],
+  [50, 200, 200],
+]
+
+const getPartitionColor = (partitionId: string): number[] => {
+  const hash = partitionId.split('').reduce((a, b) => {
+    a = (a << 5) - a + b.charCodeAt(0)
+    return a & a
+  }, 0)
+  const colorIndex = Math.abs(hash) % PARTITION_COLORS.length
+  return PARTITION_COLORS[colorIndex]
+}
+
 const Map: React.FC<MapProps> = ({
   cars,
   bookings,
@@ -76,6 +98,7 @@ const Map: React.FC<MapProps> = ({
   onPlayTime,
   onPauseTime,
   onSpeedChange,
+  areaPartitions,
 }) => {
   const [mapState, setMapState] = useState({
     bearing: 0,
@@ -96,6 +119,7 @@ const Map: React.FC<MapProps> = ({
   const [carLayer, setCarLayer] = useState(true)
   const [useIcons, setUseIcons] = useState(false)
   const [showBookingLegend, setShowBookingLegend] = useState(false)
+  const [showAreaPartitions, setShowAreaPartitions] = useState(false)
 
   const [bookingFilters, setBookingFilters] =
     useState<BookingFilters>(DEFAULT_FILTERS)
@@ -109,6 +133,8 @@ const Map: React.FC<MapProps> = ({
     setUseIcons,
     showBookingLegend,
     setShowBookingLegend,
+    showAreaPartitions,
+    setShowAreaPartitions,
   }
 
   const mockMunicipalityData = useMemo(
@@ -127,6 +153,8 @@ const Map: React.FC<MapProps> = ({
     ],
     []
   )
+
+  const displayAreaPartitions = areaPartitions || []
 
   const getColorBasedOnStatus = ({ status }: { status: string }) => {
     const opacity = Math.round((4 / 5) * 255)
@@ -349,6 +377,55 @@ const Map: React.FC<MapProps> = ({
     })
   }, [municipalityLayer, mockMunicipalityData])
 
+  const areaPartitionLayer = useMemo(() => {
+    if (!showAreaPartitions) return null
+
+    const partitionData = displayAreaPartitions.map((p) => ({
+      ...p,
+      polygon:
+        p.polygon && p.polygon.length >= 4
+          ? p.polygon
+          : [
+              [p.bounds.minLng, p.bounds.minLat],
+              [p.bounds.maxLng, p.bounds.minLat],
+              [p.bounds.maxLng, p.bounds.maxLat],
+              [p.bounds.minLng, p.bounds.maxLat],
+              [p.bounds.minLng, p.bounds.minLat],
+            ],
+    }))
+
+    return new PolygonLayer({
+      id: 'area-partition-layer',
+      data: partitionData,
+      pickable: true,
+      stroked: true,
+      filled: true,
+      lineWidthMinPixels: 2,
+      getPolygon: (d: any) => d.polygon,
+      getFillColor: (d: any) => [...getPartitionColor(d.id), 40],
+      getLineColor: (d: any) => [...getPartitionColor(d.id), 200],
+      getLineWidth: 3,
+      onHover: ({ object, x, y, viewport }: any) => {
+        if (!object) return setHoverInfo(null)
+        const p = object as any
+        const polygonType =
+          p.polygon.length === 5 &&
+          p.polygon[0][0] === p.bounds.minLng &&
+          p.polygon[0][1] === p.bounds.minLat
+            ? 'rektangel'
+            : 'convex hull'
+        setHoverInfo({
+          id: p.id,
+          type: 'area-partition',
+          name: `Kluster ${p.id} (${p.count} bokningar) - ${polygonType}`,
+          x,
+          y,
+          viewport,
+        })
+      },
+    })
+  }, [showAreaPartitions, displayAreaPartitions])
+
   const routesData = useMemo(() => {
     if (!showArcLayer) return []
 
@@ -403,6 +480,7 @@ const Map: React.FC<MapProps> = ({
     const allLayers = []
 
     if (municipalityPolygonLayer) allLayers.push(municipalityPolygonLayer)
+    if (areaPartitionLayer) allLayers.push(areaPartitionLayer)
     allLayers.push(bookingLayer)
     allLayers.push(destinationLayer)
     if (showArcLayer) allLayers.push(routesLayer)
@@ -411,6 +489,7 @@ const Map: React.FC<MapProps> = ({
     return allLayers
   }, [
     municipalityPolygonLayer,
+    areaPartitionLayer,
     bookingLayer,
     destinationLayer,
     routesLayer,
@@ -434,6 +513,10 @@ const Map: React.FC<MapProps> = ({
         : 'Bokning'
     } else if (type === 'municipality') {
       content = `Kommun: ${name}`
+    } else if (type === 'area-partition') {
+      content = `Kluster: ${name}`
+    } else if (type === 'dropoff') {
+      content = `Destination`
     }
 
     return (

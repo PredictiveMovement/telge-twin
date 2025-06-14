@@ -25,13 +25,28 @@ export interface BookingInput<TPassenger = unknown> {
   sender?: string
   carId?: string
   bookingId?: string
-  order?: string
+  turordningsnr?: number
   passenger?: TPassenger
   type?: string
   recyclingType?: string
   pickup?: Place
   destination?: Place
   postalcode?: string
+
+  originalTurid?: string
+  originalKundnr?: number
+  originalHsnr?: number
+  originalTjnr?: number
+  originalAvftyp?: string
+  originalTjtyp?: string
+  originalFrekvens?: string
+  originalDatum?: string
+  originalBil?: string
+  originalSchemalagd?: number
+  originalDec?: string
+
+  originalRouteRecord?: any
+  standardBookingId?: string
 }
 
 export class Booking<TPassenger = unknown> {
@@ -62,6 +77,21 @@ export class Booking<TPassenger = unknown> {
   finalDestination?: Place
   origin?: string
   carId?: string
+  turordningsnr?: number
+
+  originalTurid?: string
+  originalKundnr?: number
+  originalHsnr?: number
+  originalTjnr?: number
+  originalAvftyp?: string
+  originalTjtyp?: string
+  originalFrekvens?: string
+  originalDatum?: string
+  originalBil?: string
+  originalSchemalagd?: number
+  originalDec?: string
+  originalRouteRecord?: any
+  standardBookingId?: string
 
   // RxJS subjects
   queuedEvents = new ReplaySubject<Booking<TPassenger>>()
@@ -72,24 +102,60 @@ export class Booking<TPassenger = unknown> {
 
   constructor(booking: BookingInput<TPassenger>) {
     Object.assign(this, booking)
-    this.id = [
-      booking.sender ? booking.sender.replace(/&/g, '').toLowerCase() : 'b',
-      booking.id || 'no-id',
-      booking.carId || 'no-carId',
-      booking.order || safeId(),
-    ].join('-')
+    this.id = this.generateRichId(booking)
+
     this.bookingId = booking.bookingId
+    this.turordningsnr = booking.turordningsnr
     this.status = 'New'
     this.weight = Math.random() * 10
     this.position = this.pickup?.position
 
-    // Merge status-oriented streams
+    this.originalTurid = booking.originalTurid
+    this.originalKundnr = booking.originalKundnr
+    this.originalHsnr = booking.originalHsnr
+    this.originalTjnr = booking.originalTjnr
+    this.originalAvftyp = booking.originalAvftyp
+    this.originalTjtyp = booking.originalTjtyp
+    this.originalFrekvens = booking.originalFrekvens
+    this.originalDatum = booking.originalDatum
+    this.originalBil = booking.originalBil
+    this.originalSchemalagd = booking.originalSchemalagd
+    this.originalDec = booking.originalDec
+    this.originalRouteRecord = booking.originalRouteRecord
+    this.standardBookingId = booking.standardBookingId
+
     this.statusEvents = merge(
       this.queuedEvents,
       this.assignedEvents,
       this.pickedUpEvents,
       this.deliveredEvents
     )
+  }
+
+  private generateRichId(booking: BookingInput<TPassenger>): string {
+    if (
+      booking.originalTurid &&
+      booking.originalKundnr &&
+      booking.originalHsnr &&
+      booking.originalTjnr
+    ) {
+      const parts = [
+        booking.sender ? booking.sender.replace(/&/g, '').toLowerCase() : 'b',
+        booking.originalTurid,
+        booking.originalKundnr,
+        booking.originalHsnr,
+        booking.originalTjnr,
+        booking.turordningsnr || safeId(),
+      ]
+      return parts.join('-')
+    }
+
+    return [
+      booking.sender ? booking.sender.replace(/&/g, '').toLowerCase() : 'b',
+      booking.id || 'no-id',
+      booking.carId || 'no-carId',
+      booking.turordningsnr || safeId(),
+    ].join('-')
   }
 
   async queued(car: Vehicle): Promise<void> {
@@ -167,7 +233,24 @@ export class Booking<TPassenger = unknown> {
       carId,
       finalDestination,
       origin,
-    } = this as Booking<TPassenger> & { sender?: string; carId?: string }
+      turordningsnr,
+      originalTurid,
+      originalKundnr,
+      originalHsnr,
+      originalTjnr,
+      originalAvftyp,
+      originalTjtyp,
+      originalFrekvens,
+      originalDatum,
+      originalBil,
+      originalSchemalagd,
+      originalDec,
+      originalRouteRecord,
+      standardBookingId,
+    } = this as Booking<TPassenger> & {
+      sender?: string
+      carId?: string
+    }
 
     return {
       id,
@@ -192,6 +275,20 @@ export class Booking<TPassenger = unknown> {
       carId: carId || this.car?.id,
       finalDestination,
       origin,
+      turordningsnr,
+      originalTurid,
+      originalKundnr,
+      originalHsnr,
+      originalTjnr,
+      originalAvftyp,
+      originalTjtyp,
+      originalFrekvens,
+      originalDatum,
+      originalBil,
+      originalSchemalagd,
+      originalDec,
+      originalRouteRecord,
+      standardBookingId,
     }
   }
 }

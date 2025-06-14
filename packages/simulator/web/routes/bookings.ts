@@ -18,6 +18,7 @@ const cleanBookings = () =>
         car,
         type,
         recyclingType,
+        turordningsnr,
       } = booking as Record<string, any>
 
       const result = {
@@ -34,6 +35,7 @@ const cleanBookings = () =>
         carId: car?.id,
         type,
         recyclingType,
+        turordningsnr,
       }
 
       return result

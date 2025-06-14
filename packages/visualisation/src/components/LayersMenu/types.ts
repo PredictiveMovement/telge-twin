@@ -24,6 +24,8 @@ export interface LayersMenuProps {
     setUseIcons: (setter: (prev: boolean) => boolean) => void
     showBookingLegend: boolean
     setShowBookingLegend: (setter: (prev: boolean) => boolean) => void
+    showAreaPartitions: boolean
+    setShowAreaPartitions: (setter: (prev: boolean) => boolean) => void
   }
   showArcLayer: boolean
   setShowArcLayer: (setter: (prev: boolean) => boolean) => void

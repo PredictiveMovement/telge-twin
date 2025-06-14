@@ -1,10 +1,20 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+/*  src/dispatch/truckDispatch.ts
+ *  ↳ TRUCK-LEVEL optimering med spatial clustering + VROOM
+ *  ↳ Används när trucks får bokningar från Fleet via round-robin dispatch
+ *  ↳ Steg: 1) Klustra truck's bokningar, 2) TSP för kluster-ordning, 3) VROOM per kluster
+ */
+
 const { plan, truckToVehicle, bookingToShipment } = require('../vroom')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { error, info } = require('../log')
-const { save, search } = require('../elastic')
-const Booking = require('../models/booking')
+const { CLUSTERING_CONFIG } = require('../config')
+const {
+  createSpatialChunks,
+  calculateCenter,
+  calculateBoundingBox,
+} = require('../clustering')
 const Position = require('../models/position')
+const Booking = require('../models/booking')
+const { save, search } = require('../elastic')
 
 export interface Instruction {
   action: string
@@ -13,101 +23,157 @@ export interface Instruction {
   booking: any
 }
 
+/* ----------------------------------------------------------- */
+/*  BESTÄM OPTIMAL ORDNING MELLAN KLUSTER MED VROOM (TSP)      */
+async function orderChunksWithVroom(
+  chunks: any[],
+  truckStart: [number, number]
+): Promise<any[]> {
+  if (chunks.length <= 1) return chunks
+
+  /* bygg ett TSP‑problem där varje kluster‑centroid är ett jobb */
+  const jobs = chunks.map((c, i) => ({
+    id: i + 1,
+    location: [
+      calculateCenter(c.bookings).lng,
+      calculateCenter(c.bookings).lat,
+    ],
+    service: 0,
+  }))
+  const vehicles = [
+    {
+      id: 0,
+      start: truckStart,
+      end: truckStart,
+      capacity: [9999],
+      time_window: [0, 24 * 3600],
+    },
+  ]
+
+  try {
+    const tsp = await plan({ jobs, vehicles })
+    const orderIds: number[] = tsp.routes[0].steps
+      .filter((s: any) => s.type === 'job')
+      .map((s: any) => s.job - 1) // 0‑baserat
+
+    return orderIds.map((idx) => chunks[idx])
+  } catch (e) {
+    return chunks
+  }
+}
+
+/* ----------------------------------------------------------- */
 export async function findBestRouteToPickupBookings(
   experimentId: string,
   truck: any,
   bookings: any[],
-  instructions: ('pickup' | 'delivery' | 'start')[] = [
-    'pickup',
-    'delivery',
-    'start',
-  ]
+  instructions?: ('pickup' | 'delivery' | 'start')[]
 ): Promise<Instruction[] | undefined> {
-  try {
-    if (bookings.length > 200) {
-      error(
-        `Too many bookings (${bookings.length}) for single VROOM call. This should be handled by chunking at truck level.`
-      )
-      return []
-    }
-
-    const vehicles = [{ ...truckToVehicle(truck, 0), _cacheBuster: Date.now() }]
-    const shipments = bookings.map((booking, index) =>
-      bookingToShipment(booking, index)
-    )
-
-    const result: any = await plan({ shipments, vehicles }, 0)
-
-    let vromPlan =
-      result.routes[0]?.steps
-        .filter(({ type }: { type: string }) =>
-          instructions.includes(type as any)
-        )
-        .map(({ id, type, arrival, departure }: any) => {
-          let bookingIndex
-          if (type === 'pickup') {
-            bookingIndex = Math.floor(id / 2)
-          } else if (type === 'delivery') {
-            bookingIndex = Math.floor((id - 1) / 2)
-          } else {
-            bookingIndex = null
-          }
-
-          const booking = bookingIndex !== null ? bookings[bookingIndex] : null
-
-          return {
-            action: type,
-            arrival,
-            departure,
-            booking,
-          }
-        }) || []
-
-    if (result.unassigned?.length > 0) {
-      error(`❌ Unassigned bookings for truck ${truck.id}:`, result.unassigned)
-
-      const unassignedPickupIds = result.unassigned
-        .filter((item: any) => item.type === 'pickup')
-        .map((item: any) => Math.floor(item.id / 2))
-
-      const unassignedBookings = unassignedPickupIds
-        .map((id: number) => bookings[id])
-        .filter(Boolean)
-
-      info(
-        `📦 Adding ${unassignedBookings.length} unassigned bookings to sequential plan for truck ${truck.id}`
-      )
-
-      const unassignedInstructions = unassignedBookings.map((booking: any) => ({
-        action: 'pickup',
-        arrival: 0,
-        departure: 0,
-        booking,
-      }))
-
-      const pickupInstructions = vromPlan.filter(
-        (inst: any) => inst.action === 'pickup'
-      )
-      const deliveryInstructions = vromPlan.filter(
-        (inst: any) => inst.action === 'delivery'
-      )
-      const otherInstructions = vromPlan.filter(
-        (inst: any) => inst.action !== 'pickup' && inst.action !== 'delivery'
-      )
-
-      vromPlan = [
-        ...pickupInstructions,
-        ...unassignedInstructions,
-        ...deliveryInstructions,
-        ...otherInstructions,
-      ]
-    }
-
-    return vromPlan
-  } catch (vroomError) {
-    error(`Failed to plan route for truck ${truck.id}:`, vroomError)
-    return []
+  // Only use pickup instructions, delivery will be handled dynamically by truck
+  if (!instructions) {
+    instructions = ['pickup']
   }
+
+  try {
+    /* -------- 1. Klustra ------------------------------------ */
+    const chunks = createSpatialChunks(
+      bookings,
+      CLUSTERING_CONFIG.MAX_CLUSTER_SIZE,
+      experimentId
+    )
+    if (!chunks.length) return []
+
+    /* -------- 2. Kluster‑sekvens med VROOM‑TSP -------------- */
+    const truckStart: [number, number] = [
+      truck.position.lon || truck.position.lng,
+      truck.position.lat,
+    ]
+    const orderedChunks = await orderChunksWithVroom(chunks, truckStart)
+
+    /* -------- 3. Optimera varje kluster separat med VROOM --- */
+    const chunkResults: any[] = []
+
+    for (const chunk of orderedChunks) {
+      try {
+        const vehicles = [truckToVehicle(truck, 0)]
+        const shipments = chunk.bookings.map((b: any, i: number) =>
+          bookingToShipment(b, i)
+        )
+        const result = await plan({ shipments, vehicles }, 0)
+        chunkResults.push({ result, chunk })
+      } catch (err) {
+        chunkResults.push({
+          result: {
+            routes: [
+              {
+                steps: chunk.bookings.map((_b: any, i: number) => ({
+                  id: i * 2,
+                  type: 'pickup',
+                  arrival: 0,
+                  departure: 0,
+                })),
+              },
+            ],
+            unassigned: [],
+          },
+          chunk,
+        })
+      }
+    }
+
+    return mergeVroomChunkResults(chunkResults, instructions)
+  } catch (e) {
+    error(`findBestRouteToPickupBookings failed for truck ${truck.id}:`, e)
+  }
+}
+
+/* ----------------------------------------------------------- */
+/*  Slår ihop VROOM‑resultat från flera chunk‑körningar        */
+export function mergeVroomChunkResults(
+  chunkResults: any[],
+  instructions: ('pickup' | 'delivery' | 'start')[]
+): Instruction[] {
+  const merged: Instruction[] = []
+
+  chunkResults.forEach(({ result, chunk }) => {
+    const steps = result?.routes?.[0]?.steps || []
+
+    /* 1. planerade steg */
+    steps
+      .filter((s: any) => instructions.includes(s.type))
+      .forEach((s: any) => {
+        let booking = null
+        if (s.type === 'pickup') booking = chunk.bookings[Math.floor(s.id / 2)]
+        else if (s.type === 'delivery')
+          booking = chunk.bookings[Math.floor((s.id - 1) / 2)]
+
+        merged.push({
+          action: s.type,
+          arrival: s.arrival ?? 0,
+          departure: s.departure ?? 0,
+          booking,
+        })
+      })
+
+    /* 2. unassigned hantering                            */
+    if (result?.unassigned?.length) {
+      const ids = result.unassigned
+        .filter((u: any) => u.type === 'pickup')
+        .map((u: any) => Math.floor(u.id / 2))
+      ids.forEach((idx: number) => {
+        const b = chunk.bookings[idx]
+        if (b)
+          merged.push({
+            action: 'pickup',
+            arrival: 0,
+            departure: 0,
+            booking: b,
+          })
+      })
+    }
+  })
+
+  return merged
 }
 
 export async function saveCompletePlanForReplay(
@@ -116,65 +182,89 @@ export async function saveCompletePlanForReplay(
   fleetName: string,
   completePlan: Instruction[],
   allBookings: any[],
-  createReplay: boolean = true
-): Promise<void> {
-  if (!createReplay) {
-    return
-  }
-
+  createReplay = true
+) {
+  if (!createReplay) return
   try {
     const planId = `${experimentId}-${truckId}-complete-${Date.now()}`
-
-    const bookingMetadata = allBookings.map((booking, index) => ({
-      originalIndex: index,
-      bookingId: booking.bookingId,
-      id: booking.id,
-      recyclingType: booking.recyclingType,
+    const bookingMetadata = allBookings.map((b: any, i: number) => ({
+      originalIndex: i,
+      bookingId: b.bookingId,
+      id: b.id,
+      recyclingType: b.recyclingType,
       pickup: {
-        lat: booking.pickup?.position?.lat,
-        lon: booking.pickup?.position?.lon,
-        postalcode: booking.pickup?.postalcode,
+        lat: b.pickup?.position?.lat,
+        lon: b.pickup?.position?.lon,
+        postalcode: b.pickup?.postalcode,
       },
+      originalTurid: b.originalTurid,
+      originalKundnr: b.originalKundnr,
+      originalHsnr: b.originalHsnr,
+      originalTjnr: b.originalTjnr,
+      originalAvftyp: b.originalAvftyp,
+      originalTjtyp: b.originalTjtyp,
+      originalFrekvens: b.originalFrekvens,
+      originalDatum: b.originalDatum,
+      originalBil: b.originalBil,
+      originalSchemalagd: b.originalSchemalagd,
+      originalDec: b.originalDec,
+      originalTurordningsnr: b.turordningsnr,
+      standardBookingId: b.standardBookingId,
+      originalRouteRecord: b.originalRouteRecord,
     }))
 
-    const cleanCompletePlan = completePlan.map((instruction) => ({
-      action: instruction.action,
-      arrival: instruction.arrival,
-      departure: instruction.departure,
-      booking: instruction.booking
+    const cleanPlan = completePlan.map((i) => ({
+      action: i.action,
+      arrival: i.arrival,
+      departure: i.departure,
+      booking: i.booking
         ? {
-            bookingId: instruction.booking.bookingId,
-            id: instruction.booking.id,
-            recyclingType: instruction.booking.recyclingType,
+            bookingId: i.booking.bookingId,
+            id: i.booking.id,
+            recyclingType: i.booking.recyclingType,
             pickup: {
-              lat: instruction.booking.pickup?.position?.lat,
-              lon: instruction.booking.pickup?.position?.lon,
-              postalcode: instruction.booking.pickup?.postalcode,
+              lat: i.booking.pickup?.position?.lat,
+              lon: i.booking.pickup?.position?.lon,
+              postalcode: i.booking.pickup?.postalcode,
             },
             destination: {
-              lat: instruction.booking.destination?.position?.lat,
-              lon: instruction.booking.destination?.position?.lon,
+              lat: i.booking.destination?.position?.lat,
+              lon: i.booking.destination?.position?.lon,
             },
+            originalTurid: i.booking.originalTurid,
+            originalKundnr: i.booking.originalKundnr,
+            originalHsnr: i.booking.originalHsnr,
+            originalTjnr: i.booking.originalTjnr,
+            originalAvftyp: i.booking.originalAvftyp,
+            originalTjtyp: i.booking.originalTjtyp,
+            originalFrekvens: i.booking.originalFrekvens,
+            originalDatum: i.booking.originalDatum,
+            originalBil: i.booking.originalBil,
+            originalSchemalagd: i.booking.originalSchemalagd,
+            originalDec: i.booking.originalDec,
+            originalTurordningsnr: i.booking.turordningsnr,
+            standardBookingId: i.booking.standardBookingId,
+            originalRouteRecord: i.booking.originalRouteRecord,
           }
         : null,
     }))
 
     await save(
       {
-        planId: planId,
+        planId,
         experiment: experimentId,
-        truckId: truckId,
+        truckId,
         fleet: fleetName,
-        completePlan: cleanCompletePlan,
-        bookingMetadata: bookingMetadata,
+        completePlan: cleanPlan,
+        bookingMetadata,
         planType: 'complete',
         timestamp: new Date().toISOString(),
       },
       planId,
       'vroom-truck-plans'
     )
-  } catch (err) {
-    error(`Error saving complete plan to Elasticsearch: ${err}`)
+  } catch (e) {
+    error(`Error saving complete plan: ${e}`)
   }
 }
 
@@ -190,30 +280,16 @@ async function loadCompletePlanForExperiment(
         query: {
           bool: {
             must: [
-              {
-                match: {
-                  experiment: experimentId,
-                },
-              },
-              {
-                match: {
-                  truckId: truckId,
-                },
-              },
-              {
-                match: {
-                  planType: 'complete',
-                },
-              },
+              { match: { experiment: experimentId } },
+              { match: { truckId } },
+              { match: { planType: 'complete' } },
             ],
           },
         },
         sort: [{ timestamp: { order: 'desc' } }],
       },
     })
-
-    const result = res?.body?.hits?.hits?.[0]?._source || null
-    return result
+    return res?.body?.hits?.hits?.[0]?._source || null
   } catch (e) {
     error(`Error loading complete plan: ${e}`)
     return null
@@ -221,117 +297,61 @@ async function loadCompletePlanForExperiment(
 }
 
 export async function useReplayRoute(truck: any, bookings: any[]) {
-  const completePlanData = await loadCompletePlanForExperiment(
+  const data = await loadCompletePlanForExperiment(
     truck.fleet.settings.replayExperiment,
     truck.id
   )
-
-  if (completePlanData?.completePlan) {
-    info(
-      `🔍 Replay route for truck ${truck.id}: ${bookings.length} bookings available`
-    )
-    info(
-      `📋 Available booking IDs:`,
-      bookings.map((b: any) => ({ id: b.id, bookingId: b.bookingId }))
-    )
-
-    const reconstructedPlan = completePlanData.completePlan.map(
-      (instruction: any) => {
-        let matchedBooking = null
-        if (instruction.booking) {
-          matchedBooking = bookings.find(
-            (b: any) => b.bookingId === instruction.booking.bookingId
-          )
-          if (!matchedBooking) {
-            info(
-              `⚠️ No booking found for instruction booking ${instruction.booking.bookingId}, creating from instruction data`
-            )
-            matchedBooking = createBookingFromInstructionData(
-              instruction.booking
-            )
-          } else {
-            info(
-              `✅ Found matching booking for ${instruction.booking.bookingId}`
-            )
-          }
-        }
-
-        return {
-          action: instruction.action,
-          arrival: instruction.arrival,
-          departure: instruction.departure,
-          booking: matchedBooking,
-        }
+  if (data?.completePlan) {
+    return data.completePlan.map((ins: any) => {
+      let matched = null
+      if (ins.booking) {
+        matched = bookings.find(
+          (b: any) => b.bookingId === ins.booking.bookingId
+        )
+        if (!matched) matched = createBookingFromInstructionData(ins.booking)
       }
-    )
-
-    return reconstructedPlan
+      return {
+        action: ins.action,
+        arrival: ins.arrival,
+        departure: ins.departure,
+        booking: matched,
+      }
+    })
   }
-
-  const instructions = ['pickup', 'delivery', 'start']
-  return (
-    plan.routes[0]?.steps
-      ?.filter(({ type }: { type: string }) =>
-        instructions.includes(type as any)
-      )
-      ?.map(({ id, type, arrival, departure }: any) => {
-        const booking = bookings[id] || bookings.find((b, idx) => idx === id)
-        if (!booking) {
-          error(`Could not find booking for id ${id} in replay`)
-        }
-        return {
-          action: type,
-          arrival,
-          departure,
-          booking,
-        }
-      }) || []
-  )
+  return []
 }
 
-function createBookingFromInstructionData(instructionBooking: any): any {
-  const bookingInput = {
-    id: instructionBooking.id,
-    bookingId: instructionBooking.bookingId,
-    recyclingType: instructionBooking.recyclingType,
-    type: instructionBooking.recyclingType,
-    pickup: instructionBooking.pickup
+export function createBookingFromInstructionData(insBook: any) {
+  return new Booking({
+    id: insBook.id,
+    bookingId: insBook.bookingId,
+    recyclingType: insBook.recyclingType,
+    type: insBook.recyclingType,
+    pickup: insBook.pickup
       ? {
           position: new Position({
-            lat: instructionBooking.pickup.lat,
-            lng: instructionBooking.pickup.lon,
+            lat: insBook.pickup.lat,
+            lng: insBook.pickup.lon,
           }),
-          postalcode: instructionBooking.pickup.postalcode,
+          postalcode: insBook.pickup.postalcode,
         }
       : undefined,
-    destination: instructionBooking.destination
+    destination: insBook.destination
       ? {
           position: new Position({
-            lat: instructionBooking.destination.lat,
-            lng: instructionBooking.destination.lon,
+            lat: insBook.destination.lat,
+            lng: insBook.destination.lon,
           }),
         }
       : undefined,
-  }
-
-  return new Booking(bookingInput)
+  })
 }
 
-export default {
+/* ----------------------------------------------------------- */
+module.exports = {
   findBestRouteToPickupBookings,
-  useReplayRoute,
+  mergeVroomChunkResults,
   saveCompletePlanForReplay,
+  useReplayRoute,
   createBookingFromInstructionData,
-}
-
-// CommonJS compatibility
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-if (typeof module !== 'undefined') {
-  module.exports = {
-    findBestRouteToPickupBookings,
-    useReplayRoute,
-    saveCompletePlanForReplay,
-    createBookingFromInstructionData,
-  }
 }

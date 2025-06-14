@@ -1,0 +1,40 @@
+// Centralized configuration for clustering and VROOM planning
+export const CLUSTERING_CONFIG = {
+  // Cluster size limits
+  MAX_CLUSTER_SIZE: 150,
+  MAX_TRUCK_QUEUE_FOR_CLUSTERING: 100,
+
+  // Timing configuration
+  TRUCK_PLANNING_TIMEOUT_MS: 2000,
+  TRUCK_PLANNING_RANDOM_DELAY_MS: 2000,
+  FLEET_BUFFER_TIME_MS: 1000,
+
+  // VROOM limits
+  MAX_VROOM_JOBS: 200,
+  MAX_VROOM_SHIPMENTS: 200,
+  MAX_VROOM_VEHICLES: 200,
+
+  // DBSCAN parameters
+  TRUCK_DBSCAN_EPS_METERS: 300,
+  DBSCAN_MIN_SAMPLES: 3,
+
+  // Post-processing
+  MIN_PARTITION_SIZE: 3,
+  ENABLE_PARTITION_MERGING: true,
+  MERGE_DISTANCE_MULTIPLIER: 1.1,
+  RESPECT_ORIGINAL_CLUSTERS: true,
+  MAX_MERGED_AREA_DIAGONAL_KM: 10,
+  ALLOW_ORPHAN_PARTITIONS: true,
+  ORPHAN_MIN_SIZE: 1,
+
+  // Noise point handling
+  ENABLE_NOISE_ASSIGNMENT: true,
+  MAX_NOISE_ASSIGNMENT_DISTANCE_METERS: 1000,
+
+  // Delivery configuration
+  DELIVERY_STRATEGIES: {
+    PICKUPS_BEFORE_DELIVERY: 50,
+  },
+} as const
+
+export type ClusteringConfig = typeof CLUSTERING_CONFIG

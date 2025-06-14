@@ -4,6 +4,7 @@ const {
   saveCompletePlanForReplay,
 } = require('../dispatch/truckDispatch')
 const { warn, info } = require('../log')
+const { CLUSTERING_CONFIG } = require('../config')
 const Vehicle = require('./vehicle').default
 
 interface TruckConstructorArgs {
@@ -100,6 +101,12 @@ class Truck extends Vehicle {
 
   stopped() {
     super.stopped()
+
+    // Handle delivery status even when booking is null
+    if (this.status === 'delivery') {
+      return this.dropOff()
+    }
+
     if (this.plan.length === 0) {
       if (
         this.status === 'end' &&
@@ -130,10 +137,49 @@ class Truck extends Vehicle {
     this.cargo.push(this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.pickedUp) this.booking.pickedUp(this.position)
+
+    // Check if we need to deliver based on cargo count
+    const deliveryConfig = CLUSTERING_CONFIG.DELIVERY_STRATEGIES
+    const pickupsBeforeDelivery =
+      this.fleet?.settings?.pickupsBeforeDelivery ||
+      deliveryConfig.PICKUPS_BEFORE_DELIVERY
+
+    if (this.cargo.length >= pickupsBeforeDelivery) {
+      // Only add delivery instruction if the next instruction isn't already a delivery
+      const nextInstruction = this.plan[0]
+
+      if (!nextInstruction || nextInstruction.action !== 'delivery') {
+        this.plan.unshift({
+          action: 'delivery',
+          arrival: 0,
+          departure: 0,
+          booking: null,
+        })
+      }
+    }
   }
 
   async dropOff() {
-    if (!this.booking) return
+    // If this is a delivery action (booking is null), deliver all cargo
+    if (!this.booking) {
+      // Deliver all items in cargo
+      this.cargo.forEach((item: any) => {
+        if (item.delivered) item.delivered(this.position)
+      })
+      this.cargo = []
+      if (this.cargoEvents) this.cargoEvents.next(this)
+
+      // Continue with next instruction after delivery
+      if (this.plan.length > 0) {
+        return this.pickNextInstructionFromPlan()
+      } else {
+        this.status = 'end'
+        if (this.statusEvents) this.statusEvents.next(this)
+        return this.navigateTo(this.startPosition)
+      }
+    }
+
+    // Otherwise, deliver specific booking (legacy behavior)
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.delivered) this.booking.delivered(this.position)
@@ -166,7 +212,9 @@ class Truck extends Vehicle {
     if (booking.queued) booking.queued(this)
 
     clearTimeout(this._timeout)
-    const randomDelay = 2000 + Math.random() * 2000
+    const randomDelay =
+      CLUSTERING_CONFIG.TRUCK_PLANNING_TIMEOUT_MS +
+      Math.random() * CLUSTERING_CONFIG.TRUCK_PLANNING_RANDOM_DELAY_MS
     this._timeout = setTimeout(async () => {
       if (this.fleet.settings.replayExperiment) {
         this.plan = await useReplayRoute(this, this.queue)

@@ -19,7 +19,8 @@ const client = new Client({
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
 app.use('/api', apiRouter)
 
@@ -202,7 +203,6 @@ app.delete('/api/datasets/:datasetId', async (req, res) => {
       datasetId,
     })
   } catch (error) {
-    console.error('Error deleting route dataset:', error)
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -253,7 +253,6 @@ app.post('/api/simulation/start-from-dataset', async (req, res) => {
       },
     })
   } catch (error) {
-    console.error('Error preparing simulation start:', error)
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -360,6 +359,245 @@ app.get('/api/experiments/:experimentId/vroom-plan', async (req, res) => {
   }
 })
 
+app.get('/api/experiments/:experimentId/turid-comparison', async (req, res) => {
+  try {
+    const { experimentId } = req.params
+
+    const experimentResult = await client.get({
+      index: 'experiments',
+      id: experimentId,
+    })
+    if (!experimentResult.body._source) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Experiment not found' })
+    }
+
+    const experiment = experimentResult.body._source
+    const datasetId = experiment.sourceDatasetId
+
+    if (!datasetId) {
+      return res.status(400).json({
+        success: false,
+        error: 'No source dataset found for experiment',
+      })
+    }
+
+    const datasetResult = await client.get({
+      index: 'route-datasets',
+      id: datasetId,
+    })
+    if (!datasetResult.body._source) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Dataset not found' })
+    }
+
+    const routeData = datasetResult.body._source.routeData || []
+
+    const vroomSearchResult = await search({
+      index: 'vroom-truck-plans',
+      body: {
+        query: {
+          term: { 'experiment.keyword': experimentId },
+        },
+        size: 100,
+      },
+    })
+
+    if (vroomSearchResult?.body?.hits?.hits?.length > 0) {
+      const truckPlans = vroomSearchResult.body.hits.hits.map(
+        (hit: any) => hit._source
+      )
+
+      const sequentialBookings = routeData.map((route: any) => ({
+        id: `${route.Kundnr}-${route.Hsnr}-${route.Tjnr}`,
+        bookingId: `${route.Turid}-${route.Kundnr}-${route.Hsnr}-${route.Tjnr}`,
+        recyclingType: route.Avftyp,
+        turid: route.Turid,
+        turordningsnr: route.Turordningsnr,
+        originalData: route,
+
+        standardBookingId: `${route.Turid}-${route.Kundnr}-${route.Hsnr}-${route.Tjnr}`,
+        originalTurid: route.Turid,
+        originalKundnr: route.Kundnr,
+        originalHsnr: route.Hsnr,
+        originalTjnr: route.Tjnr,
+        originalAvftyp: route.Avftyp,
+        originalTjtyp: route.Tjtyp,
+        originalTurordningsnr: route.Turordningsnr,
+
+        vehicleId: route.Bil,
+        serviceType: route.Tjtyp,
+        frequency: route.Frekvens,
+        position: [route.Lng, route.Lat],
+        postalcode: route.Postkod,
+        scheduled: route.Schemalagd,
+        datum: route.Datum,
+        dec: route.Dec,
+      }))
+
+      const vroomBookings: any[] = []
+      truckPlans.forEach((plan: any) => {
+        if (plan.completePlan && Array.isArray(plan.completePlan)) {
+          plan.completePlan.forEach((instruction: any, stepIndex: number) => {
+            if (instruction.action === 'pickup' && instruction.booking) {
+              const booking = instruction.booking
+
+              const metadata = {
+                originalTurid:
+                  booking.originalTurid || booking.originalRouteRecord?.Turid,
+                originalKundnr:
+                  booking.originalKundnr || booking.originalRouteRecord?.Kundnr,
+                originalHsnr:
+                  booking.originalHsnr || booking.originalRouteRecord?.Hsnr,
+                originalTjnr:
+                  booking.originalTjnr || booking.originalRouteRecord?.Tjnr,
+                originalAvftyp:
+                  booking.originalAvftyp || booking.originalRouteRecord?.Avftyp,
+                originalTjtyp:
+                  booking.originalTjtyp || booking.originalRouteRecord?.Tjtyp,
+                originalTurordningsnr:
+                  booking.originalTurordningsnr ||
+                  booking.originalRouteRecord?.Turordningsnr,
+                vehicleId:
+                  booking.originalBil || booking.originalRouteRecord?.Bil,
+                serviceType:
+                  booking.originalTjtyp || booking.originalRouteRecord?.Tjtyp,
+                frequency:
+                  booking.originalFrekvens ||
+                  booking.originalRouteRecord?.Frekvens,
+                datum:
+                  booking.originalDatum || booking.originalRouteRecord?.Datum,
+                dec: booking.originalDec || booking.originalRouteRecord?.Dec,
+                scheduled:
+                  booking.originalSchemalagd ||
+                  booking.originalRouteRecord?.Schemalagd,
+              }
+
+              const standardBookingId =
+                metadata.originalTurid &&
+                metadata.originalKundnr &&
+                metadata.originalHsnr &&
+                metadata.originalTjnr
+                  ? `${metadata.originalTurid}-${metadata.originalKundnr}-${metadata.originalHsnr}-${metadata.originalTjnr}`
+                  : booking.standardBookingId || null
+
+              const displayId =
+                metadata.originalKundnr &&
+                metadata.originalHsnr &&
+                metadata.originalTjnr
+                  ? `${metadata.originalKundnr}-${metadata.originalHsnr}-${metadata.originalTjnr}`
+                  : booking.id
+
+              const position = booking.pickup
+                ? [booking.pickup.lon || booking.pickup.lng, booking.pickup.lat]
+                : [
+                    booking.originalRouteRecord?.Lng,
+                    booking.originalRouteRecord?.Lat,
+                  ].filter(Boolean)
+
+              vroomBookings.push({
+                id: displayId,
+                fullId: booking.id,
+                bookingId: booking.bookingId,
+                stepIndex,
+                recyclingType: booking.recyclingType,
+                truckId: plan.truckId,
+                position,
+
+                standardBookingId,
+                ...metadata,
+              })
+            }
+          })
+        }
+      })
+
+      const targetTurids = [
+        ...new Set(sequentialBookings.map((b: any) => b.turid)),
+      ] as string[]
+
+      const comparisonResult = targetTurids.map((turid: string) => {
+        const sequentialMatches = sequentialBookings.filter(
+          (b: any) => b.turid === turid
+        )
+        const vroomMatches = vroomBookings.filter(
+          (b: any) => b.originalTurid === turid
+        )
+
+        const bookingComparisons = sequentialMatches.map((seqBooking: any) => {
+          const vroomMatch = vroomBookings.find(
+            (v: any) => v.standardBookingId === seqBooking.standardBookingId
+          )
+
+          const sequentialBookingData = {
+            id: seqBooking.id,
+            bookingId: seqBooking.bookingId,
+            standardBookingId: seqBooking.standardBookingId,
+            turordningsnr: seqBooking.turordningsnr,
+            recyclingType: seqBooking.recyclingType,
+            vehicleId: seqBooking.vehicleId,
+            serviceType: seqBooking.serviceType,
+            frequency: seqBooking.frequency,
+            position: seqBooking.position,
+            dec: seqBooking.dec,
+            datum: seqBooking.datum,
+            scheduled: seqBooking.scheduled,
+          }
+
+          const vroomBookingData = vroomMatch
+            ? {
+                id: vroomMatch.id,
+                fullId: vroomMatch.fullId,
+                bookingId: vroomMatch.bookingId,
+                standardBookingId: vroomMatch.standardBookingId,
+                recyclingType: vroomMatch.recyclingType,
+                truckId: vroomMatch.truckId,
+                stepIndex: vroomMatch.stepIndex,
+                vehicleId: vroomMatch.vehicleId,
+                serviceType: vroomMatch.serviceType,
+                frequency: vroomMatch.frequency,
+                position: vroomMatch.position,
+                dec: vroomMatch.dec,
+                datum: vroomMatch.datum,
+                scheduled: vroomMatch.scheduled,
+              }
+            : null
+
+          return {
+            standardBookingId: seqBooking.standardBookingId,
+            sequential: sequentialBookingData,
+            vroom: vroomBookingData,
+            matched: !!vroomMatch,
+            positionChanged: vroomMatch
+              ? seqBooking.turordningsnr !== vroomMatch.stepIndex
+              : false,
+          }
+        })
+
+        return {
+          turid,
+          hasOptimization: vroomMatches.length > 0,
+          totalBookings: sequentialMatches.length,
+          optimizedBookings: vroomMatches.length,
+          bookingComparisons,
+        }
+      })
+
+      res.json(comparisonResult)
+    } else {
+      res
+        .status(404)
+        .json({ success: false, error: 'VROOM plans not found for experiment' })
+    }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    res.status(500).json({ success: false, error: errorMessage })
+  }
+})
+
 app.post('/api/simulation/prepare-replay', async (req, res) => {
   try {
     const { experimentId } = req.body
@@ -390,7 +628,6 @@ app.post('/api/simulation/prepare-replay', async (req, res) => {
 
     res.json({ success: true, data: { sessionId, parameters } })
   } catch (error) {
-    console.error('Error preparing replay session:', error)
     res.status(500).json({ success: false, error: 'Failed to prepare replay' })
   }
 })
@@ -429,7 +666,6 @@ app.post('/api/simulation/prepare-sequential', async (req, res) => {
 
     res.json({ success: true, data: { sessionId, parameters } })
   } catch (error) {
-    console.error('Error preparing sequential session:', error)
     res
       .status(500)
       .json({ success: false, error: 'Failed to prepare sequential session' })

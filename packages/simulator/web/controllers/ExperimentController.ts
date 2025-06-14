@@ -139,7 +139,8 @@ export class ExperimentController {
   }
 
   async startSimulationFromData(simData: any, parameters: any) {
-    const { experimentId, datasetId, isReplay } = simData
+    const { experimentId, datasetId } = simData
+    const isReplay = parameters.experimentType === 'replay'
     let currentExperimentId = experimentId || safeId()
     let fleetsConfig: any[] = []
     let experimentSettings: any = {}
@@ -194,10 +195,9 @@ export class ExperimentController {
           currentExperimentId,
           newExperimentData
         )
-      } else if (simData.sourceDatasetId) {
-        const dataset = await elasticsearchService.getDataset(
-          simData.sourceDatasetId
-        )
+      } else if (simData.sourceDatasetId || datasetId) {
+        const targetDatasetId = simData.sourceDatasetId || datasetId
+        const dataset = await elasticsearchService.getDataset(targetDatasetId)
         fleetsConfig = dataset.fleetConfiguration || []
       } else {
         const defaultConfig = createFleetConfigFromDataset(
@@ -208,8 +208,18 @@ export class ExperimentController {
         fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
       }
 
-      const experimentType =
-        parameters.experimentType || (isReplay ? 'replay' : 'vroom')
+      // Use experimentType from parameters, default to 'vroom' if not specified
+      const experimentType = parameters.experimentType || 'vroom'
+
+      console.log(
+        `🔧 ExperimentController: Creating experiment with type "${experimentType}"`,
+        {
+          parametersType: parameters.experimentType,
+          simData,
+          parameters: Object.keys(parameters),
+          finalType: experimentType,
+        }
+      )
 
       this.globalExperiment = null
       const experiment = this.createGlobalExperiment({
@@ -217,12 +227,17 @@ export class ExperimentController {
         ...experimentSettings,
         experimentId: currentExperimentId,
         experimentType,
-        sourceDatasetId: datasetId || simData.sourceDatasetId,
+        sourceDatasetId: simData.sourceDatasetId || datasetId,
         datasetName: simData.datasetName,
         routeDataSource: 'elasticsearch',
         fleets: {
           'Södertälje kommun': {
-            settings: {},
+            settings: {
+              experimentType, // ✅ Forward experimentType to fleet settings
+              ...(experimentType === 'replay' && experimentId
+                ? { replayExperiment: experimentId }
+                : {}),
+            },
             fleets: fleetsConfig,
           },
         },

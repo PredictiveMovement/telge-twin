@@ -383,6 +383,46 @@
         "fleets": {
           "type": "object",
           "enabled": false
+        },
+        "areaPartitions": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "center": {
+              "type": "geo_point"
+            },
+            "bounds": {
+              "type": "object",
+              "properties": {
+                "minLat": {
+                  "type": "float"
+                },
+                "minLng": {
+                  "type": "float"
+                },
+                "maxLat": {
+                  "type": "float"
+                },
+                "maxLng": {
+                  "type": "float"
+                }
+              }
+            },
+            "count": {
+              "type": "integer"
+            },
+            "recyclingTypes": {
+              "type": "keyword"
+            },
+            "polygon": {
+              "type": "geo_shape"
+            }
+          }
+        },
+        "areaPartitionsTimestamp": {
+          "type": "date"
         }
       }
     }

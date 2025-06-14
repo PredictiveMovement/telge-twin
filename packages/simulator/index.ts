@@ -112,6 +112,7 @@ const engine = {
     }
 
     experiment.bookingUpdates = experiment.dispatchedBookings.pipe(
+      filter((booking: any) => booking && booking.statusEvents),
       mergeMap((booking: any) => booking.statusEvents),
       catchError((err: Error, caught: any) => {
         error('bookingUpdates', err)

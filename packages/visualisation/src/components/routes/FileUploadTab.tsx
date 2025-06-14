@@ -456,10 +456,13 @@ export default function FileUploadTab() {
         name: datasetName,
         description: datasetDescription,
         originalFilename,
-        filterCriteria,
-        routeData: filteredData,
+        filterCriteria: filterCriteria as Record<string, unknown>,
+        routeData: filteredData as Record<string, unknown>[],
         originalRecordCount: uploadedData.length,
-        fleetConfiguration,
+        fleetConfiguration: fleetConfiguration as unknown as Record<
+          string,
+          unknown
+        >[],
         originalSettings,
       })
 

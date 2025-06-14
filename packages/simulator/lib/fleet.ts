@@ -13,6 +13,7 @@ const Truck = require('./vehicles/truck')
 const Position = require('./models/position')
 const { error, debug, info } = require('./log')
 const { addMeters } = require('./distance')
+const { CLUSTERING_CONFIG } = require('./config')
 
 class Fleet {
   public id: any
@@ -112,15 +113,54 @@ class Fleet {
     return booking
   }
 
-  startDispatcher() {
+  // VROOM Dispatcher: Round-robin dispatch with truck VROOM optimization
+  startVroomDispatcher() {
+    info(
+      `Fleet ${this.name}: Starting VROOM dispatcher with round-robin dispatch`
+    )
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(1000),
+      bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
 
       mergeMap(([bookings, cars]: any) => {
-        return from(bookings).pipe(
-          filter((booking: any) => !booking.assigned),
+        const unassignedBookings = bookings.filter(
+          (booking: any) => !booking.assigned
+        )
+
+        info(
+          `Fleet ${this.name}: Dispatching ${unassignedBookings.length} bookings using round-robin`
+        )
+        return this.handleBookingBatch(unassignedBookings, cars)
+      }),
+      catchError((err: any) => {
+        error(`Error handling bookings for ${this.name}:`, err)
+        return of(null)
+      })
+    )
+    return this.dispatchedBookings
+  }
+
+  // Standard Dispatcher: Simple round-robin, truck sequential planning (no VROOM)
+  startStandardDispatcher() {
+    info(
+      `Fleet ${this.name}: Starting standard dispatcher (round-robin, no clustering)`
+    )
+    this.dispatchedBookings = this.unhandledBookings.pipe(
+      bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
+      filter((bookings: any[]) => bookings.length > 0),
+      withLatestFrom(this.cars.pipe(toArray())),
+
+      mergeMap(([bookings, cars]: any) => {
+        const unassignedBookings = bookings.filter(
+          (booking: any) => !booking.assigned
+        )
+
+        info(
+          `Fleet ${this.name}: Standard dispatch for ${unassignedBookings.length} bookings (no clustering)`
+        )
+
+        return from(unassignedBookings).pipe(
           map((booking: any) => {
             if (booking.vehicleId || booking.originalVehicleId) {
               const targetVehicleId =
@@ -140,27 +180,55 @@ class Fleet {
             } else {
               const car = cars.shift()
               cars.push(car)
-
               return { car, booking }
             }
           }),
           mergeMap(({ car, booking }: any) => {
-            if ((this as any).experimentType === 'vroom') {
-              return car.handleBooking(this.experimentId, booking)
-            } else {
-              return car.handleStandardBooking(booking)
-            }
+            // Always use standard booking for non-VROOM experiments
+            return car.handleStandardBooking(booking)
           })
         )
       }),
       catchError((err: any) => {
-        error(`Error handling bookings for ${this.name}:`, err)
+        error(`Error in standard dispatcher for ${this.name}:`, err)
         return of(null)
       })
     )
     return this.dispatchedBookings
   }
 
+  // Handle bookings with round-robin dispatch
+  private handleBookingBatch(unassignedBookings: any[], cars: any[]) {
+    return from(unassignedBookings).pipe(
+      map((booking: any) => {
+        if (booking.vehicleId || booking.originalVehicleId) {
+          const targetVehicleId = booking.vehicleId || booking.originalVehicleId
+          const car = cars.find((c: any) => c.id === targetVehicleId)
+
+          if (!car) {
+            error(
+              `Vehicle ${targetVehicleId} not found for booking ${booking.id}`
+            )
+            const fallbackCar = cars.shift()
+            cars.push(fallbackCar)
+            return { car: fallbackCar, booking }
+          }
+
+          return { car, booking }
+        } else {
+          const car = cars.shift()
+          cars.push(car)
+          return { car, booking }
+        }
+      }),
+      mergeMap(({ car, booking }: any) => {
+        // VROOM dispatcher always uses handleBooking (VROOM optimization)
+        return car.handleBooking(this.experimentId, booking)
+      })
+    )
+  }
+
+  // Replay Dispatcher: Load and replay saved VROOM plans from previous experiments
   startReplayDispatcher(replayExperimentId: string) {
     info(`Starting replay dispatcher for fleet ${this.name}`)
 
