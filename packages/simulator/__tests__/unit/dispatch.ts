@@ -6,7 +6,7 @@ describe('dispatch (current implementation)', () => {
   it('passes through items from an array Observable', (done) => {
     from([1, 2, 3])
       .pipe(toArray())
-      .subscribe((arr) => {
+      .subscribe((arr: number[]) => {
         expect(arr).toEqual([1, 2, 3])
         done()
       })
@@ -14,8 +14,8 @@ describe('dispatch (current implementation)', () => {
 
   it('passes through items from a Subject', (done) => {
     const subj = new Subject()
-    const received = []
-    subj.subscribe((n) => {
+    const received: number[] = []
+    subj.subscribe((n: number) => {
       received.push(n)
       if (received.length === 2) {
         expect(received).toEqual([10, 20])

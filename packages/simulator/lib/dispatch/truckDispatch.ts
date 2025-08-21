@@ -5,7 +5,7 @@ const { error } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 const { createSpatialChunks, calculateCenter } = require('../clustering')
 const Position = require('../models/position')
-const Booking = require('../models/booking')
+import Booking from '../models/booking'
 const { save, search } = require('../elastic')
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'

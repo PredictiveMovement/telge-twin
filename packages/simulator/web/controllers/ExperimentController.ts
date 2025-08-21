@@ -5,10 +5,7 @@ import { virtualTime, VirtualTime } from '../../lib/virtualTime'
 import { safeId } from '../../lib/id'
 import { createFleetConfigFromDataset } from '../../lib/fleet-utils'
 import { elasticsearchService } from '../services/ElasticsearchService'
-
-const engine: {
-  createExperiment: (opts: unknown) => unknown
-} = require('../../index')
+import engine from '../../index'
 
 export class ExperimentController {
   private globalExperiment: any = null

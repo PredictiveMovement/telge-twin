@@ -1,5 +1,5 @@
 const Car = require('../../lib/vehicles/vehicle').default
-const Booking = require('../../lib/models/booking')
+const Booking = require('../../lib/models/booking').default
 const { virtualTime } = require('../../lib/virtualTime')
 
 const range = (length: number) => Array.from({ length }).map((_, i) => i)

@@ -1,5 +1,5 @@
 const Fleet = require('../../lib/fleet')
-const Booking = require('../../lib/models/booking')
+const Booking = require('../../lib/models/booking').default
 const { virtualTime } = require('../../lib/virtualTime')
 const Position = require('../../lib/models/position')
 

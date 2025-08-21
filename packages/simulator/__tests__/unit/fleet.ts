@@ -1,7 +1,7 @@
 const Fleet = require('../../lib/fleet')
 const { from } = require('rxjs')
 const { first } = require('rxjs/operators')
-const Booking = require('../../lib/models/booking')
+const Booking = require('../../lib/models/booking').default
 const { virtualTime } = require('../../lib/virtualTime')
 
 const dispatch = require('../../lib/dispatch/dispatchCentral')

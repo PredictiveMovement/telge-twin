@@ -8,7 +8,7 @@ const { assert: consoleAssert } = require('console')
 const osrm = require('../osrm')
 const { haversine, bearing } = require('../distance')
 const interpolate = require('../interpolate')
-const Booking = require('../models/booking')
+import Booking from '../models/booking'
 const { safeId } = require('../id')
 const { error } = require('../log')
 const Position = require('../models/position')
