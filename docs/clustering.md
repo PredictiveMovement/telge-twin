@@ -1,128 +1,70 @@
-# Clustering System Documentation
+# Clustering (truck-level) — how it works today
+
+This document describes the actual implementation in `packages/simulator` and how visual clusters (area partitions) are used in `packages/visualisation`.
+
+## Where in the code
+
+- Clustering happens in the truck dispatch logic: `packages/simulator/lib/dispatch/truckDispatch.ts`
+- Coordinate/geometry helpers live in `packages/simulator/lib/utils/coordinates.ts`, etc.
+- VROOM calls are handled in `packages/simulator/lib/vroom.ts`
 
 ## Overview
 
-The clustering system is used to optimize the processing of bookings by grouping them based on geographical proximity. This helps reduce computational complexity when planning routes, especially when dealing with a large number of bookings.
+1. Bookings are assigned to vehicles (simple round‑robin in the fleet dispatcher)
+2. Each vehicle clusters its assigned bookings geographically
+3. Partitions are ordered using a nearest‑neighbor heuristic based on cluster centers
+4. Truck planning can then use VROOM for ordering/optimization (see the VROOM doc)
+5. Results are merged into an executable instruction flow
 
-## Key Components
+## Clustering steps
 
-### Clustering by Postal Code
+- Algorithm: DBSCAN with configured epsilon and minimum sample size
+- Noise/singleton points can be assigned to the nearest cluster up to a max distance (if enabled)
 
-The `clusterByPostalCode` function groups bookings that share the same postal code prefix. This creates geographical clusters of bookings that are likely to be close to each other.
+Konfigurationerna finns samlade i `packages/simulator/lib/config.ts` (t.ex. epsilon, minsta punkter, max klusterstorlek, tidsgränser för VROOM etc.).
 
-```javascript
-clusterByPostalCode((maxClusters = 200), (length = 4))
-```
+## Cluster centers and ordering
 
-**Parameters:**
+- Each cluster gets a geometric center (average of lat/lon)
+- The clustering module orders clusters with a nearest‑neighbor heuristic (always pick the next cluster closest to the current cursor)
+- VROOM‑based ordering can occur later in the truck planning step (see VROOM doc) and is not part of `clustering.ts`
 
-- `maxClusters`: Maximum number of clusters to create (default: 200)
-- `length`: Number of characters from the postal code to use for clustering (default: 4)
+### The nearest‑neighbor heuristic in `clustering.ts`
 
-**Behavior:**
+The `orderPartitionsByProximity` function iteratively picks the next cluster with the shortest Haversine distance from the current cursor. It’s fast and provides a stable base ordering before any further optimization.
 
-- Only performs clustering if the number of bookings exceeds `maxClusters`
-- Groups bookings by the first `length` characters of their postal codes
-- For clusters with multiple bookings, it returns the first booking with all other bookings attached as `groupedBookings`
-- Single-booking clusters return just the booking
+## VROOM within partitions
 
-### Calculating Cluster Centers
+- Bookings inside the partition are converted to VROOM “shipments”
+- The current truck is converted to a VROOM “vehicle”
+- Results are merged into a complete route for the truck
 
-The `calculateCenters` function calculates the geographical center of each cluster:
+## Visualizing area partitions
 
-```javascript
-calculateCenters(groups)
-```
+- The backend may persist area partitions (bounds/polygon) on the experiment document in Elasticsearch (`experiments.areaPartitions`)
+- The frontend passes these into the `Map` component via the `areaPartitions` prop:
+  - Comparison view: `ExperimentDetailPage` → `SimulationView` → `Map`
+  - Live map: `MapPage` fetches the `experiment` (via `getExperiment`) using `experimentId` and forwards `areaPartitions` to `Map`
+- `Map` renders partitions with a `PolygonLayer`; if a polygon is missing, it falls back to a rectangle built from `bounds`
 
-**Behavior:**
+## Merging small partitions
 
-- Takes groups of bookings (organized by postal code)
-- For each group, calculates the average latitude and longitude
-- Returns an array of objects containing the postal code, center coordinates, and associated bookings
+- Controlled by `ENABLE_PARTITION_MERGING` (true/false)
+- Partitions with fewer than `MIN_PARTITION_SIZE` bookings are candidates for merging into larger neighbors within a maximum distance
+- Max distance is derived from DBSCAN’s `eps` via `MERGE_DISTANCE_MULTIPLIER` (approximately `eps * multiplier`, in meters)
+- Guarded by `MAX_MERGED_AREA_DIAGONAL_KM` to avoid unreasonably large merged areas
+- If `RESPECT_ORIGINAL_CLUSTERS` is true, merges are limited to partitions stemming from the same original cluster
 
-### VROOM Integration
+## Handling noise points
 
-The clustering system integrates with VROOM (Vehicle Routing Open-source Optimization Machine) for route optimization:
+- If `ENABLE_NOISE_ASSIGNMENT` is enabled, noise bookings are assigned to the nearest cluster
+- The distance cap is `MAX_NOISE_ASSIGNMENT_DISTANCE_METERS`
 
-1. `convertToVroomCompatibleFormat()` - Converts bookings and vehicles to a format compatible with VROOM
-2. `planWithVroom()` - Sends data to the VROOM planner and receives optimized routes
-3. `convertBackToBookings()` - Transforms VROOM's response back into booking assignments
+## Performance
 
-## Workflow
+- The fleet batches incoming bookings briefly (configurable) before assignment
+- Truck planning and VROOM calls are time‑bounded (see `VROOM_TIMEOUT_MS`) and can be performed per partition in later steps
 
-1. Bookings are clustered by postal code to reduce complexity
-2. Data is converted to VROOM format
-3. VROOM plans optimized routes
-4. Results are converted back to booking-vehicle assignments
+## Summary
 
-## Real-World Implementation
-
-The clustering system is implemented in the `Fleet` class (`fleet.js`) to optimize booking dispatch:
-
-```javascript
-// From fleet.js
-startDispatcher() {
-  this.dispatchedBookings = this.unhandledBookings.pipe(
-    bufferTime(1000),
-    filter((bookings) => bookings.length > 0),
-    clusterByPostalCode(200, 5), // cluster bookings if we have more than what Vroom can handle
-    withLatestFrom(this.cars.pipe(toArray())),
-    tap(([bookings, cars]) => {
-      info(
-        `Fleet ${this.name} received ${bookings.length} bookings and ${cars.length} cars`
-      )
-    }),
-    convertToVroomCompatibleFormat(),
-    planWithVroom(),
-    convertBackToBookings(),
-    filter(({ booking }) => !booking.assigned),
-    mergeMap(({ car, booking }) => {
-      return car.handleBooking(booking)
-    }),
-    catchError((err) => {
-      error(`Error handling bookings for ${this.name}:`, err)
-      return of(null)
-    })
-  )
-  return this.dispatchedBookings
-}
-```
-
-Key aspects of this implementation:
-
-1. **Buffering Bookings:** The system collects bookings for 1 second using `bufferTime(1000)` before processing them as a batch
-2. **Clustering:** Uses `clusterByPostalCode(200, 5)` to group nearby bookings, using 5 characters from postal codes
-3. **Pairing with Vehicles:** Combines booking clusters with available vehicles using `withLatestFrom()`
-4. **Route Optimization:** Processes bookings through the VROOM pipeline:
-   - `convertToVroomCompatibleFormat()`
-   - `planWithVroom()`
-   - `convertBackToBookings()`
-5. **Assignment:** Assigns each booking to its optimal vehicle using `car.handleBooking(booking)`
-
-The dispatcher processes unhandled bookings in an RxJS pipeline, where clustering efficiently reduces the complexity for the VROOM route optimization engine.
-
-## Usage Example
-
-```javascript
-const { from } = require("rxjs")
-const {
-  clusterByPostalCode,
-  convertToVroomCompatibleFormat,
-  planWithVroom,
-  convertBackToBookings,
-} = require("./clustering")
-
-// Sample pipeline
-from([bookings, cars])
-  .pipe(
-    clusterByPostalCode(200, 4), // Cluster bookings by postal code
-    convertToVroomCompatibleFormat(), // Convert to VROOM format
-    planWithVroom(), // Plan routes using VROOM
-    convertBackToBookings() // Convert back to booking assignments
-  )
-  .subscribe((result) => {
-    console.log("Optimized booking-vehicle assignments:", result)
-  })
-```
-
-This clustering system efficiently handles large numbers of bookings by grouping them geographically before planning, which significantly reduces computational complexity while maintaining routing quality.
+Clustering reduces the problem size per vehicle, provides a two‑stage approach (between partitions and within partitions via VROOM), and enables effective visualization via the area partition map layer.

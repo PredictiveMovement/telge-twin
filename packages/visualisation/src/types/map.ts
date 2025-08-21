@@ -8,12 +8,19 @@ export interface Car {
 
 export interface Booking {
   id: string
-  pickup: [number, number]
-  destination: [number, number]
-  status: 'Assigned' | 'Queued' | 'Picked up' | 'Delivered'
-  recyclingType: string
+  pickup: [number, number] | null
+  destination: [number, number] | null
+  status: 'New' | 'Assigned' | 'Queued' | 'Picked up' | 'Delivered'
+  recyclingType?: string
   carId?: string
   type?: string
+  turordningsnr?: number
+  cost?: number
+  co2?: number
+  distance?: number
+  deliveryTime?: number
+  pickupDateTime?: number
+  assigned?: number
 }
 
 export interface MapState {

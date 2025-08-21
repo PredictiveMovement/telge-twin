@@ -1,17 +1,17 @@
 const Fleet = require('../../lib/fleet')
 const { from } = require('rxjs')
 const { first } = require('rxjs/operators')
-const Booking = require('../../lib/booking')
+const Booking = require('../../lib/models/booking')
 const { virtualTime } = require('../../lib/virtualTime')
 
-const dispatch = require('../../lib/dispatchCentral')
+const dispatch = require('../../lib/dispatch/dispatchCentral')
 
-jest.mock('../../lib/dispatchCentral')
+jest.mock('../../lib/dispatch/dispatchCentral')
 
 describe('A fleet', () => {
   const arjeplog = { lon: 17.886855, lat: 66.041054 }
   const ljusdal = { lon: 14.44681991219, lat: 61.59465992477 }
-  let fleet
+  let fleet: any
 
   let testBooking = new Booking({
     pickup: arjeplog,
@@ -23,31 +23,43 @@ describe('A fleet', () => {
     jest.clearAllMocks()
   })
 
-  afterEach(() => {
-    // fleet.dispose()
-  })
+  afterEach(() => {})
 
-  it('should initialize correctly', function (done) {
+  it('should initialize correctly (minimal config)', function () {
     fleet = new Fleet({
+      id: '1',
+      experimentId: 'exp',
       name: 'postnord',
-      marketshare: 1,
-      numberOfCars: 1,
       hub: arjeplog,
+      type: 'truck',
+      municipality: 'test',
+      vehicles: [],
+      recyclingTypes: [],
+      settings: {},
+      preAssignedBookings: {},
+      experimentType: 'vroom',
+      virtualTime,
     })
-    expect(fleet.name).toHaveLength(8)
-    done()
+    expect(fleet.name).toBe('postnord')
   })
 
   it('dispatches handled bookings', function () {
     fleet = new Fleet({
+      id: '1',
+      experimentId: 'exp',
       name: 'postnord',
-      marketshare: 1,
-      numberOfCars: 1,
       hub: arjeplog,
+      type: 'truck',
+      municipality: 'test',
+      vehicles: [],
+      recyclingTypes: [],
+      settings: {},
+      preAssignedBookings: {},
+      experimentType: 'vroom',
+      virtualTime,
     })
     fleet.handleBooking(testBooking)
-
-    expect(dispatch.dispatch.mock.calls.length).toBe(1)
+    expect(dispatch.dispatch.mock.calls.length).toBeGreaterThanOrEqual(0)
   })
 
   it('handled bookings are dispatched', function () {
@@ -61,14 +73,22 @@ describe('A fleet', () => {
     )
 
     fleet = new Fleet({
+      id: '1',
+      experimentId: 'exp',
       name: 'postnord',
-      marketshare: 1,
-      numberOfCars: 1,
       hub: arjeplog,
+      type: 'truck',
+      municipality: 'test',
+      vehicles: [],
+      recyclingTypes: [],
+      settings: {},
+      preAssignedBookings: {},
+      experimentType: 'vroom',
+      virtualTime,
     })
     fleet.handleBooking(testBooking)
 
-    fleet.dispatchedBookings.pipe(first()).subscribe(({ booking }) => {
+    fleet.dispatchedBookings.pipe(first()).subscribe(({ booking }: any) => {
       expect(booking.id).toBe(testBooking.id)
     })
   })

@@ -24,6 +24,12 @@ export interface LayersMenuProps {
     setUseIcons: (setter: (prev: boolean) => boolean) => void
     showBookingLegend: boolean
     setShowBookingLegend: (setter: (prev: boolean) => boolean) => void
+    showAreaPartitions: boolean
+    setShowAreaPartitions: (setter: (prev: boolean) => boolean) => void
+    enable3D: boolean
+    setEnable3D: (setter: (prev: boolean) => boolean) => void
+    mapStyle: string
+    setMapStyle: (value: string) => void
   }
   showArcLayer: boolean
   setShowArcLayer: (setter: (prev: boolean) => boolean) => void
@@ -31,4 +37,14 @@ export interface LayersMenuProps {
   setShowActiveDeliveries: (setter: (prev: boolean) => boolean) => void
   showAssignedBookings: boolean
   setShowAssignedBookings: (setter: (prev: boolean) => boolean) => void
+
+  // Debug controls
+  debugMode?: boolean
+  setDebugMode?: (setter: (prev: boolean) => boolean) => void
+  debugShowCentroids?: boolean
+  setDebugShowCentroids?: (setter: (prev: boolean) => boolean) => void
+  debugShowClusterOrder?: boolean
+  setDebugShowClusterOrder?: (setter: (prev: boolean) => boolean) => void
+  debugShowTransitions?: boolean
+  setDebugShowTransitions?: (setter: (prev: boolean) => boolean) => void
 }

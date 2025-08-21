@@ -11,6 +11,8 @@ import StatusBadges from '@/components/StatusBadges'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { useMapStatus } from '@/hooks/useMapStatus'
 import { toLonLatArray } from '@/utils/geo'
+import { upsertListById } from '@/lib/utils'
+import { getExperiment, AreaPartition, getVroomPlan } from '@/api/simulator'
 
 const MapPage = () => {
   const {
@@ -30,25 +32,12 @@ const MapPage = () => {
   const [cars, setCars] = useState<Car[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isMapActive, setIsMapActive] = useState(false)
+  const [areaPartitions, setAreaPartitions] = useState<
+    AreaPartition[] | undefined
+  >(undefined)
+  const [vroomPlan, setVroomPlan] = useState<any | undefined>(undefined)
 
-  const upsertList = <T extends { id: string | number }>(
-    prev: T[],
-    incoming: T | T[],
-    mapper: (item: T) => T
-  ) => {
-    const list = Array.isArray(incoming) ? incoming : [incoming]
-    const next = [...prev]
-    list.forEach((raw) => {
-      const item = mapper(raw)
-      const i = next.findIndex((x) => x.id === item.id)
-      if (i >= 0) {
-        next[i] = item
-      } else {
-        next.push(item)
-      }
-    })
-    return next
-  }
+  const upsertList = upsertListById
 
   useEffect(() => {
     if (!socket) {
@@ -98,12 +87,14 @@ const MapPage = () => {
     setBookings([])
     setTimeState(false)
     pauseTime()
+    setAreaPartitions(undefined)
   }, [setRunning, setTimeState, pauseTime])
 
   const handleSimulationFinished = useCallback(() => {
     setRunning(false, null)
     setTimeState(false)
     pauseTime()
+    setAreaPartitions(undefined)
   }, [setRunning, setTimeState, pauseTime])
 
   const handleCars = useCallback((payload: Car | Car[]) => {
@@ -156,6 +147,60 @@ const MapPage = () => {
     handleCars,
     handleBookings,
   ])
+
+  // Fetch area partitions whenever we have a running simulation tied to an experiment
+  useEffect(() => {
+    let cancelled = false
+    let interval: number | undefined
+    const fetchPartitions = async () => {
+      if (status.running && status.experimentId) {
+        try {
+          const exp = await getExperiment(status.experimentId)
+          if (!cancelled) {
+            setAreaPartitions(exp?.areaPartitions || [])
+          }
+        } catch (_err) {
+          if (!cancelled) setAreaPartitions([])
+        }
+      } else {
+        setAreaPartitions(undefined)
+      }
+    }
+    fetchPartitions()
+    if (status.running && status.experimentId) {
+      interval = window.setInterval(fetchPartitions, 10000)
+    }
+    return () => {
+      cancelled = true
+      if (interval) window.clearInterval(interval)
+    }
+  }, [status.running, status.experimentId])
+
+  // Fetch VROOM consolidated plan for debug transitions
+  useEffect(() => {
+    let cancelled = false
+    let interval: number | undefined
+    const fetchVroom = async () => {
+      if (status.running && status.experimentId) {
+        try {
+          const plan = await getVroomPlan(status.experimentId)
+          if (!cancelled) setVroomPlan(plan || undefined)
+        } catch (_err) {
+          if (!cancelled) setVroomPlan(undefined)
+        }
+      } else {
+        setVroomPlan(undefined)
+      }
+    }
+    fetchVroom()
+    if (status.running && status.experimentId) {
+      interval = window.setInterval(fetchVroom, 15000)
+    }
+    return () => {
+      cancelled = true
+      if (interval) window.clearInterval(interval)
+    }
+  }, [status.running, status.experimentId])
 
   const handlePlayTime = () => {
     setTimeState(true, status.timeSpeed)
@@ -268,6 +313,8 @@ const MapPage = () => {
                     onPlayTime={handlePlayTime}
                     onPauseTime={handlePauseTime}
                     onSpeedChange={handleSpeedChange}
+                    areaPartitions={areaPartitions}
+                    vroomPlan={vroomPlan as any}
                   />
                 </CardContent>
               </Card>

@@ -67,15 +67,10 @@ export default function SavedDatasetsTab() {
     }
   }
 
-  const startSimulation = async (
-    dataset: RouteDataset,
-    experimentType: 'vroom' | 'sequential' = 'vroom'
-  ) => {
+  const startSimulation = async (dataset: RouteDataset) => {
     setStartingSimulation(dataset.id)
     try {
-      const parameters = {
-        experimentType,
-      }
+      const parameters = { experimentType: 'vroom' as const }
 
       await startSimulationFromDataset(
         socket,
@@ -84,9 +79,7 @@ export default function SavedDatasetsTab() {
         parameters
       )
 
-      const mode =
-        experimentType === 'vroom' ? 'VROOM-optimerad' : 'enkel sekventiell'
-      toast.success(`${mode} simulering startad för: ${dataset.name}`)
+      toast.success(`VROOM-optimerad simulering startad för: ${dataset.name}`)
     } catch (error) {
       toast.error('Fel vid start av simulering')
     } finally {
@@ -245,7 +238,7 @@ export default function SavedDatasetsTab() {
 
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Button
-                    onClick={() => startSimulation(dataset, 'vroom')}
+                    onClick={() => startSimulation(dataset)}
                     disabled={startingSimulation === dataset.id}
                     className="flex-1"
                     title="Starta simulering med VROOM route-optimering (sparar data till Elasticsearch)"
@@ -254,19 +247,6 @@ export default function SavedDatasetsTab() {
                     {startingSimulation === dataset.id
                       ? 'Startar...'
                       : 'VROOM Optimerad'}
-                  </Button>
-
-                  <Button
-                    onClick={() => startSimulation(dataset, 'sequential')}
-                    disabled={startingSimulation === dataset.id}
-                    variant="outline"
-                    className="flex-1"
-                    title="Starta enkel sekventiell simulering (ingen VROOM, sparar data till Elasticsearch)"
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    {startingSimulation === dataset.id
-                      ? 'Startar...'
-                      : 'Enkel Sekventiell'}
                   </Button>
 
                   <Button

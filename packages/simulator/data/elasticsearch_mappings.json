@@ -232,6 +232,51 @@
         },
         "weight": {
           "type": "float"
+        },
+        "originalData": {
+          "type": "object",
+          "properties": {
+            "originalTurid": {
+              "type": "keyword"
+            },
+            "originalKundnr": {
+              "type": "integer"
+            },
+            "originalHsnr": {
+              "type": "integer"
+            },
+            "originalTjnr": {
+              "type": "integer"
+            },
+            "originalAvftyp": {
+              "type": "keyword"
+            },
+            "originalTjtyp": {
+              "type": "keyword"
+            },
+            "originalFrekvens": {
+              "type": "keyword"
+            },
+            "originalDatum": {
+              "type": "keyword"
+            },
+            "originalBil": {
+              "type": "keyword"
+            },
+            "originalSchemalagd": {
+              "type": "integer"
+            },
+            "originalDec": {
+              "type": "keyword"
+            },
+            "originalTurordningsnr": {
+              "type": "integer"
+            },
+            "originalRouteRecord": {
+              "type": "object",
+              "enabled": false
+            }
+          }
         }
       }
     }
@@ -318,27 +363,16 @@
         "timestamp": {
           "type": "date"
         },
-        "vroomResponse": {
+        "planType": {
+          "type": "keyword"
+        },
+        "completePlan": {
           "type": "object",
           "enabled": false
-        }
-      }
-    }
-  },
-  "vroom-fleet-plans": {
-    "mappings": {
-      "properties": {
-        "planId": {
-          "type": "keyword"
         },
-        "experiment": {
-          "type": "keyword"
-        },
-        "fleet": {
-          "type": "keyword"
-        },
-        "timestamp": {
-          "type": "date"
+        "bookingMetadata": {
+          "type": "object",
+          "enabled": false
         },
         "vroomResponse": {
           "type": "object",
@@ -383,6 +417,46 @@
         "fleets": {
           "type": "object",
           "enabled": false
+        },
+        "areaPartitions": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "center": {
+              "type": "geo_point"
+            },
+            "bounds": {
+              "type": "object",
+              "properties": {
+                "minLat": {
+                  "type": "float"
+                },
+                "minLng": {
+                  "type": "float"
+                },
+                "maxLat": {
+                  "type": "float"
+                },
+                "maxLng": {
+                  "type": "float"
+                }
+              }
+            },
+            "count": {
+              "type": "integer"
+            },
+            "recyclingTypes": {
+              "type": "keyword"
+            },
+            "polygon": {
+              "type": "geo_shape"
+            }
+          }
+        },
+        "areaPartitionsTimestamp": {
+          "type": "date"
         }
       }
     }

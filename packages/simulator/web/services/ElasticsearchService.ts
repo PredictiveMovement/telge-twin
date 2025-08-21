@@ -87,6 +87,104 @@ export class ElasticsearchService {
 
     return vehicleCounts
   }
+
+  async deleteExperiment(documentId: string) {
+    try {
+      // First get the experiment to find its ID for cleaning up related data
+      const experimentResponse = await this.client.get({
+        index: 'experiments',
+        id: documentId,
+      })
+
+      const experimentId = experimentResponse.body._source?.id
+
+      // Delete the experiment document
+      await this.client.delete({
+        index: 'experiments',
+        id: documentId,
+      })
+
+      // Clean up related vroom-truck-plans if experimentId exists
+      if (experimentId) {
+        await this.client.deleteByQuery({
+          index: 'vroom-truck-plans',
+          body: {
+            query: {
+              term: { 'experiment.keyword': experimentId },
+            },
+          },
+        })
+      }
+
+      return { success: true }
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async saveDataset(datasetId: string, datasetBody: any) {
+    await this.client.index({
+      index: 'route-datasets',
+      id: datasetId,
+      body: datasetBody,
+    })
+    await this.client.indices.refresh({ index: 'route-datasets' })
+    return { success: true }
+  }
+
+  async deleteDataset(datasetId: string) {
+    await this.client.delete({ index: 'route-datasets', id: datasetId })
+    await this.client.indices.refresh({ index: 'route-datasets' })
+    return { success: true }
+  }
+
+  async listDatasets() {
+    const response = await this.client.search({
+      index: 'route-datasets',
+      body: {
+        query: { match_all: {} },
+        sort: [{ uploadTimestamp: { order: 'desc' } }],
+        size: 100,
+      },
+    })
+    return response.body.hits.hits.map((hit: any) => ({
+      id: hit._id,
+      ...hit._source,
+    }))
+  }
+
+  async findDocumentById(index: string, id: string) {
+    const result = await search({
+      index,
+      body: { query: { term: { _id: id } } },
+    })
+    return result?.body?.hits?.hits?.[0]
+  }
+
+  async getExperimentWithDataset(experimentId: string) {
+    const experiment = await this.getExperiment(experimentId)
+    if (!experiment) throw new Error('Experiment not found')
+    const datasetId = experiment.sourceDatasetId
+    if (!datasetId) throw new Error('No source dataset found for experiment')
+    const dataset = await this.getDataset(datasetId)
+    if (!dataset) throw new Error('Dataset not found')
+    return {
+      experiment,
+      dataset,
+      routeData: dataset.routeData || [],
+    }
+  }
+
+  async getVroomPlansForExperiment(experimentId: string) {
+    const searchResult = await search({
+      index: 'vroom-truck-plans',
+      body: {
+        query: { term: { 'experiment.keyword': experimentId } },
+        size: 100,
+      },
+    })
+    return searchResult?.body?.hits?.hits?.map((hit: any) => hit._source) || []
+  }
 }
 
 export const elasticsearchService = new ElasticsearchService()

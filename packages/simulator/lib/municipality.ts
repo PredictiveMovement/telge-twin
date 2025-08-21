@@ -11,7 +11,8 @@ const {
 import Fleet from './fleet'
 import Booking from './models/booking'
 import Position from './models/position'
-const { error, info } = require('./log')
+import { extractOriginalData } from './types/originalBookingData'
+const { error } = require('./log')
 const { safeId } = require('./id')
 
 class Municipality {
@@ -46,9 +47,7 @@ class Municipality {
     experimentId,
     virtualTime,
   }: any) {
-    info(`Municipality created: ${name}`, {
-      fleets: Array.isArray(fleetsConfig) ? fleetsConfig.length : 0,
-    })
+    // Removed verbose creation log
 
     this.squares = []
     this.geometry = geometry
@@ -171,7 +170,11 @@ class Municipality {
                 arrivalTime: '17:00:00',
               },
               carId: vehicleId,
-              order: standardizedBooking.order || '0',
+              turordningsnr:
+                standardizedBooking.originalData?.originalTurordningsnr ||
+                standardizedBooking.originalTurordningsnr ||
+                standardizedBooking.Turordningsnr,
+              originalData: extractOriginalData(standardizedBooking),
             })
 
             properBooking.weight = standardizedBooking.weight || 10
@@ -191,10 +194,16 @@ class Municipality {
           })
         })
 
-        const dispatcherStream =
-          this.settings?.experimentType === 'replay'
-            ? fleet.startReplayDispatcher(this.settings.replayExperiment)
-            : fleet.startDispatcher()
+        let dispatcherStream
+        if (this.settings?.experimentType === 'replay') {
+          dispatcherStream = fleet.startReplayDispatcher(
+            this.settings.replayExperiment
+          )
+        } else if (this.settings?.experimentType === 'vroom') {
+          dispatcherStream = fleet.startVroomDispatcher()
+        } else {
+          dispatcherStream = fleet.startStandardDispatcher()
+        }
 
         return dispatcherStream
       })

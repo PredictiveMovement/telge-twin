@@ -3,8 +3,10 @@ const {
   useReplayRoute,
   saveCompletePlanForReplay,
 } = require('../dispatch/truckDispatch')
-const { warn, info } = require('../log')
+const { warn } = require('../log')
+import { CLUSTERING_CONFIG } from '../config'
 const Vehicle = require('./vehicle').default
+const { createSpatialChunks } = require('../clustering')
 
 interface TruckConstructorArgs {
   id?: string
@@ -45,8 +47,29 @@ class Truck extends Vehicle {
     this.recyclingTypes = args.recyclingTypes
   }
 
-  async pickNextInstructionFromPlan() {
+  /**
+   * Picks the next instruction from the plan.
+   * @returns A promise that resolves when the next instruction is picked.
+   */
+
+  async pickNextInstructionFromPlan(): Promise<any> {
     this.instruction = this.plan.shift()
+
+    // If instruction is a pickup but booking already in cargo, skip to next
+    if (
+      this.instruction?.action === 'pickup' &&
+      this.instruction?.booking &&
+      this.cargo?.some(
+        (c: any) =>
+          c === this.instruction.booking ||
+          c.id === this.instruction.booking.id ||
+          (c.bookingId &&
+            this.instruction.booking.bookingId &&
+            c.bookingId === this.instruction.booking.bookingId)
+      )
+    ) {
+      return this.pickNextInstructionFromPlan()
+    }
 
     if (this.instruction?.booking) {
       const realBooking = this.queue.find(
@@ -98,8 +121,19 @@ class Truck extends Vehicle {
     }
   }
 
+  /**
+   * Handles the truck's stopped state.
+   * @returns A promise that resolves when the truck is stopped.
+   */
+
   stopped() {
     super.stopped()
+
+    // Handle delivery status even when booking is null
+    if (this.status === 'delivery') {
+      return this.dropOff()
+    }
+
     if (this.plan.length === 0) {
       if (
         this.status === 'end' &&
@@ -122,6 +156,11 @@ class Truck extends Vehicle {
     }
   }
 
+  /**
+   * Handles the truck's pickup state.
+   * @returns A promise that resolves when the booking is picked up.
+   */
+
   async pickup() {
     if (!this.booking) return warn('No booking to pickup', this.id)
     if (this.cargo.indexOf(this.booking) > -1)
@@ -130,14 +169,67 @@ class Truck extends Vehicle {
     this.cargo.push(this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.pickedUp) this.booking.pickedUp(this.position)
+
+    // Prevent base Vehicle.stopped() from re-triggering pickup on next stop
+    this.booking = null
+
+    // Check if we need to deliver based on cargo count
+    const deliveryConfig = CLUSTERING_CONFIG.DELIVERY_STRATEGIES
+    const pickupsBeforeDelivery =
+      this.fleet?.settings?.pickupsBeforeDelivery ||
+      deliveryConfig.PICKUPS_BEFORE_DELIVERY
+
+    if (this.cargo.length >= pickupsBeforeDelivery) {
+      // Only add delivery instruction if the next instruction isn't already a delivery
+      const nextInstruction = this.plan[0]
+
+      if (!nextInstruction || nextInstruction.action !== 'delivery') {
+        this.plan.unshift({
+          action: 'delivery',
+          arrival: 0,
+          departure: 0,
+          booking: null,
+        })
+      }
+    }
   }
 
+  /**
+   * Drops off the booking.
+   * @returns A promise that resolves when the booking is dropped off.
+   */
+
   async dropOff() {
-    if (!this.booking) return
+    // If this is a delivery action (booking is null), deliver all cargo
+    if (!this.booking) {
+      // Deliver all items in cargo
+      this.cargo.forEach((item: any) => {
+        if (item.delivered) item.delivered(this.position)
+      })
+      this.cargo = []
+      if (this.cargoEvents) this.cargoEvents.next(this)
+
+      // Continue with next instruction after delivery
+      if (this.plan.length > 0) {
+        return this.pickNextInstructionFromPlan()
+      } else {
+        this.status = 'end'
+        if (this.statusEvents) this.statusEvents.next(this)
+        return this.navigateTo(this.startPosition)
+      }
+    }
+
+    // Otherwise, deliver specific booking (legacy behavior)
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.delivered) this.booking.delivered(this.position)
   }
+
+  /**
+   * Checks if the truck can handle a booking.
+   * @param booking - The booking to check.
+   * @returns True if the truck can handle the booking, false otherwise.
+   */
 
   canHandleBooking(booking: any): boolean {
     return booking && this.queue.length < this.parcelCapacity
@@ -159,6 +251,13 @@ class Truck extends Vehicle {
     return booking
   }
 
+  /**
+   * Handles a booking.
+   * @param experimentId - The ID of the experiment.
+   * @param booking - The booking to handle.
+   * @returns A promise that resolves when the booking is handled.
+   */
+
   async handleBooking(experimentId: string, booking: any) {
     if (this.queue.indexOf(booking) > -1) throw new Error('Already queued')
     this.queue.push(booking)
@@ -166,10 +265,18 @@ class Truck extends Vehicle {
     if (booking.queued) booking.queued(this)
 
     clearTimeout(this._timeout)
-    const randomDelay = 2000 + Math.random() * 2000
+    const randomDelay =
+      CLUSTERING_CONFIG.TRUCK_PLANNING_TIMEOUT_MS +
+      Math.random() * CLUSTERING_CONFIG.TRUCK_PLANNING_RANDOM_DELAY_MS
     this._timeout = setTimeout(async () => {
       if (this.fleet.settings.replayExperiment) {
         this.plan = await useReplayRoute(this, this.queue)
+        // Ensure area partitions are saved for this truck in replay as well
+        try {
+          createSpatialChunks(this.queue, experimentId, this.id)
+        } catch (e) {
+          // non-fatal
+        }
       } else {
         try {
           const vroomPromise = findBestRouteToPickupBookings(
@@ -180,8 +287,12 @@ class Truck extends Vehicle {
 
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => {
-              reject(new Error(`VROOM planning timeout after 30000ms`))
-            }, 30000)
+              reject(
+                new Error(
+                  `VROOM planning timeout after ${CLUSTERING_CONFIG.VROOM_TIMEOUT_MS}ms`
+                )
+              )
+            }, CLUSTERING_CONFIG.VROOM_TIMEOUT_MS)
           })
 
           this.plan = await Promise.race([vroomPromise, timeoutPromise])
@@ -195,6 +306,12 @@ class Truck extends Vehicle {
               this.queue,
               this.fleet?.settings?.createReplay ?? true
             )
+            // Ensure area partitions are saved for this truck as well
+            try {
+              createSpatialChunks(this.queue, experimentId, this.id)
+            } catch (e) {
+              // non-fatal
+            }
           } else {
             throw new Error('VROOM returned null plan')
           }
@@ -217,6 +334,12 @@ class Truck extends Vehicle {
             this.queue,
             this.fleet?.settings?.createReplay ?? true
           )
+          // Ensure area partitions are saved even when falling back
+          try {
+            createSpatialChunks(this.queue, experimentId, this.id)
+          } catch (e) {
+            // non-fatal
+          }
         }
       }
       if (!this.instruction) await this.pickNextInstructionFromPlan()
@@ -225,9 +348,19 @@ class Truck extends Vehicle {
     return booking
   }
 
+  /**
+   * Waits at the pickup location.
+   * @returns A promise that resolves when the truck is waiting at the pickup location.
+   */
+
   async waitAtPickup() {
     return // Trucks don't wait
   }
+
+  /**
+   * Sets the replay plan.
+   * @param replayPlan - The replay plan to set.
+   */
 
   setReplayPlan(replayPlan: any[]) {
     this.plan = replayPlan || []

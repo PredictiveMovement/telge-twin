@@ -2,15 +2,10 @@ import { filter, merge, share, shareReplay } from 'rxjs'
 import { mergeMap, catchError } from 'rxjs/operators'
 
 // Importing CommonJS modules using `require` to keep backward-compatibility while other files are still in JavaScript
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { virtualTime } = require('./lib/virtualTime')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { safeId } = require('./lib/id')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { read } = require('./config')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const statistics = require('./lib/statistics')
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { info, error, logStream } = require('./lib/log')
 
 export interface ExperimentParameters {
@@ -112,6 +107,7 @@ const engine = {
     }
 
     experiment.bookingUpdates = experiment.dispatchedBookings.pipe(
+      filter((booking: any) => booking && booking.statusEvents),
       mergeMap((booking: any) => booking.statusEvents),
       catchError((err: Error, caught: any) => {
         error('bookingUpdates', err)
@@ -144,11 +140,3 @@ const engine = {
 }
 
 export default engine
-
-// Provide CommonJS compatibility so existing JavaScript files can still `require('../index')`
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-if (typeof module !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
-  module.exports = engine
-}

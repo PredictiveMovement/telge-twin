@@ -30,7 +30,7 @@ type CarInput = {
   delivered: unknown[]
 }
 
-function cleanCars(car: CarInput) {
+export function cleanCars(car: CarInput) {
   const {
     position: { lon, lat },
     id,
@@ -105,10 +105,3 @@ export function register(experiment: any, socket: Socket) {
       }),
   ]
 }
-
-export default { register }
-
-// cjs fallback
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-if (typeof module !== 'undefined') module.exports = { register }

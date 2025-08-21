@@ -1,9 +1,10 @@
 import { firstValueFrom, mergeMap, map, toArray, pipe } from 'rxjs'
 import assert from 'assert'
 import { read as readConfig } from './config'
+import { info } from './lib/log'
 
 const config = readConfig()
-console.log('Checking for preconditions...', config)
+info('Checking for preconditions...', config)
 
 const pick = (key: string) =>
   pipe(
@@ -12,12 +13,12 @@ const pick = (key: string) =>
   )
 
 async function precheck() {
-  console.log('Checking regions...')
+  info('Checking regions...')
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const regions = require('./streams/regions')(config)
-  console.log('✅ Regions:', await firstValueFrom(regions.pipe(pick('name'))))
+  info('✅ Regions:', await firstValueFrom(regions.pipe(pick('name'))))
 
-  console.log('Checking municipalities...')
+  info('Checking municipalities...')
   const municipalities = regions.pipe(
     mergeMap((region: any) => region.municipalities)
   )
@@ -25,9 +26,9 @@ async function precheck() {
     municipalities.pipe(pick('name'))
   )) as any[]
   assert(recievedMuns.length > 0, '❌ No municipalities found')
-  console.log('✅ Municipalities:', recievedMuns.join(', '))
+  info('✅ Municipalities:', recievedMuns.join(', '))
 
-  console.log('Checking fleets...')
+  info('Checking fleets...')
   const fleets = municipalities.pipe(
     mergeMap((municipality: any) => municipality.fleets)
   )
@@ -35,9 +36,9 @@ async function precheck() {
     fleets.pipe(pick('name'))
   )) as any[]
   assert(recievedFleets.length > 0, '❌ No fleets found')
-  console.log('✅ Fleets:', recievedFleets.join(', '))
+  info('✅ Fleets:', recievedFleets.join(', '))
 
-  console.log('Checking bookings...')
+  info('Checking bookings...')
   const bookings = regions.pipe(
     mergeMap((region: any) => region.dispatchedBookings)
   )
@@ -45,13 +46,13 @@ async function precheck() {
     bookings.pipe(pick('id'))
   )) as any[]
   assert(recievedBookings.length > 0, '❌ No bookings found')
-  console.log('✅ Bookings:', recievedBookings.length)
+  info('✅ Bookings:', recievedBookings.length)
 
-  console.log('Checking cars...')
+  info('Checking cars...')
   const cars = regions.pipe(mergeMap((region: any) => region.cars))
   const recievedCars = (await firstValueFrom(cars.pipe(pick('id')))) as any[]
   assert(recievedCars.length > 0, '❌ No cars found')
-  console.log('✅ Cars:', recievedCars.length)
+  info('✅ Cars:', recievedCars.length)
 }
 
 precheck()

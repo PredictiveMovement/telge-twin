@@ -18,7 +18,7 @@ export default function LayersMenu(props: LayersMenuProps) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           className="h-10 w-10 p-0 hover:bg-accent"
           aria-label="Hantera kartlager"

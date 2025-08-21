@@ -1,3 +1,6 @@
+// Import the original data interface
+import { OriginalBookingData } from '../../../simulator/lib/types/originalBookingData'
+
 export interface VehicleSpec {
   originalId: string
   type: string
@@ -46,6 +49,7 @@ export interface StandardizedBooking {
   sender: string
   weight: number
   originalRecord: any
+  originalData?: OriginalBookingData
 }
 
 export interface FleetConfiguration {
@@ -71,6 +75,13 @@ interface RouteRecord {
   Lng: number
   Tjtyp?: string
   Turordningsnr?: string
+  Kundnr?: number
+  Hsnr?: number
+  Tjnr?: number
+  Frekvens?: string
+  Datum?: string
+  Dec?: string
+  Schemalagd?: number
   [key: string]: any
 }
 
@@ -102,31 +113,55 @@ function transformToStandardizedBookings(
 ): StandardizedBooking[] {
   return routeData
     .filter((record) => record.Avftyp && record.Bil && record.Lat && record.Lng)
-    .map((record, index) => ({
-      id: `${record.Turid}_${record.Bil}_${index}`,
-      vehicleId: record.Bil,
-      recyclingType: record.Avftyp,
-      position: {
-        lat: record.Lat,
-        lng: record.Lng,
-      },
-      destination: {
-        lat: 59.135449,
-        lng: 17.571239,
-        name: 'LERHAGA 50, 151 66 Södertälje',
-      },
-      pickup: {
-        lat: record.Lat,
-        lng: record.Lng,
-        name: `Pickup for ${record.Avftyp}`,
-        departureTime: '08:00:00',
-      },
-      serviceType: record.Tjtyp || 'standard',
-      order: record.Turordningsnr || '0',
-      sender: 'TELGE',
-      weight: 10,
-      originalRecord: record,
-    }))
+    .map((record, index) => {
+      const originalData = {
+        originalTurid: record.Turid,
+        originalKundnr: record.Kundnr || 0,
+        originalHsnr: record.Hsnr || 0,
+        originalTjnr: record.Tjnr || 0,
+        originalAvftyp: record.Avftyp,
+        originalTjtyp: record.Tjtyp || 'standard',
+        originalFrekvens: record.Frekvens || '',
+        originalDatum: record.Datum || '',
+        originalBil: record.Bil,
+        originalSchemalagd: record.Schemalagd || 0,
+        originalDec: record.Dec || '',
+        originalTurordningsnr:
+          typeof record.Turordningsnr === 'number'
+            ? record.Turordningsnr
+            : parseInt(record.Turordningsnr) || 0,
+        originalRouteRecord: record,
+      }
+
+      return {
+        id: `${record.Turid}-${record.Kundnr || 0}-${record.Hsnr || 0}-${
+          record.Tjnr || 0
+        }`,
+        vehicleId: record.Bil,
+        recyclingType: record.Avftyp,
+        position: {
+          lat: record.Lat,
+          lng: record.Lng,
+        },
+        destination: {
+          lat: 59.135449,
+          lng: 17.571239,
+          name: 'LERHAGA 50, 151 66 Södertälje',
+        },
+        pickup: {
+          lat: record.Lat,
+          lng: record.Lng,
+          name: `Pickup for ${record.Avftyp}`,
+          departureTime: '08:00:00',
+        },
+        serviceType: record.Tjtyp || 'standard',
+        order: record.Turordningsnr || '0',
+        sender: 'TELGE',
+        weight: 10,
+        originalRecord: record,
+        originalData,
+      }
+    })
 }
 
 function groupBookingsByVehicle(
@@ -376,7 +411,9 @@ function getFyllnadsgradForAvftyp(
 
   const tjtyper = [
     ...new Set(
-      relevantBookings.map((b) => b.originalRecord.Tjtyp).filter(Boolean)
+      relevantBookings
+        .map((b) => b.originalData?.originalTjtyp || b.originalRecord?.Tjtyp)
+        .filter(Boolean)
     ),
   ]
 

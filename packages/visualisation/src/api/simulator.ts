@@ -48,6 +48,21 @@ export interface FleetConfiguration {
   isEmergency?: boolean
 }
 
+export interface AreaPartition {
+  id: string
+  center: { lat: number; lon: number }
+  bounds: {
+    minLat: number
+    minLng: number
+    maxLat: number
+    maxLng: number
+  }
+  count: number
+  recyclingTypes: string[]
+  polygon: number[][]
+  truckId?: string
+}
+
 export interface Experiment {
   id: string
   startDate: string
@@ -58,6 +73,7 @@ export interface Experiment {
   fixedRoute?: number
   emitters?: string[]
   experimentType?: 'vroom' | 'sequential' | 'replay'
+  areaPartitions?: AreaPartition[]
 }
 
 export async function saveRouteDataset(datasetData: {
@@ -87,6 +103,11 @@ export async function saveRouteDataset(datasetData: {
   }
 }
 
+/**
+ * Gets all route datasets.
+ * @returns The route datasets.
+ */
+
 export async function getRouteDatasets(): Promise<RouteDataset[]> {
   try {
     const response = await simulatorApi.get('/api/datasets')
@@ -98,6 +119,12 @@ export async function getRouteDatasets(): Promise<RouteDataset[]> {
     return []
   }
 }
+
+/**
+ * Deletes a route dataset.
+ * @param datasetId - The ID of the dataset to delete.
+ * @returns The response from the API.
+ */
 
 export async function deleteRouteDataset(
   datasetId: string
@@ -114,6 +141,11 @@ export async function deleteRouteDataset(
   }
 }
 
+/**
+ * Gets all experiments.
+ * @returns The experiments.
+ */
+
 export async function getExperiments(): Promise<Experiment[]> {
   try {
     const response = await simulatorApi.get('/api/experiments')
@@ -125,6 +157,12 @@ export async function getExperiments(): Promise<Experiment[]> {
     return []
   }
 }
+
+/**
+ * Gets an experiment.
+ * @param experimentId - The ID of the experiment.
+ * @returns The experiment.
+ */
 
 export async function getExperiment(
   experimentId: string
@@ -139,6 +177,33 @@ export async function getExperiment(
     return null
   }
 }
+
+/**
+ * Deletes an experiment.
+ * @param documentId - The ID of the experiment to delete.
+ * @returns The response from the API.
+ */
+
+export async function deleteExperiment(
+  documentId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await simulatorApi.delete(`/api/experiments/${documentId}`)
+    return response.data
+  } catch (_error) {
+    return {
+      success: false,
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+/**
+ * Gets the VROOM plan for an experiment.
+ * @param experimentId - The ID of the experiment.
+ * @returns The VROOM plan.
+ */
 
 export async function getVroomPlan(
   experimentId: string
@@ -156,6 +221,12 @@ export async function getVroomPlan(
   }
 }
 
+/**
+ * Gets the original bookings for a dataset.
+ * @param datasetId - The ID of the dataset.
+ * @returns The original bookings.
+ */
+
 export async function getOriginalBookings(
   datasetId: string
 ): Promise<Record<string, unknown> | null> {
@@ -171,6 +242,12 @@ export async function getOriginalBookings(
     return null
   }
 }
+
+/**
+ * Prepares a replay for an experiment.
+ * @param experimentId - The ID of the experiment.
+ * @returns The replay.
+ */
 
 export async function prepareReplay(experimentId: string): Promise<{
   success: boolean
@@ -194,6 +271,12 @@ export async function prepareReplay(experimentId: string): Promise<{
     }
   }
 }
+
+/**
+ * Prepares a sequential session.
+ * @param datasetId - The ID of the dataset.
+ * @returns The sequential session.
+ */
 
 export async function prepareSequentialSession(datasetId: string): Promise<{
   success: boolean
@@ -219,6 +302,15 @@ export async function prepareSequentialSession(datasetId: string): Promise<{
     }
   }
 }
+
+/**
+ * Starts a simulation from a dataset.
+ * @param socket - The socket.
+ * @param datasetId - The ID of the dataset.
+ * @param datasetName - The name of the dataset.
+ * @param parameters - The parameters for the experiment.
+ * @returns The experiment.
+ */
 
 export function startSimulationFromDataset(
   socket: Socket,
@@ -255,6 +347,13 @@ export function startSimulationFromDataset(
   })
 }
 
+/**
+ * Starts a session replay.
+ * @param socket - The socket.
+ * @param experimentId - The ID of the experiment.
+ * @returns The session ID.
+ */
+
 export const startSessionReplay = async (
   socket: Socket,
   experimentId: string
@@ -276,36 +375,55 @@ export const startSessionReplay = async (
 
     return sessionId
   } catch (error) {
-    console.error('Error starting session replay:', error)
     throw error
   }
 }
 
-export const startSequentialSession = async (
-  socket: Socket,
-  datasetId: string
-) => {
+// Note: sequential session starter removed to avoid exposing standalone sequential runs in UI.
+
+/**
+ * Gets the original bookings for an experiment.
+ * @param experimentId - The ID of the experiment.
+ * @returns The original bookings.
+ */
+
+export async function getOriginalBookingsForExperiment(experimentId: string) {
   try {
-    const sessionResult = await prepareSequentialSession(datasetId)
-
-    if (!sessionResult.success || !sessionResult.data) {
-      throw new Error(
-        sessionResult.error || 'Failed to prepare sequential session'
-      )
-    }
-
-    const { sessionId, parameters } = sessionResult.data
-
-    socket.emit('startSequentialSession', {
-      sessionId,
-      datasetId,
-      parameters,
-    })
-
-    return sessionId
+    const response = await simulatorApi.get(
+      `/api/experiments/${experimentId}/original-bookings`
+    )
+    return response.data
   } catch (error) {
-    console.error('Error starting sequential session:', error)
-    throw error
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch original bookings',
+    }
+  }
+}
+
+/**
+ * Gets the VROOM bookings for an experiment.
+ * @param experimentId - The ID of the experiment.
+ * @returns The VROOM bookings.
+ */
+
+export async function getVroomBookingsForExperiment(experimentId: string) {
+  try {
+    const response = await simulatorApi.get(
+      `/api/experiments/${experimentId}/vroom-bookings`
+    )
+    return response.data
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch VROOM bookings',
+    }
   }
 }
 

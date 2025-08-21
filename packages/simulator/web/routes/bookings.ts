@@ -18,6 +18,7 @@ const cleanBookings = () =>
         car,
         type,
         recyclingType,
+        turordningsnr,
       } = booking as Record<string, any>
 
       const result = {
@@ -34,6 +35,7 @@ const cleanBookings = () =>
         carId: car?.id,
         type,
         recyclingType,
+        turordningsnr,
       }
 
       return result
@@ -63,10 +65,3 @@ export function register(experiment: any, socket: Socket) {
       }),
   ]
 }
-
-export default { register }
-
-// CJS fallback
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-if (typeof module !== 'undefined') module.exports = { register }

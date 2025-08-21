@@ -3,6 +3,10 @@ import { virtualTime } from '../virtualTime'
 import { safeId } from '../id'
 import Position from './position'
 import Vehicle from '../vehicles/vehicle'
+import {
+  OriginalBookingData,
+  extractOriginalData,
+} from '../types/originalBookingData'
 
 export type BookingStatus =
   | 'New'
@@ -25,13 +29,15 @@ export interface BookingInput<TPassenger = unknown> {
   sender?: string
   carId?: string
   bookingId?: string
-  order?: string
+  turordningsnr?: number
   passenger?: TPassenger
   type?: string
   recyclingType?: string
   pickup?: Place
   destination?: Place
   postalcode?: string
+
+  originalData?: OriginalBookingData
 }
 
 export class Booking<TPassenger = unknown> {
@@ -62,6 +68,9 @@ export class Booking<TPassenger = unknown> {
   finalDestination?: Place
   origin?: string
   carId?: string
+  turordningsnr?: number
+
+  originalData?: OriginalBookingData
 
   // RxJS subjects
   queuedEvents = new ReplaySubject<Booking<TPassenger>>()
@@ -72,18 +81,18 @@ export class Booking<TPassenger = unknown> {
 
   constructor(booking: BookingInput<TPassenger>) {
     Object.assign(this, booking)
-    this.id = [
-      booking.sender ? booking.sender.replace(/&/g, '').toLowerCase() : 'b',
-      booking.id || 'no-id',
-      booking.carId || 'no-carId',
-      booking.order || safeId(),
-    ].join('-')
+    // Respect input ID if provided, otherwise generate rich ID
+    this.id = booking.id || this.generateRichId(booking)
+
     this.bookingId = booking.bookingId
+    this.turordningsnr = booking.turordningsnr
     this.status = 'New'
     this.weight = Math.random() * 10
     this.position = this.pickup?.position
 
-    // Merge status-oriented streams
+    // Set original data - use provided originalData or extract from booking properties
+    this.originalData = booking.originalData || extractOriginalData(booking)
+
     this.statusEvents = merge(
       this.queuedEvents,
       this.assignedEvents,
@@ -92,12 +101,58 @@ export class Booking<TPassenger = unknown> {
     )
   }
 
+  /**
+   * Generates a rich ID for a booking.
+   * @param booking - The booking to generate an ID for.
+   * @returns A rich ID for the booking.
+   */
+
+  private generateRichId(booking: BookingInput<TPassenger>): string {
+    const originalData = booking.originalData || extractOriginalData(booking)
+
+    if (
+      originalData.originalTurid &&
+      originalData.originalKundnr &&
+      originalData.originalHsnr &&
+      originalData.originalTjnr
+    ) {
+      const parts = [
+        booking.sender ? booking.sender.replace(/&/g, '').toLowerCase() : 'b',
+        originalData.originalTurid,
+        originalData.originalKundnr,
+        originalData.originalHsnr,
+        originalData.originalTjnr,
+        booking.turordningsnr || safeId(),
+      ]
+      return parts.join('-')
+    }
+
+    return [
+      booking.sender ? booking.sender.replace(/&/g, '').toLowerCase() : 'b',
+      booking.id || 'no-id',
+      booking.carId || 'no-carId',
+      booking.turordningsnr || safeId(),
+    ].join('-')
+  }
+
+  /**
+   * Sets the booking to queued.
+   * @param car - The vehicle that the booking is queued for.
+   * @returns A promise that resolves when the booking is queued.
+   */
+
   async queued(car: Vehicle): Promise<void> {
     this.queuedDateTime = await virtualTime.getTimeInMillisecondsAsPromise()
     this.status = 'Queued'
     this.car = car
     this.queuedEvents.next(this)
   }
+
+  /**
+   * Assigns the booking to a vehicle.
+   * @param car - The vehicle that the booking is assigned to.
+   * @returns A promise that resolves when the booking is assigned.
+   */
 
   async assign(car: Vehicle): Promise<void> {
     if (this.assigned) throw new Error('Booking already assigned')
@@ -106,6 +161,16 @@ export class Booking<TPassenger = unknown> {
     this.status = 'Assigned'
     this.assignedEvents.next(this)
   }
+
+  /**
+   * Moves the booking to a new position.
+   * @param position - The new position of the booking.
+   * @param metersMoved - The distance moved in meters.
+   * @param co2 - The CO2 emitted by the booking.
+   * @param cost - The cost of the booking.
+   * @param timeDiff - The time difference between the booking's assigned and queued times.
+   * @returns A promise that resolves when the booking is moved.
+   */
 
   async moved(
     position: Position,
@@ -120,6 +185,13 @@ export class Booking<TPassenger = unknown> {
     this.co2 += co2
   }
 
+  /**
+   * Sets the booking to picked up.
+   * @param position - The position of the booking.
+   * @param date - The date and time the booking was picked up.
+   * @returns A promise that resolves when the booking is picked up.
+   */
+
   async pickedUp(
     position: Position,
     date = virtualTime.getTimeInMillisecondsAsPromise()
@@ -129,6 +201,13 @@ export class Booking<TPassenger = unknown> {
     this.status = 'Picked up'
     this.pickedUpEvents.next(this)
   }
+
+  /**
+   * Sets the booking to delivered.
+   * @param position - The position of the booking.
+   * @param date - The date and time the booking was delivered.
+   * @returns A promise that resolves when the booking is delivered.
+   */
 
   async delivered(
     position: Position,
@@ -142,6 +221,11 @@ export class Booking<TPassenger = unknown> {
     this.status = 'Delivered'
     this.deliveredEvents.next(this)
   }
+
+  /**
+   * Converts the booking to an object.
+   * @returns An object representation of the booking.
+   */
 
   toObject(): Record<string, unknown> {
     const {
@@ -167,7 +251,12 @@ export class Booking<TPassenger = unknown> {
       carId,
       finalDestination,
       origin,
-    } = this as Booking<TPassenger> & { sender?: string; carId?: string }
+      turordningsnr,
+      originalData,
+    } = this as Booking<TPassenger> & {
+      sender?: string
+      carId?: string
+    }
 
     return {
       id,
@@ -192,15 +281,10 @@ export class Booking<TPassenger = unknown> {
       carId: carId || this.car?.id,
       finalDestination,
       origin,
+      turordningsnr,
+      originalData,
     }
   }
 }
 
 export default Booking
-
-// CommonJS fallback
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-if (typeof module !== 'undefined') {
-  module.exports = Booking
-}

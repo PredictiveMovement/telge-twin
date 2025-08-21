@@ -1,14 +1,15 @@
 import { Subject, mergeMap, catchError, from, delay } from 'rxjs'
-import { error, info } from './log'
+import { error } from './log'
 
-const API_CALL_LIMIT = 1
+// Configurable settings for API rate limiting
+const API_CALL_LIMIT = parseInt(process.env.VROOM_CONCURRENT_LIMIT || '1')
+const API_DELAY_MS = parseInt(process.env.VROOM_DELAY_MS || '500')
 
 const queueSubject = new Subject<any>()
-let queueLength = 0
+// No need to track global queue length
 
 export function queue<T>(fn: () => Promise<T> | T): Promise<T> {
-  queueLength++
-  info(`🔄 Adding to queue, total queued: ${queueLength}`)
+  // enqueue task
   return new Promise<any>((resolve, reject) => {
     queueSubject.next({ fn, resolve, reject })
   })
@@ -19,16 +20,13 @@ queueSubject
     mergeMap(
       ({ fn, resolve, reject }) =>
         from(fn()).pipe(
-          delay(500),
+          delay(API_DELAY_MS),
           mergeMap((result: any) => {
-            queueLength--
-            info(`✅ Queue completed, remaining: ${queueLength}`)
             resolve(result)
             return []
           }),
           catchError((err) => {
-            queueLength--
-            error('error queue', err, queueLength)
+            error('Queue execution error', err)
             reject(err)
             return []
           })

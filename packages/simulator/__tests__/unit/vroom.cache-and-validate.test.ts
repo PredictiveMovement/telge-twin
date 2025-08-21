@@ -1,0 +1,63 @@
+jest.mock('../../lib/vroom', () => {
+  const original = jest.requireActual('../../lib/vroom')
+  return {
+    __esModule: true,
+    ...original,
+  }
+})
+
+const vroom = require('../../lib/vroom')
+
+describe('VROOM cache normalization', () => {
+  it('normalizes time windows in cache key so identical geo problems hit cache', async () => {
+    const jobs: any[] = []
+    const shipments = [
+      {
+        id: 1,
+        amount: [1],
+        pickup: { id: 10, location: [18.0, 59.0], time_windows: [[100, 200]] },
+        delivery: {
+          id: 11,
+          location: [18.1, 59.1],
+          time_windows: [[150, 250]],
+        },
+        service: 30,
+      },
+    ]
+    const vehicles = [
+      {
+        id: 1,
+        time_window: [0, 3600],
+        capacity: [10],
+        start: [18.0, 59.0],
+        end: [18.0, 59.0],
+      },
+    ]
+
+    // Spy on cache
+    const cache = require('../../lib/cache')
+    const getSpy = jest.spyOn(cache, 'getFromCache')
+    const updSpy = jest
+      .spyOn(cache, 'updateCache')
+      .mockResolvedValue({ code: 0 })
+
+    await vroom.plan({ jobs, shipments, vehicles })
+    expect(getSpy).toHaveBeenCalled()
+
+    // Call again with different time windows but same locations
+    const shipments2 = [
+      {
+        ...shipments[0],
+        pickup: { ...shipments[0].pickup, time_windows: [[300, 400]] },
+        delivery: { ...shipments[0].delivery, time_windows: [[350, 450]] },
+      },
+    ]
+    await vroom.plan({ jobs, shipments: shipments2, vehicles })
+
+    // Both calls should have used normalized time windows for cache key
+    expect(getSpy).toHaveBeenCalledTimes(2)
+
+    // Clean up spy
+    updSpy.mockRestore()
+  })
+})

@@ -7,6 +7,7 @@ import { WifiOff, AlertTriangle, Play, Square } from 'lucide-react'
 import Map from '@/components/Map'
 import { useMapSocket } from '../../hooks/useMapSocket'
 import { toLonLatArray } from '@/utils/geo'
+import { upsertListById } from '@/lib/utils'
 import * as simulator from '@/api/simulator'
 
 interface SimulationViewProps {
@@ -14,6 +15,7 @@ interface SimulationViewProps {
   type: 'replay' | 'sequential'
   datasetId: string
   experimentId?: string
+  areaPartitions?: simulator.AreaPartition[]
 }
 
 const SimulationView: React.FC<SimulationViewProps> = ({
@@ -21,6 +23,7 @@ const SimulationView: React.FC<SimulationViewProps> = ({
   type,
   datasetId,
   experimentId,
+  areaPartitions,
 }) => {
   const [cars, setCars] = useState<Car[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -34,21 +37,27 @@ const SimulationView: React.FC<SimulationViewProps> = ({
   const [virtualTime, setVirtualTime] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { socket, isConnected } = useMapSocket()
+  const [vroomPlan, setVroomPlan] = useState<any | undefined>(undefined)
 
-  const upsertList = <T extends { id: any }>(
-    prev: T[],
-    incoming: T | T[],
-    mapper: (item: T) => T
-  ) => {
-    const list = Array.isArray(incoming) ? incoming : [incoming]
-    const next = [...prev]
-    list.forEach((raw) => {
-      const item = mapper(raw)
-      const i = next.findIndex((x) => x.id === item.id)
-      i >= 0 ? (next[i] = item) : next.push(item)
-    })
-    return next
-  }
+  const upsertList = upsertListById
+
+  const sortBookings = useCallback(
+    (bookings: any[]): any[] => {
+      if (type === 'sequential') {
+        // For sequential simulations, sort by turordningsnr
+        return [...bookings].sort((a, b) => {
+          const orderA = a.turordningsnr ?? Number.MAX_SAFE_INTEGER
+          const orderB = b.turordningsnr ?? Number.MAX_SAFE_INTEGER
+          return orderA - orderB
+        })
+      } else if (type === 'replay' && experimentId) {
+        // For vroom replay, will implement vroom order sorting later
+        return bookings
+      }
+      return bookings
+    },
+    [type, experimentId]
+  )
 
   useEffect(() => {
     if (!socket || !isConnected || !session?.sessionId) return
@@ -67,13 +76,6 @@ const SimulationView: React.FC<SimulationViewProps> = ({
       setError(null)
       setCars([])
       setBookings([])
-
-      if (socket && currentSessionId) {
-        socket.emit('sessionSpeed', {
-          sessionId: currentSessionId,
-          speed: timeSpeed,
-        })
-      }
     }
 
     const handleSessionStopped = (data: { sessionId: string }) => {
@@ -85,7 +87,6 @@ const SimulationView: React.FC<SimulationViewProps> = ({
 
     const handleSessionError = (data: { sessionId: string; error: string }) => {
       if (data.sessionId !== currentSessionId) return
-      console.error('Session error:', data.error)
       setError(data.error)
       setRunning(false)
       setTimeRunning(false)
@@ -115,13 +116,20 @@ const SimulationView: React.FC<SimulationViewProps> = ({
       payload: any | any[]
     }) => {
       if (data.sessionId !== currentSessionId) return
-      setBookings((prev) =>
-        upsertList(prev, data.payload, (b) => ({
+
+      const incomingBookings = Array.isArray(data.payload)
+        ? data.payload
+        : [data.payload]
+
+      setBookings((prev) => {
+        const updatedBookings = upsertList(prev, incomingBookings, (b) => ({
           ...b,
           pickup: b.pickup ? toLonLatArray(b.pickup) : null,
           destination: b.destination ? toLonLatArray(b.destination) : null,
         }))
-      )
+
+        return sortBookings(updatedBookings)
+      })
     }
 
     socket.on('sessionStarted', handleSessionStarted)
@@ -142,7 +150,37 @@ const SimulationView: React.FC<SimulationViewProps> = ({
       socket.off('cars', handleCars)
       socket.off('bookings', handleBookings)
     }
-  }, [socket, isConnected, session?.sessionId])
+  }, [socket, isConnected, session?.sessionId, type, sortBookings])
+
+  // Emit speed changes without re-joining session
+  useEffect(() => {
+    if (!socket || !isConnected || !session?.sessionId) return
+    socket.emit('sessionSpeed', {
+      sessionId: session.sessionId,
+      speed: timeSpeed,
+    })
+  }, [socket, isConnected, session?.sessionId, timeSpeed])
+
+  // Fetch VROOM plan for debug overlays when experimentId is provided (replay mode)
+  useEffect(() => {
+    let cancelled = false
+    const fetchPlan = async () => {
+      if (type === 'replay' && experimentId) {
+        try {
+          const plan = await simulator.getVroomPlan(experimentId)
+          if (!cancelled) setVroomPlan(plan || undefined)
+        } catch (_err) {
+          if (!cancelled) setVroomPlan(undefined)
+        }
+      } else {
+        setVroomPlan(undefined)
+      }
+    }
+    fetchPlan()
+    return () => {
+      cancelled = true
+    }
+  }, [type, experimentId])
 
   const handleStart = async () => {
     if (!socket || isRunning) return
@@ -157,6 +195,7 @@ const SimulationView: React.FC<SimulationViewProps> = ({
           throw new Error(sessionResult.error || 'Failed to prepare replay')
         }
         setSession(sessionResult.data)
+
         socket.emit('startSessionReplay', {
           sessionId: sessionResult.data.sessionId,
           experimentId,
@@ -170,6 +209,7 @@ const SimulationView: React.FC<SimulationViewProps> = ({
           )
         }
         setSession(sessionResult.data)
+
         socket.emit('startSequentialSession', {
           sessionId: sessionResult.data.sessionId,
           datasetId,
@@ -179,7 +219,6 @@ const SimulationView: React.FC<SimulationViewProps> = ({
         throw new Error('Invalid props for starting simulation')
       }
     } catch (err: any) {
-      console.error(`Failed to start ${type} session:`, err)
       setError(err.message || `Failed to start ${type} session`)
       setRunning(false)
       setSession(null)
@@ -217,7 +256,15 @@ const SimulationView: React.FC<SimulationViewProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">{title}</h2>
+        <div>
+          <h2 className="text-2xl font-semibold">{title}</h2>
+          {isRunning && (
+            <div className="text-sm text-gray-600 mt-1">
+              Simulering:{' '}
+              {type === 'replay' ? 'VROOM Optimerad' : 'Sekventiell'}
+            </div>
+          )}
+        </div>
         <div className="flex space-x-2">
           {!isRunning ? (
             <Button onClick={handleStart} disabled={!isConnected || isRunning}>
@@ -252,6 +299,8 @@ const SimulationView: React.FC<SimulationViewProps> = ({
             onPlayTime={handlePlay}
             onPauseTime={handlePause}
             onSpeedChange={handleSpeedChange}
+            areaPartitions={areaPartitions}
+            vroomPlan={vroomPlan as any}
           />
         </CardContent>
       </Card>

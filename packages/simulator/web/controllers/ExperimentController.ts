@@ -36,6 +36,11 @@ export class ExperimentController {
     return this.sessionVirtualTimes.get(sessionId)
   }
 
+  /**
+   * Gets the default map state.
+   * @returns The default map state.
+   */
+
   private getDefaultMapState() {
     return {
       latitude: parseFloat(process.env.LATITUDE || '59.1955'),
@@ -43,6 +48,12 @@ export class ExperimentController {
       zoom: parseInt(process.env.ZOOM || '10', 10),
     }
   }
+
+  /**
+   * Sets up auto-stop on end of day.
+   * @param experiment - The experiment to set up auto-stop on end of day for.
+   * @param onStop - The function to call when the experiment stops.
+   */
 
   private setupAutoStopOnEndOfDay(experiment: any, onStop: () => void) {
     if (experiment.virtualTime) {
@@ -57,6 +68,12 @@ export class ExperimentController {
         })
     }
   }
+
+  /**
+   * Creates a global experiment.
+   * @param directParams - The direct parameters for the experiment.
+   * @returns The global experiment.
+   */
 
   createGlobalExperiment(directParams?: any) {
     const currentEmitters = emitters()
@@ -85,6 +102,13 @@ export class ExperimentController {
     this.isGlobalSimulationRunning = true
     return this.globalExperiment
   }
+
+  /**
+   * Creates a session experiment.
+   * @param sessionId - The ID of the session.
+   * @param directParams - The direct parameters for the experiment.
+   * @returns The session experiment.
+   */
 
   createSessionExperiment(sessionId: string, directParams?: any) {
     const currentEmitters = emitters()
@@ -117,6 +141,11 @@ export class ExperimentController {
     return experiment
   }
 
+  /**
+   * Stops a global experiment.
+   * @returns True if the experiment was stopped, false otherwise.
+   */
+
   stopGlobalExperiment() {
     if (this.globalExperiment) {
       this.globalExperiment = null
@@ -126,6 +155,12 @@ export class ExperimentController {
     }
     return false
   }
+
+  /**
+   * Stops a session experiment.
+   * @param sessionId - The ID of the session.
+   * @returns True if the experiment was stopped, false otherwise.
+   */
 
   stopSessionExperiment(sessionId: string) {
     const experiment = this.sessionExperiments.get(sessionId)
@@ -138,8 +173,16 @@ export class ExperimentController {
     return false
   }
 
+  /**
+   * Starts a simulation from data.
+   * @param simData - The simulation data.
+   * @param parameters - The parameters for the experiment.
+   * @returns The experiment.
+   */
+
   async startSimulationFromData(simData: any, parameters: any) {
-    const { experimentId, datasetId, isReplay } = simData
+    const { experimentId, datasetId } = simData
+    const isReplay = parameters.experimentType === 'replay'
     let currentExperimentId = experimentId || safeId()
     let fleetsConfig: any[] = []
     let experimentSettings: any = {}
@@ -151,9 +194,7 @@ export class ExperimentController {
         )
 
         if (experimentData.sourceDatasetId) {
-          console.log(
-            `🔄 Loading dataset ${experimentData.sourceDatasetId} for replay`
-          )
+          // Loading dataset for replay
           const datasetData = await elasticsearchService.getDataset(
             experimentData.sourceDatasetId
           )
@@ -168,13 +209,7 @@ export class ExperimentController {
           isReplay: true,
         }
 
-        console.log(
-          `🔄 Replay mode: Loading experiment ${experimentId} with ${
-            fleetsConfig.length
-          } fleets from ${
-            experimentData.sourceDatasetId ? 'dataset' : 'experiment'
-          }`
-        )
+        // Replay mode: Loading experiment with fleets
       } else if (datasetId) {
         const datasetData = await elasticsearchService.getDataset(datasetId)
         fleetsConfig = datasetData.fleetConfiguration || []
@@ -194,10 +229,9 @@ export class ExperimentController {
           currentExperimentId,
           newExperimentData
         )
-      } else if (simData.sourceDatasetId) {
-        const dataset = await elasticsearchService.getDataset(
-          simData.sourceDatasetId
-        )
+      } else if (simData.sourceDatasetId || datasetId) {
+        const targetDatasetId = simData.sourceDatasetId || datasetId
+        const dataset = await elasticsearchService.getDataset(targetDatasetId)
         fleetsConfig = dataset.fleetConfiguration || []
       } else {
         const defaultConfig = createFleetConfigFromDataset(
@@ -208,8 +242,10 @@ export class ExperimentController {
         fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
       }
 
-      const experimentType =
-        parameters.experimentType || (isReplay ? 'replay' : 'vroom')
+      // Use experimentType from parameters, default to 'vroom' if not specified
+      const experimentType = parameters.experimentType || 'vroom'
+
+      // Creating experiment with specified type
 
       this.globalExperiment = null
       const experiment = this.createGlobalExperiment({
@@ -217,12 +253,17 @@ export class ExperimentController {
         ...experimentSettings,
         experimentId: currentExperimentId,
         experimentType,
-        sourceDatasetId: datasetId || simData.sourceDatasetId,
+        sourceDatasetId: simData.sourceDatasetId || datasetId,
         datasetName: simData.datasetName,
         routeDataSource: 'elasticsearch',
         fleets: {
           'Södertälje kommun': {
-            settings: {},
+            settings: {
+              experimentType, // ✅ Forward experimentType to fleet settings
+              ...(experimentType === 'replay' && experimentId
+                ? { replayExperiment: experimentId }
+                : {}),
+            },
             fleets: fleetsConfig,
           },
         },
@@ -240,6 +281,14 @@ export class ExperimentController {
       throw error
     }
   }
+
+  /**
+   * Starts a session replay.
+   * @param sessionId - The ID of the session.
+   * @param experimentId - The ID of the experiment.
+   * @param parameters - The parameters for the experiment.
+   * @returns The experiment.
+   */
 
   async startSessionReplay(
     sessionId: string,
@@ -300,16 +349,25 @@ export class ExperimentController {
     }
   }
 
+  /**
+   * Creates a sequential session, from non optimized data.
+   * @param sessionId - The ID of the session.
+   * @param datasetId - The ID of the dataset.
+   * @param parameters - The parameters for the experiment.
+   * @returns The experiment.
+   */
+
   createSequentialSession(
     sessionId: string,
     datasetId: string,
     parameters: any
   ) {
+    // Mark as non-persistent by setting isReplay=true to avoid indexing a new experiment document
     const experiment = this.createSessionExperiment(sessionId, {
       ...parameters,
       sourceDatasetId: datasetId,
       experimentType: 'sequential',
-      isReplay: false,
+      isReplay: true,
     })
 
     experiment.virtualTime.reset()
@@ -317,6 +375,12 @@ export class ExperimentController {
 
     return experiment
   }
+
+  /**
+   * Resets the global experiment.
+   * @param parameters - The parameters for the experiment.
+   * @returns The experiment.
+   */
 
   resetGlobalExperiment(parameters?: any) {
     virtualTime.reset()
