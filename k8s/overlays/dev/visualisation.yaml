@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: visualisation-ingress
+spec:
+  tls:
+    - hosts:
+        - dev.telge.iteam.pub
+      secretName: telge-dev-tls
+  rules:
+    - host: dev.telge.iteam.pub
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: visualisation
+                port:
+                  number: 80

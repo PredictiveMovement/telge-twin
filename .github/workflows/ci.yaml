@@ -10,19 +10,31 @@ on:
   push:
     branches:
       - main
+      - dev
     tags:
       - production*
       - staging*
     paths-ignore:
-      - 'k8s/**'
+      - "k8s/**"
 
 jobs:
   version:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/production') || startsWith(github.ref, 'refs/tags/staging')
     runs-on: ubuntu-latest
 
     steps:
       - name: 🛎️ Checkout
         uses: actions/checkout@v3
+
+      - name: 🛠 Enable pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          check-latest: true
+          cache: "pnpm"
+
+      - name: 🔧 Activate pnpm
+        run: corepack prepare pnpm@10.17.0 --activate
 
       - name: 🎫 Update patch version
         run: |
@@ -32,22 +44,33 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           if [[ $GITHUB_REF == refs/tags/production* ]]; then
-            npm version major
+            pnpm version major
           elif [[ $GITHUB_REF == refs/tags/staging* ]]; then
-            npm version minor
+            pnpm version minor
           else
-            npm version patch
+            pnpm version patch
           fi
           git fetch --all
           git push origin main
 
-  ci:
+  prod:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/production') || startsWith(github.ref, 'refs/tags/staging')
     runs-on: ubuntu-latest
     needs: version
 
     steps:
       - name: 🛎️ Checkout
         uses: actions/checkout@v3
+
+      - name: 🛠 Enable pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          check-latest: true
+          cache: "pnpm"
+
+      - name: 🔧 Activate pnpm
+        run: corepack prepare pnpm@10.17.0 --activate
 
       - id: imagename
         uses: ASzc/change-string-case-action@v2
@@ -58,11 +81,11 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           if [[ $GITHUB_REF == refs/tags/production* ]]; then
-            npm version major
+            pnpm version major
           elif [[ $GITHUB_REF == refs/tags/staging* ]]; then
-            npm version minor
+            pnpm version minor
           else
-            npm version patch
+            pnpm version patch
           fi
 
       - name: 📝 Get Current Version
@@ -79,14 +102,16 @@ jobs:
       - name: 🔧 Build and push Simulator
         uses: docker/build-push-action@v4
         with:
-          context: ./packages/simulator
+          context: .
+          file: packages/simulator/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:${{ steps.package-version.outputs.current-version}}
       - name: 🔧 Build and push Visualisation
         uses: docker/build-push-action@v4
         with:
-          context: ./packages/visualisation
+          context: .
+          file: packages/visualisation/Dockerfile
           push: true
           build-args: |
             VITE_MAPBOX_ACCESS_TOKEN=${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
@@ -96,7 +121,54 @@ jobs:
       - name: 🔧 Build and push SampleAdresses
         uses: docker/build-push-action@v4
         with:
-          context: ./packages/sampleAddresses
+          context: .
+          file: packages/sampleAddresses/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-sample:${{ steps.package-version.outputs.current-version}}
+
+  dev:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🛎️ Checkout
+        uses: actions/checkout@v3
+
+      - id: imagename
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.repository }}
+
+      - name: 🔎 Compute short SHA
+        id: meta
+        run: echo "sha_short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: 🔐 Login to Docker Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔧 Build and push Simulator (dev)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: packages/simulator/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev
+            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev-${{ steps.meta.outputs.sha_short }}
+      - name: 🔧 Build and push Visualisation (dev)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: packages/visualisation/Dockerfile
+          push: true
+          build-args: |
+            VITE_MAPBOX_ACCESS_TOKEN=${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
+            VITE_SIMULATOR_URL=${{ secrets.VITE_SIMULATOR_URL_DEV }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev
+            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev-${{ steps.meta.outputs.sha_short }}
