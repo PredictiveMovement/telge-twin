@@ -28,6 +28,14 @@ type CarInput = {
   vehicleType: string
   recyclingTypes?: string[]
   delivered: unknown[]
+  compartments?: Array<{
+    fackNumber: number
+    allowedWasteTypes: string[]
+    capacityLiters: number | null
+    capacityKg: number | null
+    fillLiters: number
+    fillKg: number
+  }>
 }
 
 export function cleanCars(car: CarInput) {
@@ -70,6 +78,7 @@ export function cleanCars(car: CarInput) {
     vehicleType,
     recyclingTypes,
     delivered: delivered.length,
+    compartments: car.compartments || [],
   }
 }
 

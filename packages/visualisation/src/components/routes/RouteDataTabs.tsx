@@ -1,11 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import FileUploadTab from './FileUploadTab'
 import SavedDatasetsTab from './SavedDatasetsTab'
 import ExperimentsTab from './ExperimentsTab'
 
 export default function RouteDataTabs() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('upload')
+
+  // Sätt aktiv tabb via navigation state (t.ex. { activeTab: 'datasets' })
+  useEffect(() => {
+    const st = (location.state as any) || {}
+    if (st.activeTab && typeof st.activeTab === 'string') {
+      setActiveTab(st.activeTab)
+      // Rensa state från historiken för att undvika oavsiktlig återanvändning
+      navigate(location.pathname, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   return (
     <div className="container mx-auto py-6">

@@ -7,15 +7,27 @@ interface RouteRecord {
   Lat: number
   Lng: number
   Bil: string
-  Turordningsnr: string
+  Turordningsnr: string | number
   Avftyp: string
   [key: string]: any
 }
 
 interface TuridItemProps {
   turid: string
-  filteredData: RouteRecord[]
-  uploadedData: RouteRecord[]
+  filteredData?: RouteRecord[]
+  uploadedData?: RouteRecord[]
+}
+
+function getUnique(
+  data: RouteRecord[] | undefined,
+  key: keyof RouteRecord
+): string[] {
+  const out = new Set<string>()
+  for (const row of data ?? []) {
+    const v = row?.[key]
+    if (v !== undefined && v !== null && v !== '') out.add(String(v))
+  }
+  return Array.from(out).sort()
 }
 
 export function TuridItem({
@@ -23,10 +35,17 @@ export function TuridItem({
   filteredData,
   uploadedData,
 }: TuridItemProps) {
-  const turidBookings = filteredData.filter((r) => r.Turid === turid)
-  const totalBookings = uploadedData.filter((r) => r.Turid === turid).length
-  const uniqueAvftyper = [...new Set(turidBookings.map((b) => b.Avftyp))]
-  const uniqueBilar = [...new Set(turidBookings.map((b) => b.Bil))]
+  const filtered = filteredData ?? []
+  const uploaded = uploadedData ?? []
+
+  const turidBookings = filtered.filter((r) => r?.Turid === turid)
+  const totalBookings = uploaded.filter((r) => r?.Turid === turid).length
+
+  const uniqueAvftyper = getUnique(turidBookings, 'Avftyp')
+  const uniqueBilar = getUnique(turidBookings, 'Bil')
+
+  const maxVehiclesToShow = 8
+  const maxWasteToShow = 4
 
   return (
     <div className="p-3 bg-gray-50 rounded-lg border">
@@ -38,29 +57,42 @@ export function TuridItem({
           {turidBookings.length}/{totalBookings} bokningar
         </span>
       </div>
+
       <div className="text-xs text-gray-600 space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">🚛 Fordon:</span>
-          <div className="flex gap-1">
-            {uniqueBilar.map((bil) => (
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 font-medium shrink-0">🚛 Fordon:</span>
+          <div className="flex flex-wrap gap-1">
+            {uniqueBilar.slice(0, maxVehiclesToShow).map((bil) => (
               <Badge key={bil} variant="outline" className="px-1 py-0 text-xs">
                 {bil}
               </Badge>
             ))}
+            {uniqueBilar.length > maxVehiclesToShow && (
+              <span className="text-xs text-gray-500">
+                +{uniqueBilar.length - maxVehiclesToShow} fler
+              </span>
+            )}
+            {uniqueBilar.length === 0 && (
+              <span className="text-xs text-gray-400">—</span>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="font-medium">📦 Avfall:</span>
-          <div className="flex gap-1 flex-wrap">
-            {uniqueAvftyper.slice(0, 4).map((typ) => (
+
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 font-medium shrink-0">📦 Avfall:</span>
+          <div className="flex flex-wrap gap-1">
+            {uniqueAvftyper.slice(0, maxWasteToShow).map((typ) => (
               <Badge key={typ} variant="outline" className="px-1 py-0 text-xs">
                 {typ}
               </Badge>
             ))}
-            {uniqueAvftyper.length > 4 && (
+            {uniqueAvftyper.length > maxWasteToShow && (
               <span className="text-xs text-gray-500">
-                +{uniqueAvftyper.length - 4} fler
+                +{uniqueAvftyper.length - maxWasteToShow} fler
               </span>
+            )}
+            {uniqueAvftyper.length === 0 && (
+              <span className="text-xs text-gray-400">—</span>
             )}
           </div>
         </div>

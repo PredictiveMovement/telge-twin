@@ -31,6 +31,14 @@ class Truck extends Vehicle {
   instruction?: any // Plan instruction type
   // booking is inherited from Vehicle, should be Booking type
   _timeout?: NodeJS.Timeout // For setTimeout
+  compartments: Array<{
+    fackNumber: number
+    allowedWasteTypes: string[]
+    capacityLiters: number | null
+    capacityKg: number | null
+    fillLiters: number
+    fillKg: number
+  }>
 
   constructor(args: TruckConstructorArgs) {
     super({
@@ -45,6 +53,123 @@ class Truck extends Vehicle {
 
     this.startPosition = args.startPosition || args.position
     this.recyclingTypes = args.recyclingTypes
+
+    // Build compartments (fack) from fackDetails (if any); fallback to single general fack
+    this.compartments = this.buildCompartments()
+  }
+
+  /** Return true if any compartment with a finite capacity is at or above capacity (by liters or kg). */
+  private isAnyCompartmentFull(): boolean {
+    return (this.compartments || []).some((c) => {
+      const litersFull =
+        typeof c.capacityLiters === 'number' && c.capacityLiters > 0
+          ? c.fillLiters >= c.capacityLiters
+          : false
+      const kgFull =
+        typeof c.capacityKg === 'number' && c.capacityKg > 0
+          ? c.fillKg >= c.capacityKg
+          : false
+      return litersFull || kgFull
+    })
+  }
+
+  /** Return true if there is any load onboard or any compartment has non-zero fill. */
+  private hasAnyLoad(): boolean {
+    const hasCargo = Array.isArray(this.cargo) && this.cargo.length > 0
+    const anyFill = (this.compartments || []).some(
+      (c) => (c.fillLiters || 0) > 0 || (c.fillKg || 0) > 0
+    )
+    return hasCargo || anyFill
+  }
+
+  /** Build internal compartments from provided fackDetails or fallback to a single general compartment. */
+  private buildCompartments() {
+    const fackDetails = (this as any).fackDetails || []
+    const list: Array<{
+      fackNumber: number
+      allowedWasteTypes: string[]
+      capacityLiters: number | null
+      capacityKg: number | null
+      fillLiters: number
+      fillKg: number
+    }> = []
+
+    if (Array.isArray(fackDetails) && fackDetails.length) {
+      for (const f of fackDetails) {
+        const types = Array.isArray(f?.avfallstyper)
+          ? f.avfallstyper.map((t: any) => t?.avftyp).filter(Boolean)
+          : []
+        const vol = typeof f?.volym === 'number' && f.volym > 0 ? f.volym * 1000 : null // assume m³ → L
+        const kg = typeof f?.vikt === 'number' && f.vikt > 0 ? f.vikt : null
+        list.push({
+          fackNumber: f.fackNumber,
+          allowedWasteTypes: types.length ? types : ['*'],
+          capacityLiters: vol,
+          capacityKg: kg,
+          fillLiters: 0,
+          fillKg: 0,
+        })
+      }
+    }
+
+    if (!list.length) {
+      // Fallback: one general compartment that accepts all and has no explicit caps
+      list.push({
+        fackNumber: 1,
+        allowedWasteTypes: ['*'],
+        capacityLiters: null,
+        capacityKg: null,
+        fillLiters: 0,
+        fillKg: 0,
+      })
+    }
+    return list
+  }
+
+  /** Compute expected pickup volume (liters) and weight (kg) for a booking using dataset settings. */
+  private computeBookingLoad(booking: any): { volumeLiters: number; weightKg: number | null } {
+    const settings = this.fleet?.settings || {}
+    const tjIndex: Record<string, { VOLYM?: number; FYLLNADSGRAD?: number }> = Object.fromEntries(
+      (settings?.tjtyper || []).map((t: any) => [t.ID, t])
+    )
+    const avfIndex: Record<string, { VOLYMVIKT?: number }> = Object.fromEntries(
+      (settings?.avftyper || []).map((a: any) => [a.ID, a])
+    )
+    const tjid = booking?.originalData?.originalTjtyp || booking?.originalRecord?.Tjtyp || ''
+    const tj = tjid ? tjIndex[tjid] : undefined
+    const baseVol = typeof tj?.VOLYM === 'number' ? tj!.VOLYM : 140
+    const fill = typeof tj?.FYLLNADSGRAD === 'number' ? tj!.FYLLNADSGRAD : 100
+    const volumeLiters = Math.max(1, Math.round((baseVol * fill) / 100))
+    const density = avfIndex[booking?.recyclingType || '']?.VOLYMVIKT
+    const weightKg = typeof density === 'number' ? (volumeLiters / 1000) * density : null
+    return { volumeLiters, weightKg }
+  }
+
+  /** Pick an eligible compartment for a given waste type and load, preferring most remaining capacity. */
+  private selectCompartment(
+    typeId: string,
+    load: { volumeLiters: number; weightKg: number | null }
+  ) {
+    const candidates = this.compartments.filter((c) =>
+      c.allowedWasteTypes.includes('*') || c.allowedWasteTypes.includes(typeId)
+    )
+    if (!candidates.length) return null
+    // Score by remaining liters then kg; if no explicit caps, treat as Infinity
+    let best: any = null
+    let bestScore = -Infinity
+    for (const c of candidates) {
+      const volRem = c.capacityLiters != null ? c.capacityLiters - c.fillLiters : Number.POSITIVE_INFINITY
+      const kgRem =
+        c.capacityKg != null && load.weightKg != null
+          ? c.capacityKg - c.fillKg
+          : Number.POSITIVE_INFINITY
+      const score = Math.min(volRem / (load.volumeLiters || 1), kgRem / (load.weightKg || 1))
+      if (score > bestScore) {
+        bestScore = score
+        best = c
+      }
+    }
+    return best
   }
 
   /**
@@ -141,6 +266,13 @@ class Truck extends Vehicle {
         this.startPosition && // guard position and startPosition
         this.position.distanceTo(this.startPosition) < 100
       ) {
+        // Ensure unloading occurs before parking
+        if (this.hasAnyLoad()) {
+          // Drop off all cargo/compartment fills first, then parked on next stop
+          this.dropOff()
+          return
+        }
+
         this.position = this.startPosition
         this.status = 'parked'
         if (this.statusEvents) this.statusEvents.next(this)
@@ -166,6 +298,35 @@ class Truck extends Vehicle {
     if (this.cargo.indexOf(this.booking) > -1)
       return warn('Already picked up', this.id, this.booking.id)
 
+    // Assign booking to a compartment (fack) and update fill levels
+    const typeId = this.booking?.recyclingType
+    const load = this.computeBookingLoad(this.booking)
+    const comp = this.selectCompartment(typeId, load)
+
+    if (comp) {
+      comp.fillLiters += load.volumeLiters
+      if (load.weightKg != null) comp.fillKg += load.weightKg
+      ;(this.booking as any).assignedFack = comp.fackNumber
+      ;(this.booking as any).loadEstimate = load
+    } else {
+      // Debug: No matching compartment for this recycling type
+      try {
+        const overview = (this.compartments || []).map((c) => ({
+          fack: c.fackNumber,
+          allowed: Array.isArray(c.allowedWasteTypes)
+            ? c.allowedWasteTypes
+            : [],
+          capacityL: c.capacityLiters,
+        }))
+        warn(
+          `No matching compartment for type "${typeId}" on truck ${this.id}. ` +
+            `Load ~${load.volumeLiters}L${
+              load.weightKg != null ? `/${Math.round(load.weightKg)}kg` : ''
+            }. Compartments: ${JSON.stringify(overview)}`
+        )
+      } catch {}
+    }
+
     this.cargo.push(this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.pickedUp) this.booking.pickedUp(this.position)
@@ -179,7 +340,8 @@ class Truck extends Vehicle {
       this.fleet?.settings?.pickupsBeforeDelivery ||
       deliveryConfig.PICKUPS_BEFORE_DELIVERY
 
-    if (this.cargo.length >= pickupsBeforeDelivery) {
+    // Trigger delivery if capacity reached OR fallback to pickup-count strategy
+    if (this.isAnyCompartmentFull() || this.cargo.length >= pickupsBeforeDelivery) {
       // Only add delivery instruction if the next instruction isn't already a delivery
       const nextInstruction = this.plan[0]
 
@@ -203,8 +365,22 @@ class Truck extends Vehicle {
     // If this is a delivery action (booking is null), deliver all cargo
     if (!this.booking) {
       // Deliver all items in cargo
-      this.cargo.forEach((item: any) => {
+      const deliveredNow = [...this.cargo]
+      deliveredNow.forEach((item: any) => {
         if (item.delivered) item.delivered(this.position)
+        // Decrement fills per assigned fack
+        const assigned = (item as any).assignedFack
+        const load = (item as any).loadEstimate as
+          | { volumeLiters: number; weightKg: number | null }
+          | undefined
+        if (assigned && load) {
+          const c = this.compartments.find((x) => x.fackNumber === assigned)
+          if (c) {
+            c.fillLiters = Math.max(0, c.fillLiters - (load.volumeLiters || 0))
+            if (load.weightKg != null)
+              c.fillKg = Math.max(0, c.fillKg - load.weightKg)
+          }
+        }
       })
       this.cargo = []
       if (this.cargoEvents) this.cargoEvents.next(this)
@@ -220,6 +396,18 @@ class Truck extends Vehicle {
     }
 
     // Otherwise, deliver specific booking (legacy behavior)
+    // Decrement fill for the specific booking
+    const assigned = (this.booking as any).assignedFack
+    const load = (this.booking as any).loadEstimate as
+      | { volumeLiters: number; weightKg: number | null }
+      | undefined
+    if (assigned && load) {
+      const c = this.compartments.find((x) => x.fackNumber === assigned)
+      if (c) {
+        c.fillLiters = Math.max(0, c.fillLiters - (load.volumeLiters || 0))
+        if (load.weightKg != null) c.fillKg = Math.max(0, c.fillKg - load.weightKg)
+      }
+    }
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
     if (this.booking.delivered) this.booking.delivered(this.position)

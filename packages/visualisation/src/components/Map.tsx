@@ -553,7 +553,44 @@ const Map: React.FC<MapProps> = ({
       switch (type) {
         case 'car':
           const car = cars.find((c) => c.id === id)
-          return car ? `Fordon ${car.id} - Status: ${car.status}` : 'Fordon'
+          if (!car) return 'Fordon'
+          const comps = Array.isArray((car as any).compartments)
+            ? ((car as any).compartments as any[])
+            : []
+          return (
+            <div>
+              <div>
+                Fordon {car.id} – Status: {car.status}
+              </div>
+              {comps.length > 0 ? (
+                <div style={{ marginTop: 4 }}>
+                  {comps.map((c: any) => {
+                    const capL = typeof c.capacityLiters === 'number' ? c.capacityLiters : null
+                    const fillL = typeof c.fillLiters === 'number' ? c.fillLiters : 0
+                    const pct = capL
+                      ? Math.max(
+                          0,
+                          Math.min(100, Math.round(((fillL / capL) * 100) * 10) / 10)
+                        )
+                      : null
+                    return (
+                      <div key={`fack-${c.fackNumber}`}>
+                        Fack {c.fackNumber}: {fillL}{capL ? `/${capL} L` : ' L'}
+                        {pct !== null ? ` (${pct}%)` : ''}
+                        <div style={{ opacity: 0.85 }}>
+                          Typer: {Array.isArray(c.allowedWasteTypes) && c.allowedWasteTypes.length
+                            ? (c.allowedWasteTypes.includes('*')
+                                ? 'Alla'
+                                : c.allowedWasteTypes.join(', '))
+                            : '—'}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : null}
+            </div>
+          )
         case 'booking':
           const booking = bookings.find((b) => b.id === id)
           return booking

@@ -27,6 +27,7 @@ interface VehicleConstructorArgs {
   fleet?: any
   co2PerKmKg?: number // Will be non-optional on class
   recyclingTypes?: any[]
+  fackDetails?: any[]
   virtualTime?: any
 }
 
@@ -49,6 +50,8 @@ class Vehicle {
   co2PerKmKg: number // Changed to non-optional
   vehicleType: string
   recyclingTypes?: any[] // Added
+  fackDetails?: any[]
+  compartments?: any[]
   virtualTime: any
 
   movedEvents: any // ReplaySubject
@@ -104,6 +107,9 @@ class Vehicle {
     this.co2PerKmKg = co2PerKmKg // Always assigned
     this.vehicleType = 'default'
     this.recyclingTypes = recyclingTypes // Added
+    // Compartments (fack) are set up by Truck subclass; keep a slot here so toObject can expose it
+    this.compartments = []
+    this.fackDetails = (arguments[0] && (arguments[0] as any).fackDetails) || undefined
     this.lastPositionUpdate = 0 // Initialize, or use this.time() if appropriate at construction
 
     if (virtualTime) {
@@ -452,6 +458,7 @@ class Vehicle {
       vehicleType: this.vehicleType,
       recyclingTypes: this.recyclingTypes, // Added to class, now this should be fine
       delivered: this.delivered.length,
+      compartments: (this as any).compartments || [],
     }
   }
 }

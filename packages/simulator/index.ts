@@ -123,7 +123,8 @@ const engine = {
     )
 
     experiment.carUpdates = merge(experiment.cars).pipe(
-      mergeMap((car: any) => car.movedEvents),
+      // Emit updates on movement, status changes and cargo/compartment changes
+      mergeMap((car: any) => merge(car.movedEvents, car.statusEvents, car.cargoEvents)),
       catchError((err: Error) => error('car updates err', err)),
 
       share()

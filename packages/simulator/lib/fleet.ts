@@ -14,6 +14,7 @@ const Position = require('./models/position')
 const { error, info } = require('./log')
 const { addMeters } = require('./distance')
 import { CLUSTERING_CONFIG } from './config'
+import { logVehicleCapacity } from './capacity'
 
 /**
  * Fleet represents a group of trucks that share the same hub and recycling-type capabilities.
@@ -124,6 +125,17 @@ class Fleet {
         virtualTime: this.virtualTime,
       })
     })
+
+    // After vehicles are constructed, log capacity estimates for observability
+    try {
+      const preAssigned: Record<string, any[]> = (this as any).preAssignedBookings || {}
+      vehicleSpecs.forEach((spec: any) => {
+        const obs = preAssigned?.[spec.originalId] || []
+        logVehicleCapacity(this.name, this.experimentId, spec, this.settings, obs)
+      })
+    } catch (e) {
+      // non-fatal: logging helper should never break simulation
+    }
 
     return from(vehicles).pipe(shareReplay())
   }

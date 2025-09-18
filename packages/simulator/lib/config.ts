@@ -193,6 +193,14 @@ const MAX_NOISE_ASSIGNMENT_DISTANCE_METERS = 3000
  */
 const PICKUPS_BEFORE_DELIVERY = 150
 
+/**
+ * Maximum number of merge rounds to perform
+ * Used in: clustering.ts - ensures efficient cluster merging
+ * Impact: Higher values = more aggressive merging
+ * Recommended range: 5-20 depending on cluster density
+ */
+const MAX_MERGE_ROUNDS = 10
+
 // ========================================================================
 // CONFIGURATION EXPORT
 // ========================================================================
@@ -231,6 +239,9 @@ export const CLUSTERING_CONFIG = {
   DELIVERY_STRATEGIES: {
     PICKUPS_BEFORE_DELIVERY,
   },
+
+  // Merge rounds
+  MAX_MERGE_ROUNDS,
 } as const
 
 export type ClusteringConfig = typeof CLUSTERING_CONFIG

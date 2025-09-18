@@ -1,0 +1,1177 @@
+{
+  "settings": {
+    "avftyper": [
+      {
+        "ID": "--",
+        "BESKRIVNING": "Ej definierat",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "ABP",
+        "BESKRIVNING": "Animaliska Biprodukter",
+        "VOLYMVIKT": 680
+      },
+      {
+        "ID": "BGLFÄ",
+        "BESKRIVNING": "BNI Glas färgat",
+        "VOLYMVIKT": 326.31
+      },
+      {
+        "ID": "BGLOF",
+        "BESKRIVNING": "BNI Glas ofärgat",
+        "VOLYMVIKT": 326.31
+      },
+      {
+        "ID": "BLANDAVF",
+        "BESKRIVNING": "Blandat avfall",
+        "VOLYMVIKT": 108
+      },
+      {
+        "ID": "BMETFÖRP",
+        "BESKRIVNING": "BNI Metallförp.",
+        "VOLYMVIKT": 78.94
+      },
+      {
+        "ID": "BPAPPFÖRP",
+        "BESKRIVNING": "BNI Pappersförp.",
+        "VOLYMVIKT": 60
+      },
+      {
+        "ID": "BPLASTFÖRP",
+        "BESKRIVNING": "BNI Plastförp.",
+        "VOLYMVIKT": 26.31
+      },
+      {
+        "ID": "BRETURPAPP",
+        "BESKRIVNING": "Returpapper",
+        "VOLYMVIKT": 200
+      },
+      {
+        "ID": "BRÄNN",
+        "BESKRIVNING": "Brännbart avfall",
+        "VOLYMVIKT": 415.78
+      },
+      {
+        "ID": "BRÄNNKL2",
+        "BESKRIVNING": "Brännbart kl2, roster",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "DEP",
+        "BESKRIVNING": "Blandad deponi",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "FA",
+        "BESKRIVNING": "Farligt avfall",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "FETT",
+        "BESKRIVNING": "Fett",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "GROVAVF",
+        "BESKRIVNING": "Grovavfall",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "HAVREASKA",
+        "BESKRIVNING": "Havreaska",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "HEMSORT",
+        "BESKRIVNING": "Hemsortering",
+        "VOLYMVIKT": 107.99
+      },
+      {
+        "ID": "HUSHSORT",
+        "BESKRIVNING": "Hushållsavfall",
+        "VOLYMVIKT": 107.99
+      },
+      {
+        "ID": "KABSKROT",
+        "BESKRIVNING": "Kabelskrot",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "LATRIN",
+        "BESKRIVNING": "Latrin",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "MATAVF",
+        "BESKRIVNING": "Matavfall",
+        "VOLYMVIKT": 680
+      },
+      {
+        "ID": "METFÖRP",
+        "BESKRIVNING": "Metallförpackningar",
+        "VOLYMVIKT": 78.94
+      },
+      {
+        "ID": "PAPPFÖRP",
+        "BESKRIVNING": "Pappersförpackningar",
+        "VOLYMVIKT": 25
+      },
+      {
+        "ID": "PLAST",
+        "BESKRIVNING": "Plast ej förpackningar",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "PLASTFÖRP",
+        "BESKRIVNING": "Plastförpackningar",
+        "VOLYMVIKT": 26.31
+      },
+      {
+        "ID": "RETURPAPP",
+        "BESKRIVNING": "Returpapper",
+        "VOLYMVIKT": 200
+      },
+      {
+        "ID": "SLAM",
+        "BESKRIVNING": "Slam",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "TEXTIL",
+        "BESKRIVNING": "Textil",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "TRÄ",
+        "BESKRIVNING": "Träavfall ej impreg",
+        "VOLYMVIKT": 130
+      },
+      {
+        "ID": "TRÄDGÅRD",
+        "BESKRIVNING": "Trädgårdsavfall",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "TRÄIMP",
+        "BESKRIVNING": "Impregnerat trä",
+        "VOLYMVIKT": 0
+      },
+      {
+        "ID": "WELLPAPP",
+        "BESKRIVNING": "Wellpapp",
+        "VOLYMVIKT": 60
+      }
+    ],
+    "tjtyper": [
+      {
+        "ID": "--",
+        "BESKRIVNING": "Tjänstetyp ej angiven",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "AV",
+        "BESKRIVNING": "Avskiljare",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "EGCONT",
+        "BESKRIVNING": "Egen container",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "EGKOMP",
+        "BESKRIVNING": "Egen komprimator",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "FABIL",
+        "BESKRIVNING": "farligt avfall bil",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "FETTAV",
+        "BESKRIVNING": "Fettavskiljare",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K140L",
+        "BESKRIVNING": "140 liters kärl",
+        "VOLYM": 140,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K140LRABAT",
+        "BESKRIVNING": "140 liters kärl rabattkombo",
+        "VOLYM": 140,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K190L",
+        "BESKRIVNING": "190 liters kärl",
+        "VOLYM": 190,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K190LRABAT",
+        "BESKRIVNING": "190 liters kärl rabattkombo",
+        "VOLYM": 190,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K190LSE",
+        "BESKRIVNING": "190 liters kärl sekretess",
+        "VOLYM": 190,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K240L",
+        "BESKRIVNING": "240 liters kärl",
+        "VOLYM": 240,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K240L1",
+        "BESKRIVNING": "240 liters kärl 1",
+        "VOLYM": 240,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K240L2",
+        "BESKRIVNING": "240 liters kärl 2",
+        "VOLYM": 240,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370L",
+        "BESKRIVNING": "370 liters kärl",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370L1",
+        "BESKRIVNING": "370 liters kärl 1",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370L2",
+        "BESKRIVNING": "370 liters kärl 2",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K370LRABAT",
+        "BESKRIVNING": "370 liters kärl rabattkombo",
+        "VOLYM": 370,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K400L",
+        "BESKRIVNING": "400 liters kärl",
+        "VOLYM": 400,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K400LRABAT",
+        "BESKRIVNING": "400 liters kärl rabattkombo",
+        "VOLYM": 400,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K600L",
+        "BESKRIVNING": "600 liters kärl",
+        "VOLYM": 600,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K600LRABAT",
+        "BESKRIVNING": "600 liters kärl rabattkombo",
+        "VOLYM": 600,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660L",
+        "BESKRIVNING": "660 liters kärl",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660L1",
+        "BESKRIVNING": "660 liters kärl 1",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660L2",
+        "BESKRIVNING": "660 liters kärl 2",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "K660LRABAT",
+        "BESKRIVNING": "660 liters kärl rabattkombo",
+        "VOLYM": 660,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "KO20MOB",
+        "BESKRIVNING": "Mobilkomp 20 kbm",
+        "VOLYM": 20000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "LATRIN",
+        "BESKRIVNING": "Latrintunna",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "LD10TÄ",
+        "BESKRIVNING": "Liftdumper 10 kbm täckt",
+        "VOLYM": 10000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "LD10ÖP",
+        "BESKRIVNING": "Liftdumper 10 kbm öppen",
+        "VOLYM": 10000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "OEMB",
+        "BESKRIVNING": "Oemballerat",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF12TÄ",
+        "BESKRIVNING": "Rullflak 12 kbm täckt",
+        "VOLYM": 12000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF15ÖP",
+        "BESKRIVNING": "Rullflak 15 kbm öppen",
+        "VOLYM": 15000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF27TÄ",
+        "BESKRIVNING": "Rullflak 27 kbm täckt",
+        "VOLYM": 27000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF30ÖP",
+        "BESKRIVNING": "Rullflak 30 kbm öppen",
+        "VOLYM": 30000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RF40TÄ",
+        "BESKRIVNING": "Rullflak 40 kbm täckt",
+        "VOLYM": 40000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "RULLVAGN",
+        "BESKRIVNING": "Rullvagn",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "SÄCK",
+        "BESKRIVNING": "Säck",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "TANK",
+        "BESKRIVNING": "Tank",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "TEXTILBOX",
+        "BESKRIVNING": "Textilinsamlingsbehållare",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ0-1",
+        "BESKRIVNING": "Bottentömmande 0-1 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ1,1-2",
+        "BESKRIVNING": "Bottentömmande 1,1-2 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ1,1-2RA",
+        "BESKRIVNING": "Bottentöm. 1,1-2 kbm kombo",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ1.3KB",
+        "BESKRIVNING": "Bottentömmande 1,3 kbm",
+        "VOLYM": 1300,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ2,1-3",
+        "BESKRIVNING": "Bottentömmande 2,1-3 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ2.5KB",
+        "BESKRIVNING": "Bottentömmande 2,5 kbm",
+        "VOLYM": 2500,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ2KB",
+        "BESKRIVNING": "Bottentömmande 2 kbm",
+        "VOLYM": 2000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ3,1-4",
+        "BESKRIVNING": "Bottentömmande 3,1-4 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ3KB",
+        "BESKRIVNING": "Bottentömmande 3 kbm",
+        "VOLYM": 3000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "UJ4+",
+        "BESKRIVNING": "Bottentömmande över 4 kbm",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 0
+      },
+      {
+        "ID": "UJ5KB",
+        "BESKRIVNING": "Bottentömmande 5 kbm",
+        "VOLYM": 5000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "VAKUUM",
+        "BESKRIVNING": "Vakuumtank",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "VC06",
+        "BESKRIVNING": "Vippcontainer 6 kbm",
+        "VOLYM": 6000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "VC08",
+        "BESKRIVNING": "Vippcontainer 8 kbm",
+        "VOLYM": 8000,
+        "FYLLNADSGRAD": 100
+      },
+      {
+        "ID": "ÅVS",
+        "BESKRIVNING": "Återvinningsstation",
+        "VOLYM": 0,
+        "FYLLNADSGRAD": 100
+      }
+    ],
+    "frekvenser": [
+      {
+        "ID": "V1V",
+        "BESKRIVNING": "Varje vecka",
+        "ANTALBESOKPERAR": 52,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "2GV",
+        "BESKRIVNING": "2 gånger i veckan",
+        "ANTALBESOKPERAR": 104,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "4GV",
+        "BESKRIVNING": "4 gånger i veckan",
+        "ANTALBESOKPERAR": 208,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "5GV",
+        "BESKRIVNING": "5 gånger i veckan",
+        "ANTALBESOKPERAR": 260,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V2VTRÄD",
+        "BESKRIVNING": "Trädgårdshämtning säsong",
+        "ANTALBESOKPERAR": 15,
+        "AKTIVFROM": "0331",
+        "AKTIVTOM": "1121"
+      },
+      {
+        "ID": "BUD",
+        "BESKRIVNING": "Per budning",
+        "ANTALBESOKPERAR": 1,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V1VS",
+        "BESKRIVNING": "Varje vecka fritid",
+        "ANTALBESOKPERAR": 21,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V4VLA",
+        "BESKRIVNING": "Var 4:e vecka latrin",
+        "ANTALBESOKPERAR": 6,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V4V2",
+        "BESKRIVNING": "Var 4:e vecka från v.2",
+        "ANTALBESOKPERAR": 13,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V2V2",
+        "BESKRIVNING": "Var 14:e dag jämn vecka",
+        "ANTALBESOKPERAR": 26,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V2V2S",
+        "BESKRIVNING": "Var 14:e dag fritid jämn",
+        "ANTALBESOKPERAR": 11,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V4V2S",
+        "BESKRIVNING": "Var 4:e vecka fritid",
+        "ANTALBESOKPERAR": 6,
+        "AKTIVFROM": "0501",
+        "AKTIVTOM": "0930"
+      },
+      {
+        "ID": "V8V2",
+        "BESKRIVNING": "Var 8:e vecka start v. 2",
+        "ANTALBESOKPERAR": 7,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "7GV",
+        "BESKRIVNING": "7 gånger i veckan",
+        "ANTALBESOKPERAR": 364,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "ORDERV1V",
+        "BESKRIVNING": "Order på körtur V1V",
+        "ANTALBESOKPERAR": 0,
+        "AKTIVFROM": "0101",
+        "AKTIVTOM": "1231"
+      },
+      {
+        "ID": "V8V6",
+        "BESKRIVNING": "Var 8:e vecka med start v. 6",
+        "ANTALBESOKPERAR": 7,
+        "AKTIVFROM": "",
+        "AKTIVTOM": ""
+      }
+    ],
+    "bilar": [
+      {
+        "ID": "01",
+        "BESKRIVNING": "Hushåll baklastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "--",
+        "BESKRIVNING": "Ingen utförare angiven",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "02",
+        "BESKRIVNING": "Hushåll baklastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "13",
+        "BESKRIVNING": "Hushåll matavfall",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "23",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "60",
+        "BESKRIVNING": "Högservice skåpbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "80",
+        "BESKRIVNING": "Högservice kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "21",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "70",
+        "BESKRIVNING": "Högservice frontlastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "22",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "20",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 9,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 5,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 4,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 2,
+        "FACK": [
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 1
+          }
+        ]
+      },
+      {
+        "ID": "40",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 14,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 7,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": [
+          {
+            "AVFTYP": "GLOF",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "GLFÄ",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "FGLOF",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "FGLFÄ",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "WELLPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "FPAPPFÖRP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "FRETURPAPP",
+            "FACK": 2
+          }
+        ]
+      },
+      {
+        "ID": "17",
+        "BESKRIVNING": "Textilinsamling",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "41",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "42",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "91",
+        "BESKRIVNING": "Högservice lastvxl intern",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "92",
+        "BESKRIVNING": "Högservice lastväxlare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "93",
+        "BESKRIVNING": "Högservice lastväxlare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "97",
+        "BESKRIVNING": "Latrin",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "90",
+        "BESKRIVNING": "Högservice lastväxlare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "981",
+        "BESKRIVNING": "981",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "982",
+        "BESKRIVNING": "982",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "94",
+        "BESKRIVNING": "Avfett/Spolbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "24",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "05",
+        "BESKRIVNING": "Hushåll baklastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "951",
+        "BESKRIVNING": "951 Foria",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "952",
+        "BESKRIVNING": "Lotus",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "953",
+        "BESKRIVNING": "953",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "955",
+        "BESKRIVNING": "955 Foria",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "81",
+        "BESKRIVNING": "Hushåll kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "12",
+        "BESKRIVNING": "Trädgårdsavfall i kärl",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "45",
+        "BESKRIVNING": "Blandat/Bränn Högservice",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "06",
+        "BESKRIVNING": "Grovavfall/Hushåll",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "25",
+        "BESKRIVNING": "Hushåll 4-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "83",
+        "BESKRIVNING": "Högservice kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "14",
+        "BESKRIVNING": "Hushåll matavfall",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "43",
+        "BESKRIVNING": "Högservice 2-fack",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 8,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 4,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "82",
+        "BESKRIVNING": "Högservice kranbil",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      },
+      {
+        "ID": "71",
+        "BESKRIVNING": "Högservice frontlastare",
+        "FACK1_VIKT": 0,
+        "FACK1_VOLYM": 0,
+        "FACK2_VIKT": 0,
+        "FACK2_VOLYM": 0,
+        "FACK3_VIKT": 0,
+        "FACK3_VOLYM": 0,
+        "FACK4_VIKT": 0,
+        "FACK4_VOLYM": 0,
+        "FACK": []
+      }
+    ]
+  },
+  "routeData": [
+    {
+      "Turid": "2FA1TIS",
+      "Datum": "2025-08-19T00:00:00",
+      "Bil": "40",
+      "Kundnr": 19076900,
+      "Hsnr": 2,
+      "Tjnr": 29,
+      "Dec": "C",
+      "Turordningsnr": 5,
+      "Avftyp": "PAPPFÖRP",
+      "Tjtyp": "K660L",
+      "Frekvens": "V1V",
+      "Lat": 59.12965969714823,
+      "Lng": 17.550102283297257,
+      "Schemalagd": 1
+    }
+  ]
+}

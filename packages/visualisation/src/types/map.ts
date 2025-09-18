@@ -4,6 +4,23 @@ export interface Car {
   status: string
   fleet?: string
   destination?: [number, number]
+  // Optional runtime metrics
+  co2?: number
+  distance?: number
+  vehicleType?: string
+  recyclingTypes?: string[]
+  parcelCapacity?: number
+  cargo?: number
+  queue?: number
+  // Compartments (fack) – emitted by backend if available
+  compartments?: Array<{
+    fackNumber: number
+    allowedWasteTypes: string[]
+    capacityLiters: number | null
+    capacityKg: number | null
+    fillLiters: number
+    fillKg: number
+  }>
 }
 
 export interface Booking {

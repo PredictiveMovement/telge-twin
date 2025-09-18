@@ -4,6 +4,8 @@ import NotFound from './pages/NotFound'
 import Index from './pages/Index'
 import RoutesPage from './pages/RoutesPage'
 import ExperimentDetailPage from './pages/ExperimentDetailPage'
+import OptimizationProcessingPage from './pages/OptimizationProcessingPage'
+import SaveOptimizationProjectPage from './pages/SaveOptimizationProjectPage'
 
 function App() {
   return (
@@ -16,6 +18,11 @@ function App() {
           path="/experiment/:experimentId"
           element={<ExperimentDetailPage />}
         />
+        <Route
+          path="/optimize/processing"
+          element={<OptimizationProcessingPage />}
+        />
+        <Route path="/optimize/save" element={<SaveOptimizationProjectPage />} />
         <Route path="/not-found" element={<NotFound />} />
         <Route path="*" element={<Navigate to="/not-found" replace />} />
       </Routes>

@@ -1,7 +1,7 @@
 import * as turf from '@turf/turf'
 import clustersDbscan from '@turf/clusters-dbscan'
 import { error, info } from './log'
-import { save, search, update as esUpdate } from './elastic'
+import { update as esUpdate } from './elastic'
 import { CLUSTERING_CONFIG } from './config'
 import { extractCoordinates } from './utils/coordinates'
 
@@ -69,8 +69,6 @@ const createPolygonFromBookings = (bookings: any[]) => {
     [bb.minLng, bb.minLat],
   ]
 }
-
-const MAX_MERGE_ROUNDS = 10
 
 function metersToKilometers(meters: number): number {
   return meters / 1000
@@ -339,7 +337,7 @@ function smartMergeSmallPartitions(
   let mergeRound = 0
   let totalMerges = 0
 
-  while (changed && mergeRound < MAX_MERGE_ROUNDS) {
+  while (changed && mergeRound < CLUSTERING_CONFIG.MAX_MERGE_ROUNDS) {
     changed = false
     mergeRound++
 
