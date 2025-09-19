@@ -125,7 +125,7 @@ export class SocketController {
 
     if (currentEmitters.includes('bookings')) {
       routes.push(
-        require('../routes/bookings.ts').register(
+        require('../routes/bookings').register(
           experiment,
           sessionBroadcastSocket,
           sessionId
@@ -134,7 +134,7 @@ export class SocketController {
     }
     if (currentEmitters.includes('cars')) {
       routes.push(
-        require('../routes/cars.ts').register(
+        require('../routes/cars').register(
           experiment,
           sessionBroadcastSocket,
           sessionId
@@ -142,7 +142,7 @@ export class SocketController {
       )
     }
     routes.push(
-      require('../routes/log.ts').register(
+      require('../routes/log').register(
         experiment,
         sessionBroadcastSocket,
         sessionId
@@ -162,24 +162,24 @@ export class SocketController {
 
     if (currentEmitters.includes('bookings')) {
       routes.push(
-        require('../routes/bookings.ts').register(experiment, socket, sessionId)
+        require('../routes/bookings').register(experiment, socket, sessionId)
       )
     }
     if (currentEmitters.includes('cars')) {
       routes.push(
-        require('../routes/cars.ts').register(experiment, socket, sessionId)
+        require('../routes/cars').register(experiment, socket, sessionId)
       )
     }
     routes.push(
-      require('../routes/time.ts').register(experiment, socket, sessionId)
+      require('../routes/time').register(experiment, socket, sessionId)
     )
     routes.push(
-      require('../routes/log.ts').register(experiment, socket, sessionId)
+      require('../routes/log').register(experiment, socket, sessionId)
     )
 
     if (currentEmitters.includes('municipalities')) {
       routes.push(
-        require('../routes/municipalities.ts').register(experiment, socket)
+        require('../routes/municipalities').register(experiment, socket)
       )
     }
     if (currentEmitters.includes('passengers')) {
