@@ -27,3 +27,23 @@ spec:
                 name: simulator
                 port:
                   number: 4000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulator
+spec:
+  template:
+    spec:
+      containers:
+        - name: simulator
+          env:
+            - name: ELASTICSEARCH_URL
+              value: http://elastic-dev-elasticsearch.elasticsearch-dev.svc.cluster.local:9200
+      initContainers:
+        - name: elastic-init
+          image: ghcr.io/predictivemovement/telge-twin-simulator:dev
+          env:
+            - name: ELASTICSEARCH_URL
+              value: http://elastic-dev-elasticsearch.elasticsearch-dev.svc.cluster.local:9200
+          command: ["node", "dist/preboot.js"]

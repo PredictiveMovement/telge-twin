@@ -14,7 +14,7 @@ ARG ELASTICSEARCH_URL
 RUN ELASTICSEARCH_URL="${ELASTICSEARCH_URL}" pnpm --filter ./packages/simulator run build
 RUN mkdir -p packages/simulator/dist/data \
     && cp -a packages/simulator/data/. packages/simulator/dist/data/
-RUN pnpm --filter ./packages/simulator run preboot
+
 
 RUN pnpm --filter ./packages/simulator deploy --prod --legacy /app/output
 
