@@ -52,6 +52,10 @@ export class Position {
     return { lon: this.lon, lat: this.lat }
   }
 
+  toJSON() {
+    return { lon: this.lon, lat: this.lat }
+  }
+
   toString() {
     return JSON.stringify(this.toObject(), null, 2)
   }

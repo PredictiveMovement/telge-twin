@@ -258,6 +258,14 @@ export class Booking<TPassenger = unknown> {
       carId?: string
     }
 
+    const serializePlace = (p?: Place) =>
+      p
+        ? {
+            ...p,
+            position: p.position ? p.position.toJSON() : undefined,
+          }
+        : undefined
+
     return {
       id,
       status,
@@ -267,12 +275,14 @@ export class Booking<TPassenger = unknown> {
       distance,
       weight,
       sender,
-      position,
+      position: position ? position.toJSON() : undefined,
       postalcode,
-      pickup,
-      destination,
-      pickupPosition,
-      deliveredPosition,
+      pickup: serializePlace(pickup),
+      destination: serializePlace(destination),
+      pickupPosition: pickupPosition ? pickupPosition.toJSON() : undefined,
+      deliveredPosition: deliveredPosition
+        ? deliveredPosition.toJSON()
+        : undefined,
       pickupDateTime,
       deliveredDateTime,
       deliveryTime,
