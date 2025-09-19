@@ -341,6 +341,14 @@
         },
         "associatedExperiments": {
           "type": "keyword"
+        },
+        "fleetConfiguration": {
+          "type": "object",
+          "enabled": false
+        },
+        "originalSettings": {
+          "type": "object",
+          "enabled": false
         }
       }
     }
