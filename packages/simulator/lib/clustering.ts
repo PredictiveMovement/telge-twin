@@ -529,7 +529,7 @@ const createPartitionDocument = (p: AreaPartition) => {
     },
     count: p.bookings.length,
     recyclingTypes: p.recyclingTypes,
-    polygon: p.polygon,
+    polygon: { type: 'Polygon', coordinates: [p.polygon] },
     truckId,
     timestamp: new Date().toISOString(),
   }
