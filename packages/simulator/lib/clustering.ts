@@ -554,14 +554,8 @@ async function saveAreaPartitionsToElastic(
     script: {
       lang: 'painless',
       source:
-        'if (ctx._source.areaPartitions == null) { ctx._source.areaPartitions = new ArrayList(); } ' +
-        'def currentTruckIds = params.currentTruckIds; ' +
         'def newParts = params.newPartitions; ' +
-        // remove existing partitions for current trucks
-        "ctx._source.areaPartitions.removeIf(p -> p != null && p.containsKey('truckId') && currentTruckIds.contains(p.truckId)); " +
-        // append new ones
-        'ctx._source.areaPartitions.addAll(newParts); ' +
-        // timestamp
+        'ctx._source.areaPartitions = newParts; ' +
         'ctx._source.areaPartitionsTimestamp = params.ts;',
       params: {
         currentTruckIds: savingTruckIds,

@@ -52,6 +52,33 @@ const collectBooking = (booking: any, experimentSettings: any) => {
     return Promise.resolve()
   }
 
+  const normalizePosition = (pos: any) => {
+    if (!pos || typeof pos !== 'object') return pos
+    const lat = pos.lat
+    const lon = pos.lon ?? pos.lng
+    if (lat === undefined || lon === undefined) return pos
+    return { lon: Number(lon), lat: Number(lat) }
+  }
+
+  const normalizeBookingForGeo = (doc: any) => {
+    if (!doc || typeof doc !== 'object') return doc
+    return {
+      ...doc,
+      position: normalizePosition(doc.position),
+      pickupPosition: normalizePosition(doc.pickupPosition),
+      deliveredPosition: normalizePosition(doc.deliveredPosition),
+      pickup: doc.pickup
+        ? { ...doc.pickup, position: normalizePosition(doc.pickup.position) }
+        : undefined,
+      destination: doc.destination
+        ? {
+            ...doc.destination,
+            position: normalizePosition(doc.destination.position),
+          }
+        : undefined,
+    }
+  }
+
   const cleanExperimentSettings = {
     id: experimentSettings.id,
     startDate: experimentSettings.startDate,
@@ -64,16 +91,16 @@ const collectBooking = (booking: any, experimentSettings: any) => {
     initMapState: experimentSettings.initMapState,
   }
 
-  return save(
-    {
-      ...booking.toObject(),
-      timestamp: virtualTime.now(),
-      experimentSettings: cleanExperimentSettings,
-      passenger: booking.passenger?.toObject(),
-    },
-    booking.id,
-    'bookings'
-  )
+  const baseDoc = {
+    ...booking.toObject(),
+    timestamp: virtualTime.now(),
+    experimentSettings: cleanExperimentSettings,
+    passenger: booking.passenger?.toObject(),
+  }
+
+  const normalized = normalizeBookingForGeo(baseDoc)
+
+  return save(normalized, booking.id, 'bookings')
 }
 
 const collectCar = (car: any, experimentSettings: any) => {
