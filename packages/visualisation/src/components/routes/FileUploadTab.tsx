@@ -4,7 +4,7 @@
 // TurID-kort visar fack-spec för dominant fordon i turen.
 // "Optimera valda ..." skickar vidare till spara-sida där dataset skapas.
 
-import React, { useState, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { toast } from 'sonner'
@@ -26,9 +26,16 @@ import { SegmentedControl } from '@/components/design-system/SegmentedControl'
 
 import { getSettingsForPreview, processUploadedFile, type RouteRecord } from './FileUpload'
 import { byId, pickDominant, buildFackInfo, type BilSpec } from '@/utils/shared'
+import RouteFilterPanel from './RouteFilterPanel'
+import {
+  buildUploadFilterOptions,
+  formatWeekdayLabel,
+  type UploadFilterOptions,
+} from './FileUpload/filterOptions'
 
 import {
   generateFleetCardsFromConfig,
+  type FleetCard,
   type FleetConfig,
   type Settings,
 } from '@/utils/fleetGenerator'
@@ -68,6 +75,49 @@ const FLEET_CONFIG: FleetConfig = {
 // ---------------------------------------------------------
 // Komponent
 // ---------------------------------------------------------
+type SearchFilters = {
+  avfallstyp: string[]
+  fordonstyp: string[]
+  fordonsnummer: string[]
+  tjanstetyp: string[]
+  veckodag: string[]
+  frekvens: string[]
+  datum: string
+}
+
+type ArrayFilterKey = Exclude<keyof SearchFilters, 'datum'>
+
+const createEmptyFilters = (): SearchFilters => ({
+  avfallstyp: [],
+  fordonstyp: [],
+  fordonsnummer: [],
+  tjanstetyp: [],
+  veckodag: [],
+  frekvens: [],
+  datum: '',
+})
+
+const getVehicleTypeFromDisplay = (display: string) => {
+  const parts = display.split(' ')
+  const desc = parts.slice(1).join(' ').trim()
+  if (!desc) return ''
+  const tokens = desc.split(' ')
+  return tokens[tokens.length - 1] || desc
+}
+
+type RouteSummaryCard = {
+  id: string
+  name: string
+  fordon: string
+  vehicleDescription?: string
+  avfallstypList: string[]
+  frekvens?: string
+  hamtningar: number
+  hamtningarMatched: number
+  hamtningarTotal: number
+  fack: ReturnType<typeof buildFackInfo>
+}
+
 export default function FileUploadTab() {
   const navigate = useNavigate()
   // Upload-state
@@ -75,18 +125,73 @@ export default function FileUploadTab() {
   const [originalFilename, setOriginalFilename] = useState<string>('')
 
   // Resultat-UI
-  const [turCards, setTurCards] = useState<any[]>([])
-  const [fleetCards, setFleetCards] = useState<any[]>([])
+  const [turCards, setTurCards] = useState<RouteSummaryCard[]>([])
+  const [fleetCards, setFleetCards] = useState<FleetCard[]>([])
   const [selectedResults, setSelectedResults] = useState<string[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [viewMode, setViewMode] = useState<'turid' | 'flottor'>('turid')
   const [searchQuery, setSearchQuery] = useState('')
   const resultsRef = useRef<HTMLDivElement>(null)
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>(createEmptyFilters)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+  const [filterOptions, setFilterOptions] = useState<UploadFilterOptions>({
+    avfallstyper: [],
+    vehicleOptions: [],
+    tjanstetyper: [],
+    veckodagar: [],
+    frekvenser: [],
+    frequencyLookup: {},
+  })
+
+  const vehicleTypeById = useMemo(() => {
+    const map: Record<string, string> = {}
+    filterOptions.vehicleOptions.forEach((option) => {
+      if (!option?.id) return
+      const type = getVehicleTypeFromDisplay(option.display)
+      if (type) {
+        map[option.id] = type
+      }
+    })
+    return map
+  }, [filterOptions.vehicleOptions])
+
+  const activeFilterCount = useMemo(() => {
+    const arrayCount =
+      searchFilters.avfallstyp.length +
+      searchFilters.fordonstyp.length +
+      searchFilters.fordonsnummer.length +
+      searchFilters.tjanstetyp.length +
+      searchFilters.veckodag.length +
+      searchFilters.frekvens.length
+
+    return arrayCount + (searchFilters.datum ? 1 : 0)
+  }, [searchFilters])
 
   // Settings (för visningsnamn etc.)
-  const previewSettings: Settings = useMemo(() => {
-    return getSettingsForPreview(uploadedData, originalFilename) as any
+  const previewSettings = useMemo<Settings>(() => {
+    return getSettingsForPreview(uploadedData, originalFilename)
   }, [uploadedData, originalFilename])
+
+  useEffect(() => {
+    if (!uploadedData.length) {
+      setFilterOptions({
+        avfallstyper: [],
+        vehicleOptions: [],
+        tjanstetyper: [],
+        veckodagar: [],
+        frekvenser: [],
+        frequencyLookup: {},
+      })
+      setSearchFilters(createEmptyFilters())
+      setSelectedDate(undefined)
+      return
+    }
+
+    const options = buildUploadFilterOptions(uploadedData, previewSettings)
+    setFilterOptions(options)
+    setSearchFilters(createEmptyFilters())
+    setSelectedDate(undefined)
+  }, [uploadedData, previewSettings])
 
   // ------------------ Upload ------------------
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -100,6 +205,11 @@ export default function FileUploadTab() {
         const data = processUploadedFile(parsed, file.name)
         setUploadedData(data)
         setOriginalFilename(file.name)
+        setTurCards([])
+        setFleetCards([])
+        setSelectedResults([])
+        setHasSearched(false)
+        setSearchQuery('')
         toast.success(`Fil laddad: ${file.name} (${data.length} records)`)
       } catch {
         toast.error(
@@ -116,6 +226,143 @@ export default function FileUploadTab() {
     maxFiles: 1,
   })
 
+  const updateFilterArray = useCallback(
+    (key: ArrayFilterKey, updater: (current: string[]) => string[]) => {
+      setSearchFilters((prev) => {
+        const current = prev[key]
+        const next = updater(current)
+        // Avoid unnecessary state updates
+        if (next.length === current.length && next.every((v, idx) => v === current[idx])) {
+          return prev
+        }
+        return {
+          ...prev,
+          [key]: next,
+        }
+      })
+    },
+    []
+  )
+
+  const handleFilterChange = useCallback(
+    (filterName: string, value: string) => {
+      if (filterName === 'datum') return
+      const key = filterName as ArrayFilterKey
+      updateFilterArray(key, (current) => {
+        if (current.includes(value)) {
+          return current.filter((item) => item !== value)
+        }
+        return [...current, value]
+      })
+    },
+    [updateFilterArray]
+  )
+
+  const handleDateSelect = useCallback((date: Date | undefined) => {
+    setSelectedDate(date)
+    setSearchFilters((prev) => {
+      const formatted = date ? date.toISOString().split('T')[0] : ''
+      if (prev.datum === formatted) return prev
+      return {
+        ...prev,
+        datum: formatted,
+      }
+    })
+  }, [])
+
+  const clearAllFilters = useCallback(() => {
+    setSearchFilters(createEmptyFilters())
+    setSelectedDate(undefined)
+  }, [])
+
+  const clearAllWasteTypes = useCallback(() => {
+    updateFilterArray('avfallstyp', () => [])
+  }, [updateFilterArray])
+
+  const clearAllVehicles = useCallback(() => {
+    updateFilterArray('fordonsnummer', () => [])
+  }, [updateFilterArray])
+
+  const clearAllVehicleTypes = useCallback(() => {
+    setSearchFilters((prev) => {
+      if (prev.fordonstyp.length === 0) return prev
+      const typeSet = new Set(prev.fordonstyp)
+      const remainingVehicles = prev.fordonsnummer.filter((id) => {
+        const type = vehicleTypeById[id]
+        return !typeSet.has(type)
+      })
+      return {
+        ...prev,
+        fordonstyp: [],
+        fordonsnummer: remainingVehicles,
+      }
+    })
+  }, [vehicleTypeById])
+
+  const clearAllServiceTypes = useCallback(() => {
+    updateFilterArray('tjanstetyp', () => [])
+  }, [updateFilterArray])
+
+  const clearAllWeekdays = useCallback(() => {
+    updateFilterArray('veckodag', () => [])
+  }, [updateFilterArray])
+
+  const clearAllFrequencies = useCallback(() => {
+    updateFilterArray('frekvens', () => [])
+  }, [updateFilterArray])
+
+  const applyFilters = useCallback(
+    (data: RouteRecord[]) => {
+      if (!data.length) return []
+
+      const activeFrequencyIds = searchFilters.frekvens.map(
+        (label) => filterOptions.frequencyLookup[label] || label
+      )
+      const activeWeekdays = new Set(searchFilters.veckodag)
+      const filterByWeekday = activeWeekdays.size > 0
+      const filterByDate = Boolean(searchFilters.datum)
+      const filterByVehicleType = searchFilters.fordonstyp.length > 0
+
+      return data.filter((record) => {
+        if (searchFilters.avfallstyp.length) {
+          const value = record?.Avftyp || ''
+          if (!value || !searchFilters.avfallstyp.includes(value)) return false
+        }
+
+        if (searchFilters.fordonsnummer.length) {
+          const value = record?.Bil || ''
+          if (!value || !searchFilters.fordonsnummer.includes(value)) return false
+        }
+
+        if (filterByVehicleType) {
+          const type = vehicleTypeById[record?.Bil || '']
+          if (!type || !searchFilters.fordonstyp.includes(type)) return false
+        }
+
+        if (searchFilters.tjanstetyp.length) {
+          const value = record?.Tjtyp || ''
+          if (!value || !searchFilters.tjanstetyp.includes(value)) return false
+        }
+
+        if (activeFrequencyIds.length) {
+          const value = record?.Frekvens || ''
+          if (!value || !activeFrequencyIds.includes(value)) return false
+        }
+
+        if (filterByDate) {
+          const dateValue = record?.Datum ? record.Datum.split('T')[0] : ''
+          if (!dateValue || dateValue !== searchFilters.datum) return false
+        } else if (filterByWeekday) {
+          const weekdayLabel = formatWeekdayLabel(record?.Datum)
+          if (!weekdayLabel || !activeWeekdays.has(weekdayLabel)) return false
+        }
+
+        return true
+      })
+    },
+    [filterOptions.frequencyLookup, searchFilters, vehicleTypeById]
+  )
+
   // ------------------ Hämta körtur (generera kort) ------------------
   const handleSearch = () => {
     if (!uploadedData.length) {
@@ -124,6 +371,8 @@ export default function FileUploadTab() {
       setHasSearched(true)
       return
     }
+
+    const filteredData = applyFilters(uploadedData)
 
     // TurID-kort: gruppera bookings per Turid, räkna waste, hämta dominant bil och dess fack
     const bilIndex: Record<string, BilSpec> = byId(previewSettings?.bilar || [])
@@ -134,7 +383,7 @@ export default function FileUploadTab() {
       byId(previewSettings?.frekvenser || [])
 
     const byTur = new Map<string, RouteRecord[]>()
-    for (const r of uploadedData) {
+    for (const r of filteredData) {
       if (!r?.Turid) continue
       if (!byTur.has(r.Turid)) byTur.set(r.Turid, [])
       byTur.get(r.Turid)!.push(r)
@@ -143,7 +392,7 @@ export default function FileUploadTab() {
     // Helper: strict match of booking type to any allowed waste type in fack list
     const matchesFack = (
       avftyp: string | undefined,
-      fack: Array<{ number: number; allowedWasteTypes: string[] }>
+      fack: RouteSummaryCard['fack']
     ) => {
       if (!avftyp) return false
       if (!Array.isArray(fack) || fack.length === 0) return false
@@ -201,7 +450,7 @@ export default function FileUploadTab() {
 
     // Flotta-kort (visning)
     const fleetCardsData = generateFleetCardsFromConfig(
-      uploadedData,
+      filteredData,
       previewSettings,
       FLEET_CONFIG
     )
@@ -220,11 +469,6 @@ export default function FileUploadTab() {
       }
     }, 100)
   }
-
-  const viewOptions = [
-    { value: 'turid', label: 'TurID' },
-    { value: 'flottor', label: 'Flottor' },
-  ]
 
   const handleSelect = (id: string) => {
     setSelectedResults((prev) => {
@@ -245,28 +489,31 @@ export default function FileUploadTab() {
     }
   }
 
-  const getFilteredResults = () => {
+  const getFilteredResults = (): RouteSummaryCard[] | FleetCard[] => {
     const q = searchQuery.trim().toLowerCase()
-    const list = viewMode === 'turid' ? turCards : fleetCards
-    if (!q) return list
-
     if (viewMode === 'turid') {
-      return list.filter(
-        (r: any) =>
-          r.name.toLowerCase().includes(q) ||
-          String(r.fordon).toLowerCase().includes(q) ||
-          (r.avfallstypList || []).some((t: string) =>
-            t.toLowerCase().includes(q)
-          )
-      )
-    } else {
-      return list.filter(
-        (f: any) =>
-          f.name.toLowerCase().includes(q) ||
-          f.vehicleNumbers.some((n: string) => n.toLowerCase().includes(q)) ||
-          f.wasteTypes.some((w: string) => w.toLowerCase().includes(q))
-      )
+      if (!q) return turCards
+      return turCards.filter((route) => {
+        const nameMatch = route.name.toLowerCase().includes(q)
+        const vehicleMatch = route.fordon.toLowerCase().includes(q)
+        const wasteMatch = route.avfallstypList.some((type) =>
+          type.toLowerCase().includes(q)
+        )
+        return nameMatch || vehicleMatch || wasteMatch
+      })
     }
+
+    if (!q) return fleetCards
+    return fleetCards.filter((fleet) => {
+      const nameMatch = fleet.name.toLowerCase().includes(q)
+      const vehicleMatch = fleet.vehicleNumbers.some((number) =>
+        number.toLowerCase().includes(q)
+      )
+      const wasteMatch = fleet.wasteTypes.some((type) =>
+        type.toLowerCase().includes(q)
+      )
+      return nameMatch || vehicleMatch || wasteMatch
+    })
   }
 
   const filteredResults = getFilteredResults()
@@ -296,8 +543,8 @@ export default function FileUploadTab() {
       turids: selectedTurids,
     }
 
-    const selectedItems = turCards.filter((c: any) =>
-      selectedResults.includes(c.id)
+    const selectedItems = turCards.filter((card) =>
+      selectedResults.includes(card.id)
     )
 
     navigate('/optimize/save', {
@@ -369,26 +616,56 @@ export default function FileUploadTab() {
         </CardContent>
       </Card>
 
-      {/* “Välj preferenser” – utan filter, bara knappen */}
+      {/* Filtersektion */}
       <Card>
         <CardHeader>
           <CardTitle className="text-xl font-normal">
             Välj en eller flera preferenser
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            (Filtrering kommer senare här.) Klicka på <b>Hämta körtur</b> för
-            att visa data nedan.
+            Filtrera körturerna med alternativen nedan och klicka på
+            <b> Hämta körtur</b> för att se resultatet.
           </p>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-end mt-6">
-            <Button
-              onClick={handleSearch}
-              className="bg-[#BBD197] hover:bg-[#BBD197]/90"
-            >
-              <Search size={16} className="mr-2" />
-              Hämta körtur
-            </Button>
+          <div className="space-y-6">
+            <RouteFilterPanel
+              searchFilters={searchFilters}
+              onFilterChange={handleFilterChange}
+              activeFilterCount={activeFilterCount}
+              avfallstyper={filterOptions.avfallstyper}
+              vehicleOptions={filterOptions.vehicleOptions}
+              tjanstetyper={filterOptions.tjanstetyper}
+              veckodagar={filterOptions.veckodagar}
+              frekvenser={filterOptions.frekvenser}
+              selectedDate={selectedDate}
+              onDateChange={handleDateSelect}
+              hideHeader={true}
+              onClearAllWasteTypes={clearAllWasteTypes}
+              onClearAllVehicles={clearAllVehicles}
+              onClearAllVehicleTypes={clearAllVehicleTypes}
+              onClearAllServiceTypes={clearAllServiceTypes}
+              onClearAllWeekdays={clearAllWeekdays}
+              onClearAllFrequencies={clearAllFrequencies}
+            />
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                variant="outline"
+                onClick={clearAllFilters}
+                className="w-full sm:w-auto"
+                disabled={activeFilterCount === 0}
+              >
+                Rensa alla filter
+              </Button>
+              <Button
+                onClick={handleSearch}
+                className="w-full sm:w-auto bg-[#BBD197] hover:bg-[#BBD197]/90"
+              >
+                <Search size={16} className="mr-2" />
+                Hämta körtur
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -454,7 +731,7 @@ export default function FileUploadTab() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {viewMode === 'turid'
-                ? filteredResults.map((route: any) => (
+                ? (filteredResults as RouteSummaryCard[]).map((route) => (
                     <div
                       key={route.id}
                       onClick={() => handleSelect(route.id)}
@@ -474,7 +751,7 @@ export default function FileUploadTab() {
                       />
                     </div>
                   ))
-                : filteredResults.map((fleet: any) => (
+                : (filteredResults as FleetCard[]).map((fleet) => (
                     <div
                       key={fleet.id}
                       onClick={() => handleSelect(fleet.id)}
@@ -486,7 +763,7 @@ export default function FileUploadTab() {
                         vehicleTypes={fleet.vehicleTypes}
                         wasteTypes={fleet.wasteTypes}
                         frequency={
-                          fleet.frequencies?.length
+                          fleet.frequencies.length
                             ? fleet.frequencies.join(', ')
                             : undefined
                         }

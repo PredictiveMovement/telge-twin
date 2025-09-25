@@ -203,19 +203,47 @@ export const createRoutesLayer = (routesData: any[]) =>
     getTargetColor: (d: any) => d.outbound,
   })
 
+const ensurePolygonRing = (partition: any): number[][] => {
+  const maybeArray = partition?.polygon
+
+  if (Array.isArray(maybeArray) && maybeArray.length >= 4) {
+    return maybeArray
+  }
+
+  const coordinates = maybeArray?.coordinates
+  if (Array.isArray(coordinates)) {
+    // GeoJSON Polygon => [ [ ring ] , [ holes ] ... ]
+    const outerRing = Array.isArray(coordinates[0]) ? coordinates[0] : null
+    if (Array.isArray(outerRing) && outerRing.length >= 4) {
+      return outerRing as number[][]
+    }
+  }
+
+  // Fallback to bounding box (rectangle)
+  const bounds = partition?.bounds || partition?.boundingBox || {}
+  const { minLng, minLat, maxLng, maxLat } = bounds
+
+  if (
+    [minLng, minLat, maxLng, maxLat].every(
+      (value) => typeof value === 'number' && Number.isFinite(value)
+    )
+  ) {
+    return [
+      [minLng, minLat],
+      [maxLng, minLat],
+      [maxLng, maxLat],
+      [minLng, maxLat],
+      [minLng, minLat],
+    ]
+  }
+
+  return []
+}
+
 export const computePartitionData = (displayAreaPartitions: any[]) =>
-  displayAreaPartitions.map((p) => ({
-    ...p,
-    polygon:
-      p.polygon?.length >= 4
-        ? p.polygon
-        : [
-            [p.bounds.minLng, p.bounds.minLat],
-            [p.bounds.maxLng, p.bounds.minLat],
-            [p.bounds.maxLng, p.bounds.maxLat],
-            [p.bounds.minLng, p.bounds.maxLat],
-            [p.bounds.minLng, p.bounds.minLat],
-          ],
+  displayAreaPartitions.map((partition) => ({
+    ...partition,
+    polygon: ensurePolygonRing(partition),
   }))
 
 export const computeClusterTransitions = (routes: any[], partitions: any[]) => {

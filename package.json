@@ -9,7 +9,7 @@
     "simulator": "pnpm --filter @digital-twin/simulator dev",
     "visualisation": "pnpm --filter visualisation dev",
     "build": "pnpm --recursive run build --if-present",
-    "lint": "pnpm --recursive run lint --if-present"
+    "lint": "pnpm --recursive --if-present run lint"
   },
   "repository": {
     "type": "git",

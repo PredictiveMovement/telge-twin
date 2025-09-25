@@ -1,5 +1,5 @@
-import React from 'react'
-import { Button } from '@/components/ui/button'
+import React, { useMemo, useRef, useState } from 'react'
+import { FilterButton } from '@/components/ui/filter-button'
 import { Label } from '@/components/ui/label'
 import {
   DropdownMenu,
@@ -7,82 +7,132 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, X } from 'lucide-react'
+import { useFilterPreview } from '@/hooks/useFilterPreview'
 
 interface VehicleFilterProps {
   data: any
   selectedVehicles: string[]
   onVehicleChange: (vehicleId: string, checked: boolean) => void
+  onClearAllVehicles?: () => void
 }
 
 const VehicleFilter: React.FC<VehicleFilterProps> = ({
   data,
   selectedVehicles,
   onVehicleChange,
+  onClearAllVehicles,
 }) => {
-  const getSelectedVehicleText = () => {
-    if (selectedVehicles.length === 0) return 'Alla fordon'
-    if (selectedVehicles.length === 1) {
-      const vehicle = data?.settings?.bilar?.find(
-        (v: any) => v.ID === selectedVehicles[0]
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [preventOpen, setPreventOpen] = useState(false)
+
+  const rawVehicles = useMemo(() => {
+    const vehicles = data?.settings?.bilar || []
+    return vehicles
+      .filter((vehicle: any) => vehicle?.ID && vehicle.ID !== '--')
+      .sort((a: any, b: any) =>
+        String(a.ID).localeCompare(String(b.ID), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
       )
-      return vehicle?.BESKRIVNING || 'Välj fordon'
-    }
-    return `${selectedVehicles.length} valda`
-  }
+  }, [data?.settings?.bilar])
 
-  const getButtonVariant = (hasActiveFilters: boolean): 'outline' => {
-    return 'outline'
-  }
+  const previewOptions = useMemo(
+    () =>
+      rawVehicles.map((vehicle: any) => ({
+        ID: vehicle.ID,
+        BESKRIVNING: `${vehicle.ID} ${vehicle.BESKRIVNING || ''}`.trim(),
+      })),
+    [rawVehicles]
+  )
 
-  const getButtonClassName = (hasActiveFilters: boolean) => {
-    if (hasActiveFilters) {
-      return 'w-full justify-between hover:bg-[hsl(var(--muted))] bg-white border-primary border-2'
+  const { getDisplayText } = useFilterPreview({
+    selectedValues: selectedVehicles,
+    options: previewOptions,
+    placeholder: 'Alla fordon',
+    containerRef: buttonRef,
+  })
+
+  const hasActiveFilters = selectedVehicles.length > 0
+
+  const clearFilter = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+
+    setPreventOpen(true)
+    setIsOpen(false)
+
+    if (onClearAllVehicles) {
+      onClearAllVehicles()
+    } else {
+      selectedVehicles.forEach((vehicleId) => {
+        onVehicleChange(vehicleId, false)
+      })
     }
-    return 'w-full justify-between hover:bg-[hsl(var(--muted))]'
+
+    setTimeout(() => setPreventOpen(false), 100)
   }
 
   return (
-    <div>
+    <div className="space-y-2">
       <Label htmlFor="vehicle">Fordon</Label>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant={getButtonVariant(selectedVehicles.length > 0)}
-            className={getButtonClassName(selectedVehicles.length > 0)}
-          >
-            <div className="flex items-center gap-2">
-              {selectedVehicles.length > 0 && (
-                <Check className="h-4 w-4 text-green-600" />
-              )}
-              {getSelectedVehicleText()}
+      <div className="relative">
+        <DropdownMenu
+          open={isOpen}
+          onOpenChange={(open) => {
+            if (!preventOpen) {
+              setIsOpen(open)
+            }
+          }}
+        >
+          <DropdownMenuTrigger asChild>
+            <FilterButton
+              ref={buttonRef}
+              variant={hasActiveFilters ? 'outline-active' : 'outline'}
+              className="w-full h-[42px] justify-between hover:bg-[#fafafa] pr-2"
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {hasActiveFilters && (
+                  <Check className="h-4 w-4 text-[#F57D5B] flex-shrink-0" />
+                )}
+                <span className="truncate">{getDisplayText()}</span>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {hasActiveFilters && (
+                  <div
+                    onClick={clearFilter}
+                    className="h-4 w-4 text-[#F57D5B] hover:bg-[#F57D5B]/10 rounded cursor-pointer flex items-center justify-center"
+                  >
+                    <X className="h-4 w-4" />
+                  </div>
+                )}
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </div>
+            </FilterButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[300px] bg-white border border-gray-200 shadow-lg z-50" align="start">
+            <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
+              {rawVehicles.map((vehicle: any) => (
+                <DropdownMenuCheckboxItem
+                  key={vehicle.ID}
+                  checked={selectedVehicles.includes(vehicle.ID)}
+                  onCheckedChange={(checked) => onVehicleChange(vehicle.ID, checked)}
+                  className="cursor-pointer hover:bg-[hsl(var(--accent))] !important focus:bg-[hsl(var(--accent))] !important"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium text-sm">{vehicle.ID}</span>
+                    <span className="text-gray-500 text-sm">
+                      {vehicle.BESKRIVNING || '—'}
+                    </span>
+                  </div>
+                </DropdownMenuCheckboxItem>
+              ))}
             </div>
-            <ChevronDown className="h-4 w-4 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-full bg-popover">
-          {data?.settings?.bilar
-            ?.filter((vehicle: any) => vehicle.ID !== '--')
-            ?.sort((a: any, b: any) =>
-              a.ID.localeCompare(b.ID, undefined, {
-                numeric: true,
-                sensitivity: 'base',
-              })
-            )
-            ?.map((vehicle: any) => (
-              <DropdownMenuCheckboxItem
-                key={vehicle.ID}
-                checked={selectedVehicles.includes(vehicle.ID)}
-                onCheckedChange={(checked) =>
-                  onVehicleChange(vehicle.ID, checked)
-                }
-              >
-                <span className="mr-3">{vehicle.ID}</span>
-                <span>{vehicle.BESKRIVNING}</span>
-              </DropdownMenuCheckboxItem>
-            ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }

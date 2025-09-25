@@ -1,3 +1,5 @@
+import { type Settings } from '@/utils/fleetGenerator'
+
 interface RouteRecord {
   Turid: string
   Datum: string
@@ -82,19 +84,21 @@ export const filterRouteData = (
 export const getSettingsForPreview = (
   uploadedData: RouteRecord[],
   originalFilename: string
-) => {
+): Settings => {
   try {
-    if (!uploadedData.length) return { avftyper: [], bilar: [], tjtyper: [] }
+    if (!uploadedData.length) {
+      return { avftyper: [], bilar: [], tjtyper: [], frekvenser: [] }
+    }
 
     const fileContent = localStorage.getItem(`fileContent_${originalFilename}`)
     if (fileContent) {
       const parsed = JSON.parse(fileContent)
-      if (parsed.settings) return parsed.settings
+      if (parsed.settings) return parsed.settings as Settings
     }
 
-    return extractInfoFromData(uploadedData)
+    return extractInfoFromData(uploadedData) as Settings
   } catch (error) {
-    return { avftyper: [], bilar: [], tjtyper: [] }
+    return { avftyper: [], bilar: [], tjtyper: [], frekvenser: [] }
   }
 }
 
