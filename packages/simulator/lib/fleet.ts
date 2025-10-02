@@ -105,9 +105,17 @@ class Fleet {
         y: -10 + 3 * i,
       })
 
+      // Fix: Ignore suspiciously low parcelCapacity values from dataset
+      // parcelCapacity should be queue capacity (number of bookings), not cargo capacity
+      // Values < 10 are likely configuration errors - use sensible default instead
+      const effectiveParcelCapacity =
+        spec.parcelCapacity && spec.parcelCapacity >= 10
+          ? spec.parcelCapacity
+          : 250
+
       const enhancedConfig = {
         weight: spec.weight || 10000,
-        parcelCapacity: spec.parcelCapacity || 100,
+        parcelCapacity: effectiveParcelCapacity,
         fackDetails: spec.fackDetails || [],
         realDescription: spec.description || `Vehicle ${spec.originalId}`,
         class: Truck,
@@ -128,10 +136,17 @@ class Fleet {
 
     // After vehicles are constructed, log capacity estimates for observability
     try {
-      const preAssigned: Record<string, any[]> = (this as any).preAssignedBookings || {}
+      const preAssigned: Record<string, any[]> =
+        (this as any).preAssignedBookings || {}
       vehicleSpecs.forEach((spec: any) => {
         const obs = preAssigned?.[spec.originalId] || []
-        logVehicleCapacity(this.name, this.experimentId, spec, this.settings, obs)
+        logVehicleCapacity(
+          this.name,
+          this.experimentId,
+          spec,
+          this.settings,
+          obs
+        )
       })
     } catch (e) {
       // non-fatal: logging helper should never break simulation

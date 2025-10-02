@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { StaticMap } from 'react-map-gl'
 import DeckGL from 'deck.gl'
 import { Button } from '@/components/ui/button'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import { Car, Booking } from '@/types/map'
+import SettingsMenu from './SettingsMenu'
 import LayersMenu from './LayersMenu'
 import BookingLegend from './BookingLegend'
 import PlaybackControls from './PlaybackControls'
@@ -11,6 +12,8 @@ import { VirtualTimeDisplay } from './map/VirtualTimeDisplay'
 import { BookingFilters } from './BookingLegend/types'
 import { DEFAULT_FILTERS } from './BookingLegend/constants'
 import { AreaPartition } from '@/api/simulator'
+import type { SettingsMenuProps } from './SettingsMenu/types'
+import type { LayersMenuProps } from './LayersMenu/types'
 import { createCameraFlyover } from './dev/CameraFlyover'
 import {
   enable3D,
@@ -36,7 +39,12 @@ import {
   computeTransitionEndpoints,
 } from './map/layers'
 
-interface MapProps {
+export interface MapControls {
+  zoomIn: () => void
+  zoomOut: () => void
+}
+
+export interface MapProps {
   cars: Car[]
   bookings: Booking[]
   isSimulationRunning: boolean
@@ -49,6 +57,35 @@ interface MapProps {
   onSpeedChange?: (speed: number) => void
   areaPartitions?: AreaPartition[]
   vroomPlan?: any
+
+  // Optional props to control menu visibility
+  showLayerMenu?: boolean
+  showSettingsMenu?: boolean
+  showLegend?: boolean
+  showPlaybackControls?: boolean
+  showFullscreenControl?: boolean
+  showVirtualTime?: boolean
+
+  // Optional props to override internal state
+  mapStyle?: string
+  enable3D?: boolean
+  showArcLayer?: boolean
+  showActiveDeliveries?: boolean
+  showAssignedBookings?: boolean
+  municipalityLayer?: boolean
+  carLayer?: boolean
+  useIcons?: boolean
+  showBookingLegend?: boolean
+  showAreaPartitionsLayer?: boolean
+  debugMode?: boolean
+  debugShowCentroids?: boolean
+  debugShowClusterOrder?: boolean
+  debugShowTransitions?: boolean
+
+  // Callbacks to provide menu props to parent
+  onSettingsMenuProps?: (props: SettingsMenuProps) => void
+  onLayersMenuProps?: (props: LayersMenuProps) => void
+  onControlsReady?: (controls: MapControls) => void
 }
 
 interface HoverInfo {
@@ -71,13 +108,6 @@ interface ClickEvent {
   object?: Car | Booking
 }
 
-interface RouteData {
-  inbound: number[]
-  outbound: number[]
-  from: [number, number]
-  to: [number, number]
-}
-
 const Map: React.FC<MapProps> = ({
   cars,
   bookings,
@@ -91,6 +121,29 @@ const Map: React.FC<MapProps> = ({
   onSpeedChange,
   areaPartitions,
   vroomPlan,
+  showLayerMenu = true,
+  showSettingsMenu = true,
+  showLegend = true,
+  showPlaybackControls = true,
+  showFullscreenControl = true,
+  showVirtualTime = true,
+  mapStyle: externalMapStyle,
+  enable3D: externalEnable3D,
+  showArcLayer: externalShowArcLayer,
+  showActiveDeliveries: externalShowActiveDeliveries,
+  showAssignedBookings: externalShowAssignedBookings,
+  municipalityLayer: externalMunicipalityLayer,
+  carLayer: externalCarLayer,
+  useIcons: externalUseIcons,
+  showBookingLegend: externalShowBookingLegend,
+  showAreaPartitionsLayer: externalShowAreaPartitionsLayer,
+  debugMode: externalDebugMode,
+  debugShowCentroids: externalDebugShowCentroids,
+  debugShowClusterOrder: externalDebugShowClusterOrder,
+  debugShowTransitions: externalDebugShowTransitions,
+  onSettingsMenuProps,
+  onLayersMenuProps,
+  onControlsReady,
 }) => {
   const [isFullscreen, setFullscreen] = useState(false)
   const isFullscreenRef = useRef(false)
@@ -116,19 +169,33 @@ const Map: React.FC<MapProps> = ({
   const mapRef = useRef<any>(null)
   const isHoveredRef = useRef<boolean>(false)
 
-  const [showArcLayer, setShowArcLayer] = useState(false)
-  const [showActiveDeliveries, setShowActiveDeliveries] = useState(true)
-  const [showAssignedBookings, setShowAssignedBookings] = useState(true)
+  const [showArcLayer, setShowArcLayer] = useState(
+    externalShowArcLayer ?? false
+  )
+  const [showActiveDeliveries, setShowActiveDeliveries] = useState(
+    externalShowActiveDeliveries ?? true
+  )
+  const [showAssignedBookings, setShowAssignedBookings] = useState(
+    externalShowAssignedBookings ?? true
+  )
 
-  const [municipalityLayer, setMunicipalityLayer] = useState(false)
-  const [carLayer, setCarLayer] = useState(true)
-  const [useIcons, setUseIcons] = useState(false)
-  const [showBookingLegend, setShowBookingLegend] = useState(false)
-  const [showAreaPartitions, setShowAreaPartitions] = useState(false)
-  const [enable3DView, setEnable3DView] = useState(true)
+  const [municipalityLayer, setMunicipalityLayer] = useState(
+    externalMunicipalityLayer ?? false
+  )
+  const [carLayer, setCarLayer] = useState(externalCarLayer ?? true)
+  const [useIcons, setUseIcons] = useState(externalUseIcons ?? false)
+  const [showBookingLegend, setShowBookingLegend] = useState(
+    externalShowBookingLegend ?? false
+  )
+  const [showAreaPartitions, setShowAreaPartitions] = useState(
+    externalShowAreaPartitionsLayer ?? false
+  )
+  const [enable3DView, setEnable3DView] = useState(externalEnable3D ?? true)
   const [mapStyle, setMapStyle] = useState<string>(
-    (import.meta as unknown as { env: { VITE_DEFAULT_MAP_STYLE?: string } }).env
-      .VITE_DEFAULT_MAP_STYLE || 'mapbox://styles/mapbox/dark-v11'
+    externalMapStyle ??
+      (import.meta as unknown as { env: { VITE_DEFAULT_MAP_STYLE?: string } })
+        .env.VITE_DEFAULT_MAP_STYLE ??
+      'mapbox://styles/mapbox/dark-v11'
   )
   const enable3DRef = useRef(enable3DView)
 
@@ -136,27 +203,44 @@ const Map: React.FC<MapProps> = ({
     useState<BookingFilters>(DEFAULT_FILTERS)
 
   // Debug toggles
-  const [debugMode, setDebugMode] = useState(false)
-  const [debugShowCentroids, setDebugShowCentroids] = useState(true)
-  const [debugShowClusterOrder, setDebugShowClusterOrder] = useState(true)
-  const [debugShowTransitions, setDebugShowTransitions] = useState(false)
+  const [debugMode, setDebugMode] = useState(externalDebugMode ?? false)
+  const [debugShowCentroids, setDebugShowCentroids] = useState(
+    externalDebugShowCentroids ?? true
+  )
+  const [debugShowClusterOrder, setDebugShowClusterOrder] = useState(
+    externalDebugShowClusterOrder ?? true
+  )
+  const [debugShowTransitions, setDebugShowTransitions] = useState(
+    externalDebugShowTransitions ?? false
+  )
 
-  const activeLayers = {
-    municipalityLayer,
-    setMunicipalityLayer,
-    carLayer,
-    setCarLayer,
-    useIcons,
-    setUseIcons,
-    showBookingLegend,
-    setShowBookingLegend,
-    showAreaPartitions,
-    setShowAreaPartitions,
-    enable3D: enable3DView,
-    setEnable3D: setEnable3DView,
-    mapStyle,
-    setMapStyle,
-  }
+  const activeLayers = useMemo(
+    () => ({
+      municipalityLayer,
+      setMunicipalityLayer,
+      carLayer,
+      setCarLayer,
+      useIcons,
+      setUseIcons,
+      showBookingLegend,
+      setShowBookingLegend,
+      showAreaPartitions,
+      setShowAreaPartitions,
+      enable3D: enable3DView,
+      setEnable3D: setEnable3DView,
+      mapStyle,
+      setMapStyle,
+    }),
+    [
+      municipalityLayer,
+      carLayer,
+      useIcons,
+      showBookingLegend,
+      showAreaPartitions,
+      enable3DView,
+      mapStyle,
+    ]
+  )
 
   useEffect(() => {
     enable3DRef.current = enable3DView
@@ -165,6 +249,137 @@ const Map: React.FC<MapProps> = ({
   useEffect(() => {
     isFullscreenRef.current = isFullscreen
   }, [isFullscreen])
+
+  // Sync external props to internal state
+  useEffect(() => {
+    if (externalMapStyle !== undefined) setMapStyle(externalMapStyle)
+  }, [externalMapStyle])
+
+  useEffect(() => {
+    if (externalEnable3D !== undefined) setEnable3DView(externalEnable3D)
+  }, [externalEnable3D])
+
+  useEffect(() => {
+    if (externalShowArcLayer !== undefined)
+      setShowArcLayer(externalShowArcLayer)
+  }, [externalShowArcLayer])
+
+  useEffect(() => {
+    if (externalShowActiveDeliveries !== undefined)
+      setShowActiveDeliveries(externalShowActiveDeliveries)
+  }, [externalShowActiveDeliveries])
+
+  useEffect(() => {
+    if (externalShowAssignedBookings !== undefined)
+      setShowAssignedBookings(externalShowAssignedBookings)
+  }, [externalShowAssignedBookings])
+
+  useEffect(() => {
+    if (externalMunicipalityLayer !== undefined)
+      setMunicipalityLayer(externalMunicipalityLayer)
+  }, [externalMunicipalityLayer])
+
+  useEffect(() => {
+    if (externalCarLayer !== undefined) setCarLayer(externalCarLayer)
+  }, [externalCarLayer])
+
+  useEffect(() => {
+    if (externalUseIcons !== undefined) setUseIcons(externalUseIcons)
+  }, [externalUseIcons])
+
+  useEffect(() => {
+    if (externalShowBookingLegend !== undefined)
+      setShowBookingLegend(externalShowBookingLegend)
+  }, [externalShowBookingLegend])
+
+  useEffect(() => {
+    if (externalShowAreaPartitionsLayer !== undefined)
+      setShowAreaPartitions(externalShowAreaPartitionsLayer)
+  }, [externalShowAreaPartitionsLayer])
+
+  useEffect(() => {
+    if (externalDebugMode !== undefined) setDebugMode(externalDebugMode)
+  }, [externalDebugMode])
+
+  useEffect(() => {
+    if (externalDebugShowCentroids !== undefined)
+      setDebugShowCentroids(externalDebugShowCentroids)
+  }, [externalDebugShowCentroids])
+
+  useEffect(() => {
+    if (externalDebugShowClusterOrder !== undefined)
+      setDebugShowClusterOrder(externalDebugShowClusterOrder)
+  }, [externalDebugShowClusterOrder])
+
+  useEffect(() => {
+    if (externalDebugShowTransitions !== undefined)
+      setDebugShowTransitions(externalDebugShowTransitions)
+  }, [externalDebugShowTransitions])
+
+  // Provide menu props to parent if callbacks are provided
+  useEffect(() => {
+    if (onSettingsMenuProps) {
+      onSettingsMenuProps({
+        activeLayers,
+        showArcLayer,
+        setShowArcLayer,
+        showActiveDeliveries,
+        setShowActiveDeliveries,
+        showAssignedBookings,
+        setShowAssignedBookings,
+        debugMode,
+        setDebugMode,
+        debugShowCentroids,
+        setDebugShowCentroids,
+        debugShowClusterOrder,
+        setDebugShowClusterOrder,
+        debugShowTransitions,
+        setDebugShowTransitions,
+      })
+    }
+  }, [
+    onSettingsMenuProps,
+    activeLayers,
+    showArcLayer,
+    showActiveDeliveries,
+    showAssignedBookings,
+    debugMode,
+    debugShowCentroids,
+    debugShowClusterOrder,
+    debugShowTransitions,
+  ])
+
+  useEffect(() => {
+    if (onLayersMenuProps) {
+      onLayersMenuProps({
+        mapStyle,
+        setMapStyle,
+        enable3D: enable3DView,
+        setEnable3D: setEnable3DView,
+      })
+    }
+  }, [onLayersMenuProps, mapStyle, enable3DView])
+
+  // Provide zoom controls to parent
+  useEffect(() => {
+    if (onControlsReady) {
+      const controls: MapControls = {
+        zoomIn: () => {
+          setMapState((prev) => ({
+            ...prev,
+            zoom: Math.min(prev.zoom + 1, 20),
+          }))
+        },
+        zoomOut: () => {
+          setMapState((prev) => ({
+            ...prev,
+            zoom: Math.max(prev.zoom - 1, 1),
+          }))
+        },
+      }
+      onControlsReady(controls)
+    }
+  }, [onControlsReady])
 
   const mockMunicipalityData = useMemo(
     () => [
@@ -183,7 +398,10 @@ const Map: React.FC<MapProps> = ({
     []
   )
 
-  const displayAreaPartitions = areaPartitions || []
+  const displayAreaPartitions = useMemo(
+    () => areaPartitions ?? [],
+    [areaPartitions]
+  )
 
   // colors and booking color come from utils
 
@@ -212,27 +430,28 @@ const Map: React.FC<MapProps> = ({
       setHoverInfo({ id: (object as any).id, type, x, y, viewport })
     }
 
-  const createCarClickHandler =
-    () =>
+  const handleCarClick = useCallback(
     ({ object }: ClickEvent) => {
       if (!object) return
       const car = object as Car
-      setMapState({
-        ...mapState,
+      setMapState((prev) => ({
+        ...prev,
         zoom: 14,
         longitude: car.position[0],
         latitude: car.position[1],
-      })
+      }))
       setActiveCar(car)
-    }
+    },
+    []
+  )
 
   const carIconLayer = useMemo(() => {
     if (!carLayer) return null
     return createCarLayer(cars, useIcons, {
       onHover: createHoverHandler('car'),
-      onClick: createCarClickHandler(),
+      onClick: handleCarClick,
     })
-  }, [cars, carLayer, useIcons, mapState])
+  }, [cars, carLayer, useIcons, handleCarClick])
 
   const bookingLayer = useMemo(
     () => createBookingLayer(filteredBookings, createHoverHandler('booking')),
@@ -290,7 +509,7 @@ const Map: React.FC<MapProps> = ({
       },
       debugMode
     )
-  }, [showAreaPartitions, displayAreaPartitions])
+  }, [showAreaPartitions, displayAreaPartitions, debugMode])
 
   // Debug: centroid points and labels
   const centroidPointLayer = useMemo(() => {
@@ -326,7 +545,7 @@ const Map: React.FC<MapProps> = ({
       return Math.min(20, base + scale * 2)
     }
     return createCentroidLabelLayer(data, getSize)
-  }, [debugMode, debugShowCentroids, displayAreaPartitions])
+  }, [debugMode, debugShowCentroids, displayAreaPartitions, mapState.zoom])
 
   // Debug: cluster order per fordon (rita för vald eller alla fordon)
   const clusterOrderPathLayer = useMemo(() => {
@@ -445,6 +664,8 @@ const Map: React.FC<MapProps> = ({
     centroidPointLayer,
     centroidLabelLayer,
     clusterOrderPathLayer,
+    clusterTransitionsLayer,
+    transitionEndpointsLayer,
     bookingLayer,
     destinationLayer,
     routesLayer,
@@ -565,23 +786,33 @@ const Map: React.FC<MapProps> = ({
               {comps.length > 0 ? (
                 <div style={{ marginTop: 4 }}>
                   {comps.map((c: any) => {
-                    const capL = typeof c.capacityLiters === 'number' ? c.capacityLiters : null
-                    const fillL = typeof c.fillLiters === 'number' ? c.fillLiters : 0
+                    const capL =
+                      typeof c.capacityLiters === 'number'
+                        ? c.capacityLiters
+                        : null
+                    const fillL =
+                      typeof c.fillLiters === 'number' ? c.fillLiters : 0
                     const pct = capL
                       ? Math.max(
                           0,
-                          Math.min(100, Math.round(((fillL / capL) * 100) * 10) / 10)
+                          Math.min(
+                            100,
+                            Math.round((fillL / capL) * 100 * 10) / 10
+                          )
                         )
                       : null
                     return (
                       <div key={`fack-${c.fackNumber}`}>
-                        Fack {c.fackNumber}: {fillL}{capL ? `/${capL} L` : ' L'}
+                        Fack {c.fackNumber}: {fillL}
+                        {capL ? `/${capL} L` : ' L'}
                         {pct !== null ? ` (${pct}%)` : ''}
                         <div style={{ opacity: 0.85 }}>
-                          Typer: {Array.isArray(c.allowedWasteTypes) && c.allowedWasteTypes.length
-                            ? (c.allowedWasteTypes.includes('*')
-                                ? 'Alla'
-                                : c.allowedWasteTypes.join(', '))
+                          Typer:{' '}
+                          {Array.isArray(c.allowedWasteTypes) &&
+                          c.allowedWasteTypes.length
+                            ? c.allowedWasteTypes.includes('*')
+                              ? 'Alla'
+                              : c.allowedWasteTypes.join(', ')
                             : '—'}
                         </div>
                       </div>
@@ -733,98 +964,121 @@ const Map: React.FC<MapProps> = ({
 
         {hoverInfo && <HoverInfo info={hoverInfo} />}
 
-        <div
-          style={{
-            position: 'absolute',
-            top: '20px',
-            left: '20px',
-            zIndex: 1000,
-          }}
-        >
-          <LayersMenu
-            activeLayers={activeLayers}
-            showArcLayer={showArcLayer}
-            setShowArcLayer={setShowArcLayer}
-            showActiveDeliveries={showActiveDeliveries}
-            setShowActiveDeliveries={setShowActiveDeliveries}
-            showAssignedBookings={showAssignedBookings}
-            setShowAssignedBookings={setShowAssignedBookings}
-            debugMode={debugMode}
-            setDebugMode={setDebugMode}
-            debugShowCentroids={debugShowCentroids}
-            setDebugShowCentroids={setDebugShowCentroids}
-            debugShowClusterOrder={debugShowClusterOrder}
-            setDebugShowClusterOrder={setDebugShowClusterOrder}
-            debugShowTransitions={debugShowTransitions}
-            setDebugShowTransitions={setDebugShowTransitions}
-          />
-        </div>
+        {(showSettingsMenu || showLayerMenu) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              zIndex: 1000,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            {showSettingsMenu && (
+              <LayersMenu
+                mapStyle={mapStyle}
+                setMapStyle={setMapStyle}
+                enable3D={enable3DView}
+                setEnable3D={setEnable3DView}
+              />
+            )}
+            {showLayerMenu && (
+              <SettingsMenu
+                activeLayers={activeLayers}
+                showArcLayer={showArcLayer}
+                setShowArcLayer={setShowArcLayer}
+                showActiveDeliveries={showActiveDeliveries}
+                setShowActiveDeliveries={setShowActiveDeliveries}
+                showAssignedBookings={showAssignedBookings}
+                setShowAssignedBookings={setShowAssignedBookings}
+                debugMode={debugMode}
+                setDebugMode={setDebugMode}
+                debugShowCentroids={debugShowCentroids}
+                setDebugShowCentroids={setDebugShowCentroids}
+                debugShowClusterOrder={debugShowClusterOrder}
+                setDebugShowClusterOrder={setDebugShowClusterOrder}
+                debugShowTransitions={debugShowTransitions}
+                setDebugShowTransitions={setDebugShowTransitions}
+              />
+            )}
+          </div>
+        )}
 
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            left: '20px',
-            zIndex: 1000,
-          }}
-        >
-          <BookingLegend
-            bookings={bookings.map((b) => ({
-              ...b,
-              recyclingType: b.recyclingType || 'unknown',
-            }))}
-            filters={bookingFilters}
-            onFiltersChange={setBookingFilters}
-            isVisible={showBookingLegend}
-          />
-        </div>
+        {showLegend && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '20px',
+              left: '20px',
+              zIndex: 1000,
+            }}
+          >
+            <BookingLegend
+              bookings={bookings.map((b) => ({
+                ...b,
+                recyclingType: b.recyclingType || 'unknown',
+              }))}
+              filters={bookingFilters}
+              onFiltersChange={setBookingFilters}
+              isVisible={showBookingLegend}
+            />
+          </div>
+        )}
 
-        <VirtualTimeDisplay
-          virtualTime={virtualTime}
-          format="time"
-          position="top-right"
-        />
+        {showVirtualTime && (
+          <VirtualTimeDisplay
+            virtualTime={virtualTime}
+            format="time"
+            position="top-right"
+          />
+        )}
 
         {(isSimulationRunning || onPlayTime) && (
           <>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '20px',
-                right: '20px',
-                zIndex: 1001,
-              }}
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setFullscreen((v) => !v)}
-                aria-label={isFullscreen ? 'Avsluta helskärm' : 'Helskärm'}
+            {showFullscreenControl && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  right: '20px',
+                  zIndex: 1001,
+                }}
               >
-                {isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '20px',
-                right: '68px',
-                zIndex: 1000,
-              }}
-            >
-              <PlaybackControls
-                isPlaying={isTimeRunning}
-                speed={timeSpeed}
-                onPlay={onPlayTime || (() => {})}
-                onPause={onPauseTime || (() => {})}
-                onSpeedChange={onSpeedChange || (() => {})}
-                disabled={!isConnected || !isSimulationRunning}
-              />
-            </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setFullscreen((v) => !v)}
+                  aria-label={isFullscreen ? 'Avsluta helskärm' : 'Helskärm'}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            )}
+            {showPlaybackControls && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  right: showFullscreenControl ? '68px' : '20px',
+                  zIndex: 1000,
+                }}
+              >
+                <PlaybackControls
+                  isPlaying={isTimeRunning}
+                  speed={timeSpeed}
+                  onPlay={onPlayTime || (() => {})}
+                  onPause={onPauseTime || (() => {})}
+                  onSpeedChange={onSpeedChange || (() => {})}
+                  disabled={!isConnected || !isSimulationRunning}
+                />
+              </div>
+            )}
           </>
         )}
       </DeckGL>

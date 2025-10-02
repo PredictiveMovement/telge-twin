@@ -8,6 +8,23 @@ const simulatorApi = axios.create({
   headers: SIMULATOR_CONFIG.requestConfig.headers,
 })
 
+export interface OptimizationBreakSetting {
+  id: string
+  name: string
+  duration: number
+  enabled: boolean
+  desiredTime?: string
+}
+
+export interface OptimizationSettings {
+  workingHours?: {
+    start: string
+    end: string
+  }
+  breaks?: OptimizationBreakSetting[]
+  extraBreaks?: OptimizationBreakSetting[]
+}
+
 export interface RouteDataset {
   id: string
   datasetId: string
@@ -31,6 +48,7 @@ export interface RouteDataset {
   associatedExperiments: string[]
   fleetConfiguration?: FleetConfiguration[]
   originalSettings?: Record<string, unknown>
+  optimizationSettings?: OptimizationSettings
 }
 
 export interface FleetConfiguration {
@@ -85,6 +103,7 @@ export async function saveRouteDataset(datasetData: {
   originalRecordCount: number
   fleetConfiguration?: Record<string, unknown>[]
   originalSettings?: Record<string, unknown>
+  optimizationSettings?: OptimizationSettings
 }): Promise<{
   success: boolean
   datasetId?: string
@@ -358,7 +377,6 @@ export const startSessionReplay = async (
   socket: Socket,
   experimentId: string
 ) => {
-  try {
     const replayResult = await prepareReplay(experimentId)
 
     if (!replayResult.success || !replayResult.data) {
@@ -374,9 +392,6 @@ export const startSessionReplay = async (
     })
 
     return sessionId
-  } catch (error) {
-    throw error
-  }
 }
 
 // Note: sequential session starter removed to avoid exposing standalone sequential runs in UI.

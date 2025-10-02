@@ -190,6 +190,8 @@ export async function findBestRouteToPickupBookings(
                   parcelCapacity: truck.parcelCapacity,
                   destination: truck.destination,
                   cargo: truck.cargo,
+                  fleet: truck.fleet,
+                  virtualTime: truck.virtualTime,
                 },
                 0
               ),
@@ -197,15 +199,46 @@ export async function findBestRouteToPickupBookings(
             },
           ]
           const shipments = bkgs.map((b: any, i: number) =>
-            bookingToShipment(b, i)
+            bookingToShipment({ ...b, fleet: truck.fleet }, i)
           )
           const result = await plan({ shipments, vehicles }, 0)
-          // Build id→booking mapping for robust merging
+
+          const unreachableIndices = new Set<number>()
+          if (Array.isArray(result?.unassigned)) {
+            for (const unassigned of result.unassigned) {
+              if (typeof unassigned?.id === 'number') {
+                const idx = Math.floor(unassigned.id / 2)
+                unreachableIndices.add(idx)
+              } else if (typeof unassigned?.job === 'number') {
+                unreachableIndices.add(unassigned.job)
+              }
+            }
+          }
+
+          if (unreachableIndices.size) {
+            await Promise.all(
+              Array.from(unreachableIndices).map(async (idx) => {
+                const booking = bkgs[idx]
+                if (booking) {
+                  if (typeof booking.markUnreachable === 'function') {
+                    await booking.markUnreachable('workday-limit')
+                  } else {
+                    booking.status = 'Unreachable'
+                  }
+                }
+              })
+            )
+          }
+
+          // Build id→booking mapping for assigned bookings only
           const idToBooking: Record<number, any> = {}
           bkgs.forEach((_b: any, i: number) => {
-            idToBooking[i * 2] = bkgs[i]
-            idToBooking[i * 2 + 1] = bkgs[i]
+            if (!unreachableIndices.has(i)) {
+              idToBooking[i * 2] = bkgs[i]
+              idToBooking[i * 2 + 1] = bkgs[i]
+            }
           })
+
           return { result, idToBooking }
         }
 
@@ -241,6 +274,9 @@ export async function findBestRouteToPickupBookings(
           }
 
           const combinedResult = combineSubResults(subResults, chunk.bookings)
+          chunk.bookings = chunk.bookings.filter(
+            (b: any) => b?.status !== 'Unreachable'
+          )
           chunkResults.push({ result: combinedResult, chunk })
 
           // Update currentStart to last pickup of this combined result (if any)
@@ -261,6 +297,9 @@ export async function findBestRouteToPickupBookings(
         } else {
           // Normal-sized cluster
           const { result, idToBooking } = await planBookings(chunk.bookings)
+          chunk.bookings = chunk.bookings.filter(
+            (b: any) => b?.status !== 'Unreachable'
+          )
           chunkResults.push({ result: { ...result, idToBooking }, chunk })
 
           // Update currentStart to last pickup
@@ -346,22 +385,6 @@ export function mergeVroomChunkResults(
         })
       })
 
-    /* 2. unassigned hantering                            */
-    if (result?.unassigned?.length) {
-      const ids = result.unassigned
-        .filter((u: any) => u.type === 'pickup')
-        .map((u: any) => Math.floor(u.id / 2))
-      ids.forEach((idx: number) => {
-        const b = chunk.bookings[idx]
-        if (b)
-          merged.push({
-            action: 'pickup',
-            arrival: 0,
-            departure: 0,
-            booking: b,
-          })
-      })
-    }
   })
 
   return merged

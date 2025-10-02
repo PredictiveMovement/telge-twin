@@ -103,6 +103,10 @@ const statusLabel = (status) => {
       return 'Tömd'
     case 'Delivered':
       return 'Tömd och klar'
+    case 'Unreachable':
+      return 'Ej utförd'
+    case 'break':
+      return 'Rast'
     default:
       return status
   }

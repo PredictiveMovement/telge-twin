@@ -349,6 +349,72 @@
         "originalSettings": {
           "type": "object",
           "enabled": false
+        },
+        "optimizationSettings": {
+          "properties": {
+            "workingHours": {
+              "properties": {
+                "start": {
+                  "type": "keyword"
+                },
+                "end": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "breaks": {
+              "type": "nested",
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "duration": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "desiredTime": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "extraBreaks": {
+              "type": "nested",
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "duration": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "desiredTime": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
         }
       }
     }

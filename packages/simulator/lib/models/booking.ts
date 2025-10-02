@@ -14,6 +14,7 @@ export type BookingStatus =
   | 'Assigned'
   | 'Picked up'
   | 'Delivered'
+  | 'Unreachable'
 
 // A location used for pickup or delivery
 export interface Place {
@@ -77,6 +78,7 @@ export class Booking<TPassenger = unknown> {
   pickedUpEvents = new ReplaySubject<Booking<TPassenger>>()
   assignedEvents = new ReplaySubject<Booking<TPassenger>>()
   deliveredEvents = new ReplaySubject<Booking<TPassenger>>()
+  unreachableEvents = new ReplaySubject<Booking<TPassenger>>()
   statusEvents: Observable<Booking<TPassenger>>
 
   constructor(booking: BookingInput<TPassenger>) {
@@ -97,7 +99,8 @@ export class Booking<TPassenger = unknown> {
       this.queuedEvents,
       this.assignedEvents,
       this.pickedUpEvents,
-      this.deliveredEvents
+      this.deliveredEvents,
+      this.unreachableEvents
     )
   }
 
@@ -220,6 +223,18 @@ export class Booking<TPassenger = unknown> {
       1000
     this.status = 'Delivered'
     this.deliveredEvents.next(this)
+  }
+
+  async markUnreachable(
+    reason?: string,
+    date = virtualTime.getTimeInMillisecondsAsPromise()
+  ): Promise<void> {
+    this.deliveryTime = await date
+    if (reason) {
+      ;(this as any).unreachableReason = reason
+    }
+    this.status = 'Unreachable'
+    this.unreachableEvents.next(this)
   }
 
   /**

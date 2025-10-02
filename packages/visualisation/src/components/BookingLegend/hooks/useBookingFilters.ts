@@ -37,7 +37,8 @@ export const useBookingFilters = (
       onFiltersChange({
         ...filters,
         statuses: newStatuses,
-        showAll: filters.recyclingTypes.size === 5 && newStatuses.size === 4, // All types and statuses
+        showAll:
+          filters.recyclingTypes.size === 5 && newStatuses.size === 5, // All types and statuses
       })
     },
     [filters, onFiltersChange]
@@ -52,7 +53,13 @@ export const useBookingFilters = (
         'metal',
         'organic',
       ]),
-      statuses: new Set(['Assigned', 'Queued', 'Picked up', 'Delivered']),
+      statuses: new Set([
+        'Assigned',
+        'Queued',
+        'Picked up',
+        'Delivered',
+        'Unreachable',
+      ]),
       showAll: true,
     })
   }, [onFiltersChange])

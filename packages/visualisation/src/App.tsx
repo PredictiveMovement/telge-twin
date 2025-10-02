@@ -13,6 +13,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/map" element={<MapPage />} />
+        <Route path="/optimize/map" element={<MapPage />} />
         <Route path="/routes" element={<RoutesPage />} />
         <Route
           path="/experiment/:experimentId"

@@ -39,7 +39,7 @@ const SaveOptimizationProjectPage = () => {
     if (saved) {
       try {
         optimizations = JSON.parse(saved)
-      } catch (error) {
+      } catch {
         toast.error('Kunde inte läsa sparade optimeringar')
       }
     }
@@ -94,7 +94,7 @@ const SaveOptimizationProjectPage = () => {
 
       let removedCount = 0
       const selectedRouteData: RouteRecord[] = []
-      for (const [turid, records] of Array.from(byTur.entries())) {
+      for (const [, records] of Array.from(byTur.entries())) {
         const dominantBil = pickDominant(records.map((b) => b.Bil)) || records[0].Bil
         const bil = (byId(previewSettings?.bilar || []) as Record<string, BilSpec>)[
           dominantBil
@@ -132,6 +132,11 @@ const SaveOptimizationProjectPage = () => {
         originalRecordCount: uploadedData.length,
         fleetConfiguration: fleetConfiguration as unknown as Record<string, unknown>[],
         originalSettings: previewSettings as unknown as Record<string, unknown>,
+        optimizationSettings: {
+          workingHours: normalized.workingHours,
+          breaks: normalized.breaks,
+          extraBreaks: normalized.extraBreaks,
+        },
       })
 
       if ((res as any)?.success) {
@@ -144,7 +149,7 @@ const SaveOptimizationProjectPage = () => {
       } else {
         toast.error(`Fel vid sparning: ${(res as any)?.error || 'okänt fel'}`)
       }
-    } catch (e) {
+    } catch {
       toast.error('Fel vid sparning av dataset')
     }
   }

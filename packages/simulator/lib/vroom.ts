@@ -1,4 +1,5 @@
 import fetch, { Response } from 'node-fetch'
+import { startOfDay } from 'date-fns'
 import { error } from './log'
 import { getFromCache, updateCache } from './cache'
 import queue from './queueSubject'
@@ -39,10 +40,14 @@ function normalizeCacheInput(
     },
   }))
 
-  const normalizedVehicles = vehicles.map((v) => ({
-    ...v,
-    time_window: 'NORMALIZED_TIME_WINDOW',
-  }))
+  const normalizedVehicles = vehicles.map((v) => {
+    const { breaks, ...rest } = v as any
+    return {
+      ...rest,
+      time_window: 'NORMALIZED_TIME_WINDOW',
+      ...(breaks ? { breaks: 'NORMALIZED_BREAKS' } : {}),
+    }
+  })
 
   return {
     jobs,
@@ -73,12 +78,77 @@ export interface Vehicle {
   capacity: number[]
   start: [number, number]
   end: [number, number]
+  breaks?: Array<{
+    id: string | number
+    time_windows: [number, number][]
+    duration: number
+  }>
 }
 
 export interface PlanInput {
   jobs?: any[]
   shipments?: Shipment[]
   vehicles: Vehicle[]
+}
+
+const DEFAULT_SHIFT_DURATION_MS = 8 * 60 * 60 * 1000
+const MIN_TIME_WINDOW_MS = 30 * 60 * 1000
+
+function getVirtualTime(source: any) {
+  if (source && typeof source.virtualTime?.now === 'function') {
+    return source.virtualTime
+  }
+  return virtualTime
+}
+
+function resolveWorkdayWindow(
+  vt: { now: () => number },
+  workday:
+    | { startMinutes?: number; endMinutes?: number }
+    | null
+    | undefined
+) {
+  const nowMs = typeof vt?.now === 'function' ? vt.now() : Date.now()
+  const dayStartMs = startOfDay(new Date(nowMs)).getTime()
+
+  const startMinutes =
+    typeof workday?.startMinutes === 'number' ? workday.startMinutes : null
+  const endMinutes =
+    typeof workday?.endMinutes === 'number' ? workday.endMinutes : null
+
+  const startCandidateMs =
+    startMinutes != null
+      ? dayStartMs + startMinutes * 60 * 1000
+      : nowMs
+  const startMs = Math.max(nowMs, startCandidateMs)
+
+  let endMs = startMs + DEFAULT_SHIFT_DURATION_MS
+  if (endMinutes != null) {
+    let rawEndMs = dayStartMs + endMinutes * 60 * 1000
+    // Handle overnight spans (end earlier than start)
+    if (rawEndMs <= startCandidateMs) {
+      rawEndMs += 24 * 60 * 60 * 1000
+    }
+    endMs = Math.max(rawEndMs, startMs + MIN_TIME_WINDOW_MS)
+  }
+
+  const startOffsetSeconds = Math.max(
+    0,
+    Math.floor((startMs - nowMs) / 1000)
+  )
+  const endOffsetSeconds = Math.max(
+    startOffsetSeconds + MIN_TIME_WINDOW_MS / 1000,
+    Math.floor((endMs - nowMs) / 1000)
+  )
+
+  return {
+    nowMs,
+    startMs,
+    endMs,
+    dayStartMs,
+    startOffsetSeconds,
+    endOffsetSeconds,
+  }
 }
 
 async function plan(
@@ -156,7 +226,7 @@ async function plan(
 }
 
 function bookingToShipment(
-  { id, pickup, destination, groupedBookings }: any,
+  { id, pickup, destination, groupedBookings, fleet }: any,
   i: number
 ): Shipment {
   const pickupLon = pickup.position.lon || pickup.position.lng
@@ -184,13 +254,18 @@ function bookingToShipment(
     })
   }
 
-  // 🕐 Use virtual time instead of moment() for consistent simulation time
-  const nowMs = virtualTime.now()
-  const nowUnix = Math.floor(nowMs / 1000)
-  const pickupStart = nowUnix
-  const pickupEnd = nowUnix + 8 * 60 * 60 // +8 hours
-  const deliveryStart = nowUnix
-  const deliveryEnd = nowUnix + 8 * 60 * 60
+  const vt = getVirtualTime(fleet)
+  const workday = fleet?.settings?.workday
+  const {
+    startMs,
+    dayStartMs,
+    startOffsetSeconds,
+    endOffsetSeconds,
+  } = resolveWorkdayWindow(vt, workday)
+  const pickupStart = startOffsetSeconds
+  const pickupEnd = endOffsetSeconds
+  const deliveryStart = pickupStart
+  const deliveryEnd = pickupEnd
 
   const amount = groupedBookings ? groupedBookings.length : 1
 
@@ -207,21 +282,56 @@ function bookingToShipment(
       location: [deliveryLon, deliveryLat],
       time_windows: [[deliveryStart, deliveryEnd]],
     },
-    service: 30,
+    service: 60,
   }
 }
 
 function truckToVehicle(
-  { position, parcelCapacity, destination, cargo }: any,
+  { position, parcelCapacity, destination, cargo, fleet, virtualTime: vt }: any,
   i: number
 ): Vehicle {
-  // 🕐 Use virtual time instead of moment() for consistent simulation time
-  const nowMs = virtualTime.now()
-  const nowUnix = Math.floor(nowMs / 1000)
-  const workStart = nowUnix
-  const workEnd = nowUnix + 8 * 60 * 60 // +8 hours
+  const virtualTimeSource = getVirtualTime({ virtualTime: vt })
+  const workday = fleet?.settings?.workday
+  const {
+    nowMs,
+    dayStartMs,
+    startOffsetSeconds,
+    endOffsetSeconds,
+  } = resolveWorkdayWindow(
+    virtualTimeSource,
+    workday
+  )
+  const workStart = startOffsetSeconds
+  const workEnd = endOffsetSeconds
 
   const effectiveCapacity = parcelCapacity - cargo.length
+
+  const rawBreaks = Array.isArray(fleet?.settings?.breaks)
+    ? fleet.settings.breaks
+    : []
+  const breaks = rawBreaks
+    .map((br: any, index: number) => {
+      if (
+        typeof br?.startMinutes !== 'number' ||
+        typeof br?.durationMinutes !== 'number'
+      ) {
+        return null
+      }
+      const startMs = dayStartMs + br.startMinutes * 60 * 1000
+      const durationSeconds = Math.max(0, br.durationMinutes * 60)
+      if (durationSeconds <= 0) return null
+      const startSeconds = Math.max(
+        0,
+        Math.floor((startMs - nowMs) / 1000)
+      )
+      const endSeconds = startSeconds + durationSeconds
+      return {
+        id: br?.id || `break-${index}`,
+        time_windows: [[startSeconds, endSeconds]],
+        duration: durationSeconds,
+      }
+    })
+    .filter(Boolean)
 
   return {
     id: i,
@@ -231,6 +341,7 @@ function truckToVehicle(
     end: destination
       ? [destination.lon || destination.lng, destination.lat]
       : [position.lon || position.lng, position.lat],
+    ...(breaks.length ? { breaks } : {}),
   }
 }
 

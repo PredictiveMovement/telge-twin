@@ -27,7 +27,7 @@ export interface Booking {
   id: string
   pickup: [number, number] | null
   destination: [number, number] | null
-  status: 'New' | 'Assigned' | 'Queued' | 'Picked up' | 'Delivered'
+  status: 'New' | 'Assigned' | 'Queued' | 'Picked up' | 'Delivered' | 'Unreachable'
   recyclingType?: string
   carId?: string
   type?: string

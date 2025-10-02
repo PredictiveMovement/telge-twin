@@ -196,6 +196,7 @@ app.post('/api/datasets', async (req, res) => {
       associatedExperiments: [],
       fleetConfiguration: datasetData.fleetConfiguration || null,
       originalSettings: datasetData.originalSettings || null,
+      optimizationSettings: datasetData.optimizationSettings || null,
     }
 
     await elasticsearchService.saveDataset(datasetId, routeDataset)
@@ -436,6 +437,7 @@ app.post('/api/simulation/prepare-sequential', async (req, res) => {
       datasetName: dataset.name,
       isReplay: false,
       experimentType: 'sequential',
+      optimizationSettings: dataset.optimizationSettings,
       fleets: {
         'Södertälje kommun': {
           settings: {

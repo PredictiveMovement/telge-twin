@@ -44,7 +44,7 @@ File: `packages/visualisation/src/components/Map.tsx`
 
 ### Debug toggles (Layers menu)
 
-- Implemented in `LayersMenu` and `useLayersMenu` and passed into `Map`:
+- Implemented in `SettingsMenu` and `useSettingsMenu` and passed into `Map`:
   - Enable Debug mode
   - Show cluster centroids
   - Show cluster order
@@ -116,7 +116,7 @@ Notes:
   - `packages/simulator/lib/vehicles/truck.ts`: triggers partition save after plan is set
 - Frontend
   - `packages/visualisation/src/components/Map.tsx`: all map layers and debug overlays
-  - `packages/visualisation/src/components/LayersMenu/*`: UI toggles for debug mode
+  - `packages/visualisation/src/components/SettingsMenu/*`: UI toggles for debug mode
   - `packages/visualisation/src/pages/MapPage.tsx`: fetches `vroomPlan` and passes to `Map`
 
 ## Troubleshooting

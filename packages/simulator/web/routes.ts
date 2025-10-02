@@ -114,10 +114,10 @@ function register(io: Server): void {
 
     socket.on(
       'startSequentialSession',
-      ({ sessionId, datasetId, parameters }) => {
+      async ({ sessionId, datasetId, parameters }) => {
         if (!sessionId) return
 
-        const experiment = experimentController.createSequentialSession(
+        const experiment = await experimentController.createSequentialSession(
           sessionId,
           datasetId,
           parameters

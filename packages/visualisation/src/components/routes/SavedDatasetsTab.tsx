@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Card,
   CardContent,
@@ -11,11 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   RouteDataset,
-  Experiment,
+  OptimizationBreakSetting,
   getRouteDatasets,
   deleteRouteDataset,
   startSimulationFromDataset,
-  getExperiments,
 } from '@/api/simulator'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { toast } from 'sonner'
@@ -23,7 +21,6 @@ import { Trash2, Play, Info } from 'lucide-react'
 
 export default function SavedDatasetsTab() {
   const [datasets, setDatasets] = useState<RouteDataset[]>([])
-  const [experiments, setExperiments] = useState<Experiment[]>([])
   const [loading, setLoading] = useState(true)
   const [startingSimulation, setStartingSimulation] = useState<string | null>(
     null
@@ -36,13 +33,9 @@ export default function SavedDatasetsTab() {
 
   const loadDatasets = async () => {
     try {
-      const [datasetsData, experimentsData] = await Promise.all([
-        getRouteDatasets(),
-        getExperiments(),
-      ])
+      const datasetsData = await getRouteDatasets()
       setDatasets(datasetsData)
-      setExperiments(experimentsData)
-    } catch (error) {
+    } catch {
       toast.error('Fel vid hämtning av data')
     } finally {
       setLoading(false)
@@ -62,7 +55,7 @@ export default function SavedDatasetsTab() {
       } else {
         toast.error(`Fel vid borttagning: ${result.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error('Fel vid borttagning av dataset')
     }
   }
@@ -80,7 +73,7 @@ export default function SavedDatasetsTab() {
       )
 
       toast.success(`VROOM-optimerad simulering startad för: ${dataset.name}`)
-    } catch (error) {
+    } catch {
       toast.error('Fel vid start av simulering')
     } finally {
       setStartingSimulation(null)
@@ -123,6 +116,43 @@ export default function SavedDatasetsTab() {
     }
 
     return filters.length > 0 ? filters.join(', ') : 'Inga filter'
+  }
+
+  const renderBreakBadges = (
+    breakItems: OptimizationBreakSetting[] | undefined,
+    label: string
+  ) => {
+    if (!breakItems?.length) {
+      return null
+    }
+
+    return (
+      <div>
+        <p className="text-sm text-gray-600 mb-1">{label}</p>
+        <div className="flex flex-wrap gap-1">
+          {breakItems.map((breakItem) => {
+            const timeSegment = breakItem.desiredTime
+              ? `${breakItem.desiredTime}`
+              : null
+            const durationSegment = `${breakItem.duration} min`
+            const details = [timeSegment, durationSegment]
+              .filter(Boolean)
+              .join(' · ')
+
+            return (
+              <Badge
+                key={`${breakItem.id}-${breakItem.name}`}
+                variant="outline"
+                className="text-xs"
+              >
+                {breakItem.name}
+                {details ? ` — ${details}` : ''}
+              </Badge>
+            )
+          })}
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
@@ -183,7 +213,7 @@ export default function SavedDatasetsTab() {
 
             <CardContent className="pt-0">
               <div className="space-y-3">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Records</p>
                     <p className="font-medium">
@@ -206,6 +236,16 @@ export default function SavedDatasetsTab() {
                       {dataset.originalRecordCount.toLocaleString()}
                     </p>
                   </div>
+                  {dataset.optimizationSettings?.workingHours && (
+                    <div>
+                      <p className="text-gray-600">Arbetstid</p>
+                      <p className="font-medium">
+                        {dataset.optimizationSettings.workingHours.start || '—'}
+                        {' - '}
+                        {dataset.optimizationSettings.workingHours.end || '—'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -233,6 +273,20 @@ export default function SavedDatasetsTab() {
                         </Badge>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {(dataset.optimizationSettings?.breaks?.length ||
+                  dataset.optimizationSettings?.extraBreaks?.length) && (
+                  <div className="space-y-2 pt-2 border-t border-dashed">
+                    {renderBreakBadges(
+                      dataset.optimizationSettings?.breaks,
+                      'Raster'
+                    )}
+                    {renderBreakBadges(
+                      dataset.optimizationSettings?.extraBreaks,
+                      'Extra raster'
+                    )}
                   </div>
                 )}
 

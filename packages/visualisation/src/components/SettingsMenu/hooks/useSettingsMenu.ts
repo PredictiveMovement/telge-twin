@@ -9,10 +9,9 @@ import {
   Palette,
   Grid3x3,
 } from 'lucide-react'
-import { LayerSection, LayersMenuProps } from '../types'
-import { MAP_STYLES } from '@/components/map/utils'
+import { LayerSection, SettingsMenuProps } from '../types'
 
-export const useLayersMenu = (props: LayersMenuProps): LayerSection[] => {
+export const useSettingsMenu = (props: SettingsMenuProps): LayerSection[] => {
   const {
     activeLayers,
     showArcLayer,
@@ -33,41 +32,6 @@ export const useLayersMenu = (props: LayersMenuProps): LayerSection[] => {
 
   return useMemo(
     () => [
-      {
-        id: 'map-base',
-        title: 'Kartbas & 3D',
-        items: [
-          {
-            id: '3d',
-            label: props.activeLayers.enable3D ? '3D på' : '3D av',
-            icon: Map,
-            checked: props.activeLayers.enable3D,
-            onChange: () => props.activeLayers.setEnable3D((on) => !on),
-          },
-          {
-            id: 'style-dark',
-            label: 'Bas: Dark',
-            icon: Map,
-            checked: props.activeLayers.mapStyle === MAP_STYLES.dark,
-            onChange: () => props.activeLayers.setMapStyle(MAP_STYLES.dark),
-          },
-          {
-            id: 'style-satellite',
-            label: 'Bas: Satellite',
-            icon: Map,
-            checked: props.activeLayers.mapStyle === MAP_STYLES.satellite,
-            onChange: () =>
-              props.activeLayers.setMapStyle(MAP_STYLES.satellite),
-          },
-          {
-            id: 'style-colorful',
-            label: 'Bas: Colorful',
-            icon: Map,
-            checked: props.activeLayers.mapStyle === MAP_STYLES.colorful,
-            onChange: () => props.activeLayers.setMapStyle(MAP_STYLES.colorful),
-          },
-        ],
-      },
       {
         id: 'routes',
         title: 'Rutter & Transport',

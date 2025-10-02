@@ -11,13 +11,18 @@ import { addMilliseconds, startOfDay, addHours, getUnixTime } from 'date-fns'
 
 export class VirtualTime {
   private startHour: number
+  private endHour?: number
   private timeMultiplier: number
   private internalTimeScale = 1
   private currentTime: any
   private _now!: number
+  private workdayStartMs!: number
+  private workdayEndMs!: number
+  private readonly defaultShiftDurationHours = 8
 
-  constructor(timeMultiplier = 1, startHour = 8.0) {
+  constructor(timeMultiplier = 1, startHour = 8.0, endHour?: number) {
     this.startHour = startHour
+    this.endHour = endHour
     this.timeMultiplier = timeMultiplier
     this.reset()
   }
@@ -25,6 +30,12 @@ export class VirtualTime {
   reset(): void {
     const startDate: Date = addHours(startOfDay(new Date()), this.startHour)
     const msUpdateFrequency = 100
+    this.workdayStartMs = startDate.getTime()
+
+    const resolvedEndHour = this.resolveEndHour()
+    const endDate = addHours(startOfDay(startDate), resolvedEndHour)
+    this.workdayEndMs = endDate.getTime()
+
     this.currentTime = interval(msUpdateFrequency).pipe(
       scan(
         (acc: Date) =>
@@ -58,6 +69,36 @@ export class VirtualTime {
 
   now(): number {
     return this._now
+  }
+
+  setWorkdayHours(startHour: number, endHour?: number): void {
+    this.startHour = startHour
+    this.endHour = endHour
+    this.reset()
+  }
+
+  getWorkdayBounds(): { startMs: number; endMs: number } {
+    return {
+      startMs: this.workdayStartMs,
+      endMs: this.workdayEndMs,
+    }
+  }
+
+  private resolveEndHour(): number {
+    const defaultEnd = this.startHour + this.defaultShiftDurationHours
+    if (typeof this.endHour !== 'number' || isNaN(this.endHour)) {
+      return defaultEnd
+    }
+
+    const startMinutes = Math.round(this.startHour * 60)
+    const endMinutes = Math.round(this.endHour * 60)
+
+    if (endMinutes <= startMinutes) {
+      const minutesWithRollover = endMinutes + 24 * 60
+      return minutesWithRollover / 60
+    }
+
+    return this.endHour
   }
 
   play(): void {
@@ -101,6 +142,10 @@ class VirtualTimeManager {
   constructor() {
     this.globalVirtualTime = new VirtualTime(1, 8.0)
     this.sessionVirtualTimes = new Map()
+  }
+
+  setGlobalVirtualTimeInstance(instance: VirtualTime) {
+    this.globalVirtualTime = instance
   }
 
   registerSession(sessionId: string, sessionVirtualTime: VirtualTime) {

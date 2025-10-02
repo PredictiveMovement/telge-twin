@@ -12,6 +12,7 @@ export const COLORS = {
   booking: {
     DELIVERED: [128, 128, 128],
     PICKED_UP: [255, 165, 0],
+    UNREACHABLE: [255, 140, 0],
     paper: [0, 100, 0],
     plastic: [255, 255, 0],
     glass: [0, 0, 255],
@@ -32,6 +33,7 @@ export const COLORS = {
   vehicle: {
     active: [0, 200, 0],
     default: [254, 254, 254],
+    break: [255, 140, 0],
   },
 }
 
@@ -49,6 +51,9 @@ export const getPartitionColor = (partitionId: string): number[] => {
 
 export const getVehicleColor = ({ status }: { status: string }): number[] => {
   const opacity = Math.round((4 / 5) * 255)
+  if (status === 'break') {
+    return [...COLORS.vehicle.break, opacity]
+  }
   const isActive = ['delivery', 'end', 'ready', 'returning'].includes(status)
   return [
     ...(isActive ? COLORS.vehicle.active : COLORS.vehicle.default),
@@ -65,10 +70,14 @@ export const getBookingColor = ({
       ? 55
       : status === 'Picked up'
       ? 128
+      : status === 'Unreachable'
+      ? 200
       : Math.round((4 / 5) * 255)
 
   if (status === 'Delivered') return [...COLORS.booking.DELIVERED, opacity]
   if (status === 'Picked up') return [...COLORS.booking.PICKED_UP, opacity]
+  if (status === 'Unreachable')
+    return [...COLORS.booking.UNREACHABLE, opacity]
 
   return [
     ...(COLORS.booking[recyclingType as keyof typeof COLORS.booking] ||

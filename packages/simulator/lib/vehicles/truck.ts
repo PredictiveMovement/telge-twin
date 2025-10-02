@@ -7,6 +7,8 @@ const { warn } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 const Vehicle = require('./vehicle').default
 const { createSpatialChunks } = require('../clustering')
+import { startOfDay } from 'date-fns'
+import type { Instruction } from '../dispatch/truckDispatch'
 
 interface TruckConstructorArgs {
   id?: string
@@ -39,6 +41,63 @@ class Truck extends Vehicle {
     fillLiters: number
     fillKg: number
   }>
+  private shiftEndedForDay = false
+  private breakSchedule: Array<{
+    id: string
+    startMs: number
+    durationMs: number
+    taken: boolean
+  }> = []
+  private breakActive: {
+    id: string
+    startMs: number
+    durationMs: number
+    taken: boolean
+  } | null = null
+
+  private isSequentialExperiment(): boolean {
+    const fleetExperimentType =
+      this.fleet?.settings?.experimentType ||
+      (this.fleet as any)?.experimentType
+    return fleetExperimentType === 'sequential'
+  }
+
+  private createInstruction(
+    action: Instruction['action'],
+    booking: Instruction['booking'] = null,
+    overrides: Partial<Omit<Instruction, 'action' | 'booking'>> = {}
+  ): Instruction {
+    return {
+      action,
+      booking,
+      arrival: overrides.arrival ?? 0,
+      departure: overrides.departure ?? 0,
+      ...overrides,
+    }
+  }
+
+  private buildSequentialPlanFromQueue(): Instruction[] {
+    const remaining = this.queue.filter(
+      (booking: any) => booking && booking.status !== 'Unreachable'
+    )
+
+    if (!remaining.length && !this.cargo.length) {
+      return []
+    }
+
+    const plan: Instruction[] = []
+
+    plan.push(this.createInstruction('start'))
+
+    remaining.forEach((booking: any) => {
+      plan.push(this.createInstruction('pickup', booking))
+    })
+
+    plan.push(this.createInstruction('delivery'))
+    plan.push(this.createInstruction('end'))
+
+    return plan
+  }
 
   constructor(args: TruckConstructorArgs) {
     super({
@@ -56,6 +115,8 @@ class Truck extends Vehicle {
 
     // Build compartments (fack) from fackDetails (if any); fallback to single general fack
     this.compartments = this.buildCompartments()
+
+    this.initializeBreakSchedule()
   }
 
   /** Return true if any compartment with a finite capacity is at or above capacity (by liters or kg). */
@@ -82,6 +143,140 @@ class Truck extends Vehicle {
     return hasCargo || anyFill
   }
 
+  private initializeBreakSchedule() {
+    const bounds = this.virtualTime?.getWorkdayBounds?.()
+    if (!bounds) {
+      this.breakSchedule = []
+      return
+    }
+
+    const rawBreaks = Array.isArray(this.fleet?.settings?.breaks)
+      ? this.fleet.settings.breaks
+      : []
+
+    if (!rawBreaks.length) {
+      this.breakSchedule = []
+      return
+    }
+
+    const dayStart = startOfDay(new Date(bounds.startMs)).getTime()
+
+    this.breakSchedule = rawBreaks
+      .map((b: any, index: number) => {
+        if (
+          typeof b?.startMinutes !== 'number' ||
+          typeof b?.durationMinutes !== 'number'
+        ) {
+          return null
+        }
+        const startMs = dayStart + b.startMinutes * 60 * 1000
+        const durationMs = Math.max(0, b.durationMinutes * 60 * 1000)
+        if (durationMs <= 0) return null
+        const id = typeof b?.id === 'string' ? b.id : `break-${index}`
+        return {
+          id,
+          startMs,
+          durationMs,
+          taken: false,
+        }
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => a.startMs - b.startMs) as Array<{
+      id: string
+      startMs: number
+      durationMs: number
+      taken: boolean
+    }>
+  }
+
+  private hasReachedEndOfWorkday(): boolean {
+    const bounds = this.virtualTime?.getWorkdayBounds?.()
+    if (!bounds) return false
+    return this.virtualTime.now() >= bounds.endMs
+  }
+
+  private async concludeWorkday(): Promise<void> {
+    if (this.shiftEndedForDay) return
+    this.shiftEndedForDay = true
+
+    const pendingBookings = new Set<any>()
+    ;(this.plan || []).forEach((instruction: Instruction) => {
+      if (
+        instruction?.booking &&
+        instruction.action === 'pickup' &&
+        instruction.booking.status !== 'Unreachable'
+      ) {
+        pendingBookings.add(instruction.booking)
+      }
+    })
+    this.queue.forEach((booking: any) => {
+      if (booking?.status !== 'Unreachable') {
+        pendingBookings.add(booking)
+      }
+    })
+
+    await Promise.all(
+      Array.from(pendingBookings).map(async (booking: any) => {
+        if (typeof booking?.markUnreachable === 'function') {
+          await booking.markUnreachable('workday-limit')
+        } else if (booking) {
+          booking.status = 'Unreachable'
+        }
+      })
+    )
+
+    this.queue = []
+    this.plan = []
+    this.instruction = undefined
+    this.booking = null
+    this.breakSchedule.forEach((b) => {
+      b.taken = true
+    })
+
+    this.status = 'returning'
+    if (this.statusEvents) this.statusEvents.next(this)
+
+    await this.navigateTo(this.startPosition)
+
+    this.status = 'end'
+    if (this.statusEvents) this.statusEvents.next(this)
+  }
+
+  private async maybeTakeBreak(): Promise<boolean> {
+    if (this.breakActive) {
+      return false
+    }
+    if (!Array.isArray(this.breakSchedule) || !this.breakSchedule.length) {
+      return false
+    }
+
+    const now = this.virtualTime.now()
+    const upcoming = this.breakSchedule.find(
+      (entry) => !entry.taken && now >= entry.startMs
+    )
+
+    if (!upcoming) {
+      return false
+    }
+
+    const previousStatus = this.status
+    this.breakActive = upcoming
+    this.status = 'break'
+    this.speed = 0
+    if (this.statusEvents) this.statusEvents.next(this)
+    if (this.movedEvents) this.movedEvents.next(this)
+
+    await this.virtualTime.wait(upcoming.durationMs)
+
+    upcoming.taken = true
+    this.breakActive = null
+    this.status = previousStatus || 'ready'
+    if (this.statusEvents) this.statusEvents.next(this)
+    if (this.movedEvents) this.movedEvents.next(this)
+
+    return true
+  }
+
   /** Build internal compartments from provided fackDetails or fallback to a single general compartment. */
   private buildCompartments() {
     const fackDetails = (this as any).fackDetails || []
@@ -99,7 +294,8 @@ class Truck extends Vehicle {
         const types = Array.isArray(f?.avfallstyper)
           ? f.avfallstyper.map((t: any) => t?.avftyp).filter(Boolean)
           : []
-        const vol = typeof f?.volym === 'number' && f.volym > 0 ? f.volym * 1000 : null // assume m³ → L
+        const vol =
+          typeof f?.volym === 'number' && f.volym > 0 ? f.volym * 1000 : null // assume m³ → L
         const kg = typeof f?.vikt === 'number' && f.vikt > 0 ? f.vikt : null
         list.push({
           fackNumber: f.fackNumber,
@@ -127,21 +323,27 @@ class Truck extends Vehicle {
   }
 
   /** Compute expected pickup volume (liters) and weight (kg) for a booking using dataset settings. */
-  private computeBookingLoad(booking: any): { volumeLiters: number; weightKg: number | null } {
+  private computeBookingLoad(booking: any): {
+    volumeLiters: number
+    weightKg: number | null
+  } {
     const settings = this.fleet?.settings || {}
-    const tjIndex: Record<string, { VOLYM?: number; FYLLNADSGRAD?: number }> = Object.fromEntries(
-      (settings?.tjtyper || []).map((t: any) => [t.ID, t])
-    )
+    const tjIndex: Record<string, { VOLYM?: number; FYLLNADSGRAD?: number }> =
+      Object.fromEntries((settings?.tjtyper || []).map((t: any) => [t.ID, t]))
     const avfIndex: Record<string, { VOLYMVIKT?: number }> = Object.fromEntries(
       (settings?.avftyper || []).map((a: any) => [a.ID, a])
     )
-    const tjid = booking?.originalData?.originalTjtyp || booking?.originalRecord?.Tjtyp || ''
+    const tjid =
+      booking?.originalData?.originalTjtyp ||
+      booking?.originalRecord?.Tjtyp ||
+      ''
     const tj = tjid ? tjIndex[tjid] : undefined
     const baseVol = typeof tj?.VOLYM === 'number' ? tj!.VOLYM : 140
     const fill = typeof tj?.FYLLNADSGRAD === 'number' ? tj!.FYLLNADSGRAD : 100
     const volumeLiters = Math.max(1, Math.round((baseVol * fill) / 100))
     const density = avfIndex[booking?.recyclingType || '']?.VOLYMVIKT
-    const weightKg = typeof density === 'number' ? (volumeLiters / 1000) * density : null
+    const weightKg =
+      typeof density === 'number' ? (volumeLiters / 1000) * density : null
     return { volumeLiters, weightKg }
   }
 
@@ -150,20 +352,28 @@ class Truck extends Vehicle {
     typeId: string,
     load: { volumeLiters: number; weightKg: number | null }
   ) {
-    const candidates = this.compartments.filter((c) =>
-      c.allowedWasteTypes.includes('*') || c.allowedWasteTypes.includes(typeId)
+    const candidates = this.compartments.filter(
+      (c) =>
+        c.allowedWasteTypes.includes('*') ||
+        c.allowedWasteTypes.includes(typeId)
     )
     if (!candidates.length) return null
     // Score by remaining liters then kg; if no explicit caps, treat as Infinity
     let best: any = null
     let bestScore = -Infinity
     for (const c of candidates) {
-      const volRem = c.capacityLiters != null ? c.capacityLiters - c.fillLiters : Number.POSITIVE_INFINITY
+      const volRem =
+        c.capacityLiters != null
+          ? c.capacityLiters - c.fillLiters
+          : Number.POSITIVE_INFINITY
       const kgRem =
         c.capacityKg != null && load.weightKg != null
           ? c.capacityKg - c.fillKg
           : Number.POSITIVE_INFINITY
-      const score = Math.min(volRem / (load.volumeLiters || 1), kgRem / (load.weightKg || 1))
+      const score = Math.min(
+        volRem / (load.volumeLiters || 1),
+        kgRem / (load.weightKg || 1)
+      )
       if (score > bestScore) {
         bestScore = score
         best = c
@@ -178,6 +388,21 @@ class Truck extends Vehicle {
    */
 
   async pickNextInstructionFromPlan(): Promise<any> {
+    if (this.hasReachedEndOfWorkday()) {
+      return this.concludeWorkday()
+    }
+
+    if (this.breakActive) {
+      this.status = 'break'
+      this.speed = 0
+      if (this.statusEvents) this.statusEvents.next(this)
+      return
+    }
+
+    if (await this.maybeTakeBreak()) {
+      return this.pickNextInstructionFromPlan()
+    }
+
     this.instruction = this.plan.shift()
 
     // If instruction is a pickup but booking already in cargo, skip to next
@@ -252,29 +477,49 @@ class Truck extends Vehicle {
    */
 
   stopped() {
-    super.stopped()
+    const maybePromise = super.stopped()
+    if (maybePromise && typeof maybePromise.then === 'function') {
+      return maybePromise.then(() => this.handlePostStop())
+    }
+    return this.handlePostStop()
+  }
 
-    // Handle delivery status even when booking is null
+  private async handlePostStop(): Promise<void> {
+    if (this.shiftEndedForDay) {
+      return
+    }
+
+    if (this.breakActive) {
+      this.status = 'break'
+      this.speed = 0
+      if (this.statusEvents) this.statusEvents.next(this)
+      return
+    }
+
+    if (await this.maybeTakeBreak()) {
+      return this.handlePostStop()
+    }
+
     if (this.status === 'delivery') {
-      return this.dropOff()
+      await this.dropOff()
+      return
     }
 
     if (this.plan.length === 0) {
       if (
         this.status === 'end' &&
         this.position &&
-        this.startPosition && // guard position and startPosition
+        this.startPosition &&
         this.position.distanceTo(this.startPosition) < 100
       ) {
-        // Ensure unloading occurs before parking
         if (this.hasAnyLoad()) {
-          // Drop off all cargo/compartment fills first, then parked on next stop
-          this.dropOff()
+          await this.dropOff()
           return
         }
 
         this.position = this.startPosition
         this.status = 'parked'
+        this.instruction = undefined
         if (this.statusEvents) this.statusEvents.next(this)
         if (this.movedEvents) this.movedEvents.next(this)
         return
@@ -282,9 +527,12 @@ class Truck extends Vehicle {
 
       this.status = 'end'
       if (this.statusEvents) this.statusEvents.next(this)
-      return this.navigateTo(this.startPosition)
+      await this.navigateTo(this.startPosition)
+      this.instruction = undefined
+      return
     } else {
-      this.pickNextInstructionFromPlan()
+      await this.pickNextInstructionFromPlan()
+      return
     }
   }
 
@@ -298,16 +546,28 @@ class Truck extends Vehicle {
     if (this.cargo.indexOf(this.booking) > -1)
       return warn('Already picked up', this.id, this.booking.id)
 
+    if (this.hasReachedEndOfWorkday()) {
+      if (typeof this.booking.markUnreachable === 'function') {
+        await this.booking.markUnreachable('workday-limit')
+      } else {
+        this.booking.status = 'Unreachable'
+      }
+      this.queue = this.queue.filter((b: any) => b !== this.booking)
+      return this.concludeWorkday()
+    }
+
+    const activeBooking = this.booking
+
     // Assign booking to a compartment (fack) and update fill levels
-    const typeId = this.booking?.recyclingType
-    const load = this.computeBookingLoad(this.booking)
+    const typeId = activeBooking?.recyclingType
+    const load = this.computeBookingLoad(activeBooking)
     const comp = this.selectCompartment(typeId, load)
 
     if (comp) {
       comp.fillLiters += load.volumeLiters
       if (load.weightKg != null) comp.fillKg += load.weightKg
-      ;(this.booking as any).assignedFack = comp.fackNumber
-      ;(this.booking as any).loadEstimate = load
+      ;(activeBooking as any).assignedFack = comp.fackNumber
+      ;(activeBooking as any).loadEstimate = load
     } else {
       // Debug: No matching compartment for this recycling type
       try {
@@ -324,12 +584,25 @@ class Truck extends Vehicle {
               load.weightKg != null ? `/${Math.round(load.weightKg)}kg` : ''
             }. Compartments: ${JSON.stringify(overview)}`
         )
-      } catch {}
+      } catch (error) {
+        warn(
+          `Failed to log compartment overview for truck ${this.id}`,
+          error
+        )
+      }
     }
 
-    this.cargo.push(this.booking)
+    await this.virtualTime.wait(20 * 1000)
+
+    if (this.hasReachedEndOfWorkday()) {
+      return this.concludeWorkday()
+    }
+
+    if (!activeBooking) return
+
+    this.cargo.push(activeBooking)
     if (this.cargoEvents) this.cargoEvents.next(this)
-    if (this.booking.pickedUp) this.booking.pickedUp(this.position)
+    if (activeBooking.pickedUp) activeBooking.pickedUp(this.position)
 
     // Prevent base Vehicle.stopped() from re-triggering pickup on next stop
     this.booking = null
@@ -341,7 +614,10 @@ class Truck extends Vehicle {
       deliveryConfig.PICKUPS_BEFORE_DELIVERY
 
     // Trigger delivery if capacity reached OR fallback to pickup-count strategy
-    if (this.isAnyCompartmentFull() || this.cargo.length >= pickupsBeforeDelivery) {
+    if (
+      this.isAnyCompartmentFull() ||
+      this.cargo.length >= pickupsBeforeDelivery
+    ) {
       // Only add delivery instruction if the next instruction isn't already a delivery
       const nextInstruction = this.plan[0]
 
@@ -382,6 +658,12 @@ class Truck extends Vehicle {
           }
         }
       })
+      if (this.isSequentialExperiment()) {
+        const deliveredSet = new Set(deliveredNow)
+        this.queue = this.queue.filter(
+          (queued: any) => !deliveredSet.has(queued)
+        )
+      }
       this.cargo = []
       if (this.cargoEvents) this.cargoEvents.next(this)
 
@@ -389,6 +671,12 @@ class Truck extends Vehicle {
       if (this.plan.length > 0) {
         return this.pickNextInstructionFromPlan()
       } else {
+        if (this.isSequentialExperiment() && this.queue.length > 0) {
+          this.plan = this.buildSequentialPlanFromQueue()
+          if (this.plan.length > 0) {
+            return this.pickNextInstructionFromPlan()
+          }
+        }
         this.status = 'end'
         if (this.statusEvents) this.statusEvents.next(this)
         return this.navigateTo(this.startPosition)
@@ -405,11 +693,22 @@ class Truck extends Vehicle {
       const c = this.compartments.find((x) => x.fackNumber === assigned)
       if (c) {
         c.fillLiters = Math.max(0, c.fillLiters - (load.volumeLiters || 0))
-        if (load.weightKg != null) c.fillKg = Math.max(0, c.fillKg - load.weightKg)
+        if (load.weightKg != null)
+          c.fillKg = Math.max(0, c.fillKg - load.weightKg)
       }
     }
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     if (this.cargoEvents) this.cargoEvents.next(this)
+    if (this.isSequentialExperiment() && this.booking) {
+      this.queue = this.queue.filter((queued: any) => queued !== this.booking)
+      if (this.plan.length === 0 && this.queue.length > 0) {
+        this.plan = this.buildSequentialPlanFromQueue()
+        if (this.plan.length > 0) {
+          await this.pickNextInstructionFromPlan()
+          return
+        }
+      }
+    }
     if (this.booking.delivered) this.booking.delivered(this.position)
   }
 
@@ -429,12 +728,25 @@ class Truck extends Vehicle {
     if (booking.assign) booking.assign(this)
     if (booking.queued) booking.queued(this)
 
-    this.plan = this.queue.map((b: any) => ({
-      action: 'pickup',
-      booking: b,
-    }))
+    if (!this.isSequentialExperiment()) {
+      this.plan = this.queue.map((b: any) =>
+        this.createInstruction('pickup', b)
+      )
+      if (!this.instruction) await this.pickNextInstructionFromPlan()
+      return booking
+    }
 
-    if (!this.instruction) await this.pickNextInstructionFromPlan()
+    // For sequential experiments: Use delayed planning to collect all bookings first
+    // This prevents starting with just 1 booking when more are being dispatched
+    clearTimeout(this._timeout)
+
+    this._timeout = setTimeout(async () => {
+      this.plan = this.buildSequentialPlanFromQueue()
+
+      if (!this.instruction) {
+        await this.pickNextInstructionFromPlan()
+      }
+    }, 1500)
 
     return booking
   }
@@ -447,6 +759,10 @@ class Truck extends Vehicle {
    */
 
   async handleBooking(experimentId: string, booking: any) {
+    if (this.isSequentialExperiment()) {
+      return this.handleStandardBooking(booking)
+    }
+
     if (this.queue.indexOf(booking) > -1) throw new Error('Already queued')
     this.queue.push(booking)
     if (booking.assign) booking.assign(this)
@@ -484,6 +800,11 @@ class Truck extends Vehicle {
           })
 
           this.plan = await Promise.race([vroomPromise, timeoutPromise])
+
+          // Remove any bookings that could not be scheduled within the shift
+          this.queue = this.queue.filter(
+            (queued: any) => queued?.status !== 'Unreachable'
+          )
 
           if (this.plan) {
             await saveCompletePlanForReplay(

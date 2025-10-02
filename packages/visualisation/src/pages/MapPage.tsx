@@ -1,18 +1,35 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Layout from '@/components/layout/Layout'
 import { Car, Booking } from '@/types/map'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MapIcon, Square, WifiOff, AlertTriangle } from 'lucide-react'
-import Map from '@/components/Map'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Square, Gauge, ZoomIn, ZoomOut, AlertTriangle } from 'lucide-react'
 import StatusBadges from '@/components/StatusBadges'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { useMapStatus } from '@/hooks/useMapStatus'
 import { toLonLatArray } from '@/utils/geo'
 import { upsertListById } from '@/lib/utils'
 import { getExperiment, AreaPartition, getVroomPlan } from '@/api/simulator'
+import { MapDisplayCard } from '@/components/map/MapDisplayCard'
+import { MapPlaybackOverlay } from '@/components/map/MapPlaybackOverlay'
+import type { MapControls } from '@/components/Map'
+import SettingsMenu from '@/components/SettingsMenu'
+import type { SettingsMenuProps } from '@/components/SettingsMenu/types'
+import LayersMenu from '@/components/LayersMenu'
+import type { LayersMenuProps } from '@/components/LayersMenu/types'
 
 const MapPage = () => {
   const {
@@ -36,6 +53,16 @@ const MapPage = () => {
     AreaPartition[] | undefined
   >(undefined)
   const [vroomPlan, setVroomPlan] = useState<any | undefined>(undefined)
+  const [settingsMenuProps, setSettingsMenuProps] =
+    useState<SettingsMenuProps | null>(null)
+  const [layersMenuProps, setLayersMenuProps] =
+    useState<LayersMenuProps | null>(null)
+  const [mapControls, setMapControls] = useState<MapControls | null>(null)
+
+  const speedOptions = useMemo(
+    () => [1, 10, 20, 30, 60, 120, 300, 600, 900],
+    []
+  )
 
   const upsertList = upsertListById
 
@@ -97,27 +124,32 @@ const MapPage = () => {
     setAreaPartitions(undefined)
   }, [setRunning, setTimeState, pauseTime])
 
-  const handleCars = useCallback((payload: Car | Car[]) => {
-    setCars((prev) =>
-      upsertList(prev, payload, (car) => ({
-        ...car,
-        position: toLonLatArray(car.position),
-      }))
-    )
-  }, [])
+  const handleCars = useCallback(
+    (payload: Car | Car[]) => {
+      setCars((prev) =>
+        upsertList(prev, payload, (car) => ({
+          ...car,
+          position: toLonLatArray(car.position),
+        }))
+      )
+    },
+    [upsertList]
+  )
 
-  const handleBookings = useCallback((payload: Booking | Booking[]) => {
-    setBookings((prev) =>
-      upsertList(prev, payload, (b) => {
-        const processed = {
+  const handleBookings = useCallback(
+    (payload: Booking | Booking[]) => {
+      setBookings((prev) =>
+        upsertList(prev, payload, (b) => ({
           ...b,
           pickup: b.pickup ? toLonLatArray(b.pickup) : null,
-          destination: b.destination ? toLonLatArray(b.destination) : null,
-        }
-        return processed
-      })
-    )
-  }, [])
+          destination: b.destination
+            ? toLonLatArray(b.destination)
+            : null,
+        }))
+      )
+    },
+    [upsertList]
+  )
 
   useEffect(() => {
     if (!socket || !isMapActive) return
@@ -225,6 +257,53 @@ const MapPage = () => {
 
   const displayError = socketError
 
+  const minuteOfDay = useMemo(() => {
+    if (!virtualTime) return null
+    const date = new Date(virtualTime)
+    if (Number.isNaN(date.getTime())) return null
+    return (
+      date.getHours() * 60 +
+      date.getMinutes() +
+      date.getSeconds() / 60 +
+      date.getMilliseconds() / 60000
+    )
+  }, [virtualTime])
+
+  const mapProgress = useMemo(() => {
+    if (minuteOfDay === null) return 0
+    return Math.max(0, Math.min(100, (minuteOfDay / 1440) * 100))
+  }, [minuteOfDay])
+
+  const progressLabel = useMemo(() => {
+    if (!virtualTime) return '--:--'
+    const date = new Date(virtualTime)
+    if (Number.isNaN(date.getTime())) return '--:--'
+    return date.toLocaleTimeString('sv-SE', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [virtualTime])
+
+  const isPlaybackDisabled = !status.running || !isConnected
+
+  const handleTogglePlayback = () => {
+    if (isPlaybackDisabled) return
+    if (status.timeRunning) {
+      handlePauseTime()
+    } else {
+      handlePlayTime()
+    }
+  }
+
+  const handleZoomIn = () => mapControls?.zoomIn()
+  const handleZoomOut = () => mapControls?.zoomOut()
+
+  const statusColorClass = status.running
+    ? status.timeRunning
+      ? 'bg-emerald-500'
+      : 'bg-blue-500'
+    : 'bg-gray-400'
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -258,85 +337,138 @@ const MapPage = () => {
           </Alert>
         )}
 
-        {!isConnected ? (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-8 text-center">
-              <WifiOff size={48} className="mx-auto mb-4 text-red-500" />
-              <h3 className="text-xl font-semibold text-red-700 mb-2">
-                Ingen anslutning till servern
-              </h3>
-              <p className="text-red-600 mb-4">
-                Kartan kan inte visas utan en aktiv anslutning. Kontrollera din
-                internetanslutning och försök igen.
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => window.location.reload()}
-                className="border-red-300 text-red-700 hover:bg-red-100"
-              >
-                Försök igen
-              </Button>
-            </CardContent>
-          </Card>
-        ) : !status.running ? (
-          <Card className="border-gray-200 bg-gray-50">
-            <CardContent className="p-8 text-center">
-              <MapIcon size={48} className="mx-auto mb-4 text-gray-500" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                Ingen aktiv simulering
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Starta en simulering för att visa kartdata i realtid.
-              </p>
-              <p className="text-sm text-gray-500">
-                Gå till simuleringssektionen för att starta en ny simulering.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Tabs defaultValue="map" className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="map">Kartvy</TabsTrigger>
-              <TabsTrigger value="satellite">Satellitvy</TabsTrigger>
-            </TabsList>
-            <TabsContent value="map" className="mt-4">
-              <Card className="relative h-[500px] overflow-hidden">
-                <CardContent className="absolute inset-0 p-0">
-                  <Map
-                    cars={cars}
-                    bookings={bookings}
-                    isSimulationRunning={status.running}
-                    isConnected={isConnected}
-                    isTimeRunning={status.timeRunning}
-                    timeSpeed={status.timeSpeed}
-                    virtualTime={virtualTime}
-                    onPlayTime={handlePlayTime}
-                    onPauseTime={handlePauseTime}
-                    onSpeedChange={handleSpeedChange}
-                    areaPartitions={areaPartitions}
-                    vroomPlan={vroomPlan as any}
+        <TooltipProvider>
+          <MapDisplayCard
+            title="Live-karta"
+            statusColorClass={statusColorClass}
+            isConnected={isConnected}
+            isRunning={status.running}
+            error={displayError}
+            idleMessage="Ingen aktiv simulering. Starta en simulering för att visa kartdata."
+            disconnectedMessage="Ingen anslutning till servern"
+            sideControls={
+              <>
+                {settingsMenuProps && (
+                  <SettingsMenu
+                    {...settingsMenuProps}
+                    triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                    triggerVariant="ghost"
+                    triggerSize="icon"
+                    iconClassName="h-4 w-4"
+                    triggerTooltip="Kartinställningar"
+                    contentClassName="bg-white/95 backdrop-blur"
                   />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="satellite" className="mt-4">
-              <Card className="relative h-[500px] overflow-hidden">
-                <CardContent className="absolute inset-0 p-0">
-                  <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
-                    <div className="text-center">
-                      <MapIcon size={48} className="mx-auto mb-2" />
-                      <p>Satellitvy laddas här.</p>
-                      <p className="text-sm text-gray-300 mt-1">
-                        Växla tillbaka till standardkarta för bättre
-                        rutt-visning.
-                      </p>
+                )}
+
+                {layersMenuProps && (
+                  <LayersMenu
+                    {...layersMenuProps}
+                    triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                    triggerVariant="ghost"
+                    triggerSize="icon"
+                    iconClassName="h-4 w-4"
+                    triggerTooltip="Kartlager"
+                    contentClassName="bg-white/95 backdrop-blur"
+                  />
+                )}
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="bg-white/90 rounded-full p-1 flex flex-col">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
+                        onClick={handleZoomIn}
+                        disabled={!mapControls}
+                      >
+                        <ZoomIn className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
+                        onClick={handleZoomOut}
+                        disabled={!mapControls}
+                      >
+                        <ZoomOut className="h-3 w-3" />
+                      </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        )}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Zooma (demo)</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          className="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                        >
+                          <Gauge className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Hastighet ({status.timeSpeed}x)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end">
+                    {speedOptions.map((option) => (
+                      <DropdownMenuItem
+                        key={option}
+                        onClick={() => handleSpeedChange(option)}
+                        className={
+                          status.timeSpeed === option ? 'bg-accent' : ''
+                        }
+                      >
+                        {option}x
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+            overlay={
+              <MapPlaybackOverlay
+                progress={mapProgress}
+                progressLabel={progressLabel}
+                startLabel="00:00"
+                endLabel="24:00"
+                isPlaying={status.timeRunning}
+                onTogglePlayback={handleTogglePlayback}
+                disabled={isPlaybackDisabled}
+              />
+            }
+            mapClassName="w-full h-[75vh] max-h-screen min-h-[420px]"
+            mapProps={{
+              cars,
+              bookings,
+              isSimulationRunning: status.running,
+              isConnected,
+              isTimeRunning: status.timeRunning,
+              timeSpeed: status.timeSpeed,
+              virtualTime,
+              onPlayTime: handlePlayTime,
+              onPauseTime: handlePauseTime,
+              onSpeedChange: handleSpeedChange,
+              areaPartitions,
+              vroomPlan: vroomPlan as any,
+              showLayerMenu: false,
+              showSettingsMenu: false,
+              showLegend: false,
+              showPlaybackControls: false,
+              showFullscreenControl: false,
+              showVirtualTime: false,
+              onSettingsMenuProps: setSettingsMenuProps,
+              onLayersMenuProps: setLayersMenuProps,
+              onControlsReady: setMapControls,
+            }}
+          />
+        </TooltipProvider>
 
         {isConnected && status.running && (
           <Card>

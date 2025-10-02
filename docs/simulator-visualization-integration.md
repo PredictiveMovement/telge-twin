@@ -81,7 +81,7 @@ Simulator (server)  ⇄  Visualization (client)
 
 - `packages/visualisation/src/components/Map.tsx`
   - Renders vehicles, bookings, destinations, optional arcs and polygons
-  - Supports toggling layers via `LayersMenu`
+  - Supports toggling layers via `SettingsMenu`
   - Renders area partitions as polygons when `areaPartitions` prop is provided
 
 ## Area partitions
@@ -153,7 +153,7 @@ This section explains how the system computes and renders transitions from the l
 ### Frontend rendering of transitions
 
 - File: `packages/visualisation/src/components/Map.tsx`
-- The map exposes debug toggles through `LayersMenu` (see `packages/visualisation/src/components/LayersMenu/*`):
+- The map exposes debug toggles through `SettingsMenu` (see `packages/visualisation/src/components/SettingsMenu/*`):
 
   - Enable Debug mode
   - Show cluster centroids
