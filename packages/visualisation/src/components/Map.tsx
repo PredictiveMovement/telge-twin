@@ -8,6 +8,7 @@ import SettingsMenu from './SettingsMenu'
 import LayersMenu from './LayersMenu'
 import BookingLegend from './BookingLegend'
 import PlaybackControls from './PlaybackControls'
+import HoverInfoBox, { HoverInfoData } from './HoverInfoBox'
 import { VirtualTimeDisplay } from './map/VirtualTimeDisplay'
 import { BookingFilters } from './BookingLegend/types'
 import { DEFAULT_FILTERS } from './BookingLegend/constants'
@@ -88,15 +89,6 @@ export interface MapProps {
   onControlsReady?: (controls: MapControls) => void
 }
 
-interface HoverInfo {
-  id: string
-  type: 'car' | 'municipality' | 'dropoff' | 'area-partition' | 'booking'
-  x: number
-  y: number
-  viewport?: unknown
-  name?: string
-}
-
 interface LayerEvent {
   object?: Car | Booking | { id: string; name: string }
   x: number
@@ -156,7 +148,7 @@ const Map: React.FC<MapProps> = ({
   })
 
   const [activeCar, setActiveCar] = useState<Car | null>(null)
-  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
+  const [hoverInfo, setHoverInfo] = useState<HoverInfoData | null>(null)
   const flyoverRef = useRef<{
     start: () => void
     stop: () => void
@@ -424,11 +416,25 @@ const Map: React.FC<MapProps> = ({
   }, [bookings, showActiveDeliveries, showAssignedBookings, bookingFilters])
 
   const createHoverHandler =
-    (type: HoverInfo['type']) =>
-    ({ object, x, y, viewport }: LayerEvent) => {
-      if (!object) return setHoverInfo(null)
-      setHoverInfo({ id: (object as any).id, type, x, y, viewport })
-    }
+    (type: HoverInfoData['type']) =>
+      ({ object, x, y, viewport }: LayerEvent) => {
+        if (!object) return setHoverInfo(null)
+        setHoverInfo({
+          id: (object as any).id,
+          type,
+          x,
+          y,
+          viewport:
+            viewport &&
+            typeof (viewport as any).width === 'number' &&
+            typeof (viewport as any).height === 'number'
+              ? {
+                  width: (viewport as any).width,
+                  height: (viewport as any).height,
+                }
+              : null,
+        })
+      }
 
   const handleCarClick = useCallback(
     ({ object }: ClickEvent) => {
@@ -477,7 +483,15 @@ const Map: React.FC<MapProps> = ({
           name: municipality.name,
           x,
           y,
-          viewport,
+          viewport:
+            viewport &&
+            typeof (viewport as any).width === 'number' &&
+            typeof (viewport as any).height === 'number'
+              ? {
+                  width: (viewport as any).width,
+                  height: (viewport as any).height,
+                }
+              : null,
         })
       }
     )
@@ -504,7 +518,15 @@ const Map: React.FC<MapProps> = ({
           }`,
           x,
           y,
-          viewport,
+          viewport:
+            viewport &&
+            typeof (viewport as any).width === 'number' &&
+            typeof (viewport as any).height === 'number'
+              ? {
+                  width: (viewport as any).width,
+                  height: (viewport as any).height,
+                }
+              : null,
         })
       },
       debugMode
@@ -764,100 +786,6 @@ const Map: React.FC<MapProps> = ({
       flyoverRef.current = null
     }
   }, [])
-
-  const HoverInfo = ({ info }: { info: HoverInfo }) => {
-    if (!info) return null
-
-    const { x, y, type, id, name } = info
-
-    const getContent = () => {
-      switch (type) {
-        case 'car':
-          const car = cars.find((c) => c.id === id)
-          if (!car) return 'Fordon'
-          const comps = Array.isArray((car as any).compartments)
-            ? ((car as any).compartments as any[])
-            : []
-          return (
-            <div>
-              <div>
-                Fordon {car.id} – Status: {car.status}
-              </div>
-              {comps.length > 0 ? (
-                <div style={{ marginTop: 4 }}>
-                  {comps.map((c: any) => {
-                    const capL =
-                      typeof c.capacityLiters === 'number'
-                        ? c.capacityLiters
-                        : null
-                    const fillL =
-                      typeof c.fillLiters === 'number' ? c.fillLiters : 0
-                    const pct = capL
-                      ? Math.max(
-                          0,
-                          Math.min(
-                            100,
-                            Math.round((fillL / capL) * 100 * 10) / 10
-                          )
-                        )
-                      : null
-                    return (
-                      <div key={`fack-${c.fackNumber}`}>
-                        Fack {c.fackNumber}: {fillL}
-                        {capL ? `/${capL} L` : ' L'}
-                        {pct !== null ? ` (${pct}%)` : ''}
-                        <div style={{ opacity: 0.85 }}>
-                          Typer:{' '}
-                          {Array.isArray(c.allowedWasteTypes) &&
-                          c.allowedWasteTypes.length
-                            ? c.allowedWasteTypes.includes('*')
-                              ? 'Alla'
-                              : c.allowedWasteTypes.join(', ')
-                            : '—'}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : null}
-            </div>
-          )
-        case 'booking':
-          const booking = bookings.find((b) => b.id === id)
-          return booking
-            ? `Bokning ${booking.id} - ${booking.recyclingType}`
-            : 'Bokning'
-        case 'municipality':
-          return `Kommun: ${name}`
-        case 'area-partition':
-          return `Kluster: ${name}`
-        case 'dropoff':
-          return 'Destination'
-        default:
-          return ''
-      }
-    }
-
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          left: x + 10,
-          top: y - 10,
-          background: 'rgba(0, 0, 0, 0.8)',
-          color: 'white',
-          padding: '8px',
-          borderRadius: '4px',
-          fontSize: '12px',
-          pointerEvents: 'none',
-          zIndex: 1000,
-        }}
-      >
-        {getContent()}
-      </div>
-    )
-  }
-
   const mapboxToken = (
     import.meta as unknown as { env: { VITE_MAPBOX_ACCESS_TOKEN: string } }
   ).env.VITE_MAPBOX_ACCESS_TOKEN
@@ -962,7 +890,7 @@ const Map: React.FC<MapProps> = ({
           }}
         />
 
-        {hoverInfo && <HoverInfo info={hoverInfo} />}
+        <HoverInfoBox hoverInfo={hoverInfo} cars={cars} bookings={bookings} />
 
         {(showSettingsMenu || showLayerMenu) && (
           <div
