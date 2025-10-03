@@ -55,6 +55,7 @@
     "embla-carousel-react": "^8.3.0",
     "input-otp": "^1.2.4",
     "json-edit-react": "latest",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.462.0",
     "maplibre-gl": "^1.15.3",
     "moment-duration-format": "^2.3.2",

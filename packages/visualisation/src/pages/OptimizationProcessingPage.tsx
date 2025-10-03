@@ -1,16 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Truck } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-// Removed lottie-react to avoid extra dependency
-// No API polling; simple timed loading
+import Lottie from 'lottie-react'
+import processingAnimation from '@/assets/animations/processing.json'
 
-const TOTAL_DURATION_MS = 5000 // ~5 sekunder (enkel väntetid)
+const TOTAL_DURATION_MS = 5000
 
-// Simple loading icon (no Lottie)
 const LottieAnimation: React.FC = () => {
-  return <Truck className="text-primary animate-pulse" size={40} />
+  return <Lottie animationData={processingAnimation} loop autoplay className="w-full h-full" />
 }
 
 const phases = [
@@ -28,7 +26,6 @@ const OptimizationProcessingPage: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Vidarebefordra incoming state efter slutförd process
   const forwardedState = useMemo(() => {
     return (location.state as any) || {}
   }, [location.state])
@@ -43,7 +40,6 @@ const OptimizationProcessingPage: React.FC = () => {
   const startRef = useRef<number | null>(null)
   const completedRef = useRef<boolean>(false)
 
-  // SEO basics
   useEffect(() => {
     const prevTitle = document.title
     document.title = 'Optimering pågår – skapa optimering'
@@ -52,12 +48,10 @@ const OptimizationProcessingPage: React.FC = () => {
     }
   }, [])
 
-  // Blockera bakåtknapp och scroll
   useEffect(() => {
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    // Förhindra back/forward på denna sida
     const push = () => window.history.pushState(null, '', window.location.href)
     push()
     const onPopState = () => {
@@ -65,7 +59,6 @@ const OptimizationProcessingPage: React.FC = () => {
     }
     window.addEventListener('popstate', onPopState)
 
-    // Varning vid stäng/ladda om
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
@@ -79,7 +72,6 @@ const OptimizationProcessingPage: React.FC = () => {
     }
   }, [])
 
-  // Animera procent/faser (~3s) och navigera när klar
   useEffect(() => {
     const step = (ts: number) => {
       if (startRef.current == null) startRef.current = ts
@@ -101,7 +93,6 @@ const OptimizationProcessingPage: React.FC = () => {
         if (experimentId) {
           navigate(`/experiment/${experimentId}`, { replace: true })
         } else {
-          // fallback om vi saknar id – skicka vidare ev. state (t.ex. activeTab)
           navigate('/routes', { replace: true, state: forwardedState })
         }
       }
@@ -114,28 +105,30 @@ const OptimizationProcessingPage: React.FC = () => {
   }, [navigate, experimentId, forwardedState])
 
   const handleCancel = () => {
-    // Avbryt och gå tillbaka eller till en säker fallback
     if (frameRef.current) cancelAnimationFrame(frameRef.current)
     completedRef.current = true
-    // Försök gå tillbaka, annars till /routes
     if (window.history.length > 1) navigate(-1)
     else navigate('/routes')
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 className="text-xl font-normal break-words hyphens-auto mb-8">
+        Optimering pågår
+      </h1>
+
       <header className="w-full max-w-2xl mx-auto text-center space-y-6">
         <div
           aria-hidden
-          className="mx-auto w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center animate-enter"
+          className="mx-auto flex items-center justify-center animate-enter relative my-16"
         >
-          <LottieAnimation />
+          <div className="w-[350px] h-[350px] rounded-full bg-telge-ljusbla15"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-[55%] -translate-y-[55%] w-[490px] h-[490px]">
+            <LottieAnimation />
+          </div>
         </div>
-        <h1 className="text-3xl font-normal break-words hyphens-auto">
-          Optimering pågår
-        </h1>
         <p
-          className="text-muted-foreground break-words hyphens-auto"
+          className="text-base text-muted-foreground break-words hyphens-auto"
           aria-live="polite"
         >
           {phases[phaseIndex]} — {percent}%
@@ -146,7 +139,7 @@ const OptimizationProcessingPage: React.FC = () => {
         <Progress value={percent} />
       </main>
 
-      <footer className="w-full max-w-2xl mx-auto mt-12 text-center">
+      <footer className="w-full max-w-2xl mx-auto mt-8 text-center">
         <Button variant="outline" onClick={handleCancel}>
           Avbryt
         </Button>
