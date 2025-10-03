@@ -466,15 +466,26 @@ export class ExperimentController {
         isReplay: true,
       }
 
-      const workdaySettings =
+      const workdaySettingsBase =
         this.buildWorkdaySettings(
           datasetData?.optimizationSettings?.workingHours
         ) || this.buildWorkdaySettings(experimentData?.settings?.workday)
+
+      const workdaySettings = workdaySettingsBase ? { ...workdaySettingsBase } : null
+      if (workdaySettings) {
+        delete (workdaySettings as any).end
+        delete (workdaySettings as any).endMinutes
+      }
       const breakSettings =
         this.buildBreakSettings(
           datasetData?.optimizationSettings?.breaks,
           datasetData?.optimizationSettings?.extraBreaks
         ) || experimentData?.settings?.breaks
+
+      const datasetFleetSettings =
+        (datasetData?.originalSettings as Record<string, unknown>) ||
+        (experimentData?.settings as Record<string, unknown>) ||
+        {}
 
       const sessionParams = {
         ...parameters,
@@ -489,6 +500,7 @@ export class ExperimentController {
         fleets: {
           'Södertälje kommun': {
             settings: {
+              ...datasetFleetSettings,
               experimentType: 'replay',
               workday: workdaySettings || undefined,
               breaks: breakSettings || undefined,
@@ -525,6 +537,10 @@ export class ExperimentController {
     const workdaySettings = this.buildWorkdaySettings(
       datasetData?.optimizationSettings?.workingHours
     )
+    if (workdaySettings) {
+      delete (workdaySettings as any).end
+      delete (workdaySettings as any).endMinutes
+    }
     const breakSettings = this.buildBreakSettings(
       datasetData?.optimizationSettings?.breaks,
       datasetData?.optimizationSettings?.extraBreaks
@@ -536,6 +552,7 @@ export class ExperimentController {
       sourceDatasetId: datasetId,
       experimentType: 'sequential',
       isReplay: true,
+      workdaySettings: workdaySettings || undefined,
       fleets: {
         'Södertälje kommun': {
           settings: {

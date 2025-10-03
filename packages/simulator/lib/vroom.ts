@@ -5,6 +5,10 @@ import { getFromCache, updateCache } from './cache'
 import queue from './queueSubject'
 import { virtualTime } from './virtualTime'
 import { CLUSTERING_CONFIG } from './config'
+import {
+  estimateBookingLoad,
+  getCapacityDimensions,
+} from './loadEstimator'
 
 // eslint-disable-next-line no-undef
 const vroomUrl: string =
@@ -225,10 +229,19 @@ async function plan(
   }
 }
 
+type CapacityKey = 'volumeLiters' | 'weightKg' | 'count'
+
 function bookingToShipment(
-  { id, pickup, destination, groupedBookings, fleet }: any,
-  i: number
+  booking: any,
+  i: number,
+  options: {
+    capacityDimensions?: CapacityKey[]
+    fleet?: any
+  } = {}
 ): Shipment {
+  const { id, pickup, destination, groupedBookings } = booking
+  const fleet = options.fleet || booking.fleet
+
   const pickupLon = pickup.position.lon || pickup.position.lng
   const pickupLat = pickup.position.lat
   const deliveryLon = destination.position.lon || destination.position.lng
@@ -267,11 +280,28 @@ function bookingToShipment(
   const deliveryStart = pickupStart
   const deliveryEnd = pickupEnd
 
-  const amount = groupedBookings ? groupedBookings.length : 1
+  const groupMultiplier = groupedBookings ? groupedBookings.length : 1
+  const settings = fleet?.settings || {}
+  const load = estimateBookingLoad(booking, settings)
+
+  const capacityDimensions = options.capacityDimensions || ['count']
+  const amount = capacityDimensions.map((dim) => {
+    switch (dim) {
+      case 'volumeLiters':
+        return Math.max(1, Math.round(load.volumeLiters * groupMultiplier))
+      case 'weightKg':
+        return load.weightKg != null
+          ? Math.max(0, Math.round(load.weightKg * groupMultiplier))
+          : 0
+      case 'count':
+      default:
+        return Math.max(1, groupMultiplier)
+    }
+  })
 
   return {
     id: i,
-    amount: [amount],
+    amount,
     pickup: {
       id: i * 2,
       location: [pickupLon, pickupLat],
@@ -287,9 +317,11 @@ function bookingToShipment(
 }
 
 function truckToVehicle(
-  { position, parcelCapacity, destination, cargo, fleet, virtualTime: vt }: any,
-  i: number
+  truck: any,
+  i: number,
+  options: { start?: [number, number] } = {}
 ): Vehicle {
+  const { position, destination, fleet, virtualTime: vt } = truck
   const virtualTimeSource = getVirtualTime({ virtualTime: vt })
   const workday = fleet?.settings?.workday
   const {
@@ -304,7 +336,12 @@ function truckToVehicle(
   const workStart = startOffsetSeconds
   const workEnd = endOffsetSeconds
 
-  const effectiveCapacity = parcelCapacity - cargo.length
+  const { keys: capacityDimensions, values: capacityValues } =
+    getCapacityDimensions(truck)
+
+  const startCoords: [number, number] = options.start
+    ? options.start
+    : [position.lon || position.lng, position.lat]
 
   const rawBreaks = Array.isArray(fleet?.settings?.breaks)
     ? fleet.settings.breaks
@@ -333,16 +370,24 @@ function truckToVehicle(
     })
     .filter(Boolean)
 
-  return {
+  const vehicle: Vehicle = {
     id: i,
     time_window: [workStart, workEnd],
-    capacity: [effectiveCapacity],
-    start: [position.lon || position.lng, position.lat],
+    capacity: capacityValues,
+    start: startCoords,
     end: destination
       ? [destination.lon || destination.lng, destination.lat]
       : [position.lon || position.lng, position.lat],
     ...(breaks.length ? { breaks } : {}),
   }
+
+  Object.defineProperty(vehicle, '__capacityDimensions', {
+    value: capacityDimensions,
+    enumerable: false,
+    configurable: true,
+  })
+
+  return vehicle
 }
 
 export default {

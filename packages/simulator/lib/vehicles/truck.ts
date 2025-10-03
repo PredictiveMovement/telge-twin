@@ -5,9 +5,9 @@ const {
 } = require('../dispatch/truckDispatch')
 const { warn } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
+import { estimateBookingLoad } from '../loadEstimator'
 const Vehicle = require('./vehicle').default
 const { createSpatialChunks } = require('../clustering')
-import { startOfDay } from 'date-fns'
 import type { Instruction } from '../dispatch/truckDispatch'
 
 interface TruckConstructorArgs {
@@ -159,7 +159,11 @@ class Truck extends Vehicle {
       return
     }
 
-    const dayStart = startOfDay(new Date(bounds.startMs)).getTime()
+    const dayStart = Number(bounds.startMs)
+    if (!Number.isFinite(dayStart)) {
+      this.breakSchedule = []
+      return
+    }
 
     this.breakSchedule = rawBreaks
       .map((b: any, index: number) => {
@@ -328,23 +332,7 @@ class Truck extends Vehicle {
     weightKg: number | null
   } {
     const settings = this.fleet?.settings || {}
-    const tjIndex: Record<string, { VOLYM?: number; FYLLNADSGRAD?: number }> =
-      Object.fromEntries((settings?.tjtyper || []).map((t: any) => [t.ID, t]))
-    const avfIndex: Record<string, { VOLYMVIKT?: number }> = Object.fromEntries(
-      (settings?.avftyper || []).map((a: any) => [a.ID, a])
-    )
-    const tjid =
-      booking?.originalData?.originalTjtyp ||
-      booking?.originalRecord?.Tjtyp ||
-      ''
-    const tj = tjid ? tjIndex[tjid] : undefined
-    const baseVol = typeof tj?.VOLYM === 'number' ? tj!.VOLYM : 140
-    const fill = typeof tj?.FYLLNADSGRAD === 'number' ? tj!.FYLLNADSGRAD : 100
-    const volumeLiters = Math.max(1, Math.round((baseVol * fill) / 100))
-    const density = avfIndex[booking?.recyclingType || '']?.VOLYMVIKT
-    const weightKg =
-      typeof density === 'number' ? (volumeLiters / 1000) * density : null
-    return { volumeLiters, weightKg }
+    return estimateBookingLoad(booking, settings)
   }
 
   /** Pick an eligible compartment for a given waste type and load, preferring most remaining capacity. */

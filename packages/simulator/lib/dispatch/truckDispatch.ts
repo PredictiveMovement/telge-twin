@@ -182,24 +182,18 @@ export async function findBestRouteToPickupBookings(
 
         // Helper: plan a set of bookings (sub- or full chunk) from currentStart
         const planBookings = async (bkgs: any[]) => {
-          const vehicles = [
-            {
-              ...truckToVehicle(
-                {
-                  position: { lon: currentStart[0], lat: currentStart[1] },
-                  parcelCapacity: truck.parcelCapacity,
-                  destination: truck.destination,
-                  cargo: truck.cargo,
-                  fleet: truck.fleet,
-                  virtualTime: truck.virtualTime,
-                },
-                0
-              ),
-              start: [currentStart[0], currentStart[1]],
-            },
-          ]
+          const baseVehicle = truckToVehicle(truck, 0, {
+            start: [currentStart[0], currentStart[1]],
+          })
+          const capacityDimensions =
+            (baseVehicle as any).__capacityDimensions || ['count']
+
+          const vehicles = [baseVehicle]
           const shipments = bkgs.map((b: any, i: number) =>
-            bookingToShipment({ ...b, fleet: truck.fleet }, i)
+            bookingToShipment(b, i, {
+              capacityDimensions,
+              fleet: truck.fleet,
+            })
           )
           const result = await plan({ shipments, vehicles }, 0)
 
