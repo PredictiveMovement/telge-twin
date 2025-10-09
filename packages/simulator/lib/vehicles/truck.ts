@@ -9,6 +9,16 @@ import { estimateBookingLoad } from '../loadEstimator'
 const Vehicle = require('./vehicle').default
 const { createSpatialChunks } = require('../clustering')
 import type { Instruction } from '../dispatch/truckDispatch'
+import { buildBreakSchedule, ScheduledBreak } from './breaks'
+import {
+  applyLoadToCompartment,
+  Compartment,
+  createCompartments,
+  isAnyCompartmentFull,
+  LoadEstimate,
+  releaseLoadFromCompartment,
+  selectBestCompartment,
+} from './compartments'
 
 interface TruckConstructorArgs {
   id?: string
@@ -33,27 +43,10 @@ class Truck extends Vehicle {
   instruction?: any // Plan instruction type
   // booking is inherited from Vehicle, should be Booking type
   _timeout?: NodeJS.Timeout // For setTimeout
-  compartments: Array<{
-    fackNumber: number
-    allowedWasteTypes: string[]
-    capacityLiters: number | null
-    capacityKg: number | null
-    fillLiters: number
-    fillKg: number
-  }>
+  compartments: Compartment[]
   private shiftEndedForDay = false
-  private breakSchedule: Array<{
-    id: string
-    startMs: number
-    durationMs: number
-    taken: boolean
-  }> = []
-  private breakActive: {
-    id: string
-    startMs: number
-    durationMs: number
-    taken: boolean
-  } | null = null
+  private breakSchedule: ScheduledBreak[] = []
+  private breakActive: ScheduledBreak | null = null
 
   private isSequentialExperiment(): boolean {
     const fleetExperimentType =
@@ -114,24 +107,26 @@ class Truck extends Vehicle {
     this.recyclingTypes = args.recyclingTypes
 
     // Build compartments (fack) from fackDetails (if any); fallback to single general fack
-    this.compartments = this.buildCompartments()
+    this.compartments = createCompartments((this as any).fackDetails)
 
     this.initializeBreakSchedule()
   }
 
-  /** Return true if any compartment with a finite capacity is at or above capacity (by liters or kg). */
-  private isAnyCompartmentFull(): boolean {
-    return (this.compartments || []).some((c) => {
-      const litersFull =
-        typeof c.capacityLiters === 'number' && c.capacityLiters > 0
-          ? c.fillLiters >= c.capacityLiters
-          : false
-      const kgFull =
-        typeof c.capacityKg === 'number' && c.capacityKg > 0
-          ? c.fillKg >= c.capacityKg
-          : false
-      return litersFull || kgFull
-    })
+  private setStatus(status: string) {
+    this.status = status
+    this.emitStatus()
+  }
+
+  private emitStatus() {
+    if (this.statusEvents) this.statusEvents.next(this)
+  }
+
+  private emitMoved() {
+    if (this.movedEvents) this.movedEvents.next(this)
+  }
+
+  private emitCargo() {
+    if (this.cargoEvents) this.cargoEvents.next(this)
   }
 
   /** Return true if there is any load onboard or any compartment has non-zero fill. */
@@ -144,53 +139,40 @@ class Truck extends Vehicle {
   }
 
   private initializeBreakSchedule() {
-    const bounds = this.virtualTime?.getWorkdayBounds?.()
-    if (!bounds) {
-      this.breakSchedule = []
-      return
-    }
-
-    const rawBreaks = Array.isArray(this.fleet?.settings?.breaks)
+    const explicitBreaks = Array.isArray(this.fleet?.settings?.breaks)
       ? this.fleet.settings.breaks
       : []
+    const explicitExtraBreaks = Array.isArray(
+      (this.fleet?.settings as any)?.extraBreaks
+    )
+      ? (this.fleet?.settings as any).extraBreaks
+      : []
 
-    if (!rawBreaks.length) {
-      this.breakSchedule = []
-      return
-    }
+    const optimizationBreaks = Array.isArray(
+      this.fleet?.settings?.optimizationSettings?.breaks
+    )
+      ? this.fleet?.settings?.optimizationSettings?.breaks
+      : []
+    const optimizationExtraBreaks = Array.isArray(
+      this.fleet?.settings?.optimizationSettings?.extraBreaks
+    )
+      ? this.fleet?.settings?.optimizationSettings?.extraBreaks
+      : []
 
-    const dayStart = Number(bounds.startMs)
-    if (!Number.isFinite(dayStart)) {
-      this.breakSchedule = []
-      return
-    }
+    const breakCandidates = [
+      ...explicitBreaks,
+      ...explicitExtraBreaks,
+      ...(explicitBreaks.length || explicitExtraBreaks.length
+        ? []
+        : [...optimizationBreaks, ...optimizationExtraBreaks]),
+    ]
 
-    this.breakSchedule = rawBreaks
-      .map((b: any, index: number) => {
-        if (
-          typeof b?.startMinutes !== 'number' ||
-          typeof b?.durationMinutes !== 'number'
-        ) {
-          return null
-        }
-        const startMs = dayStart + b.startMinutes * 60 * 1000
-        const durationMs = Math.max(0, b.durationMinutes * 60 * 1000)
-        if (durationMs <= 0) return null
-        const id = typeof b?.id === 'string' ? b.id : `break-${index}`
-        return {
-          id,
-          startMs,
-          durationMs,
-          taken: false,
-        }
-      })
-      .filter(Boolean)
-      .sort((a: any, b: any) => a.startMs - b.startMs) as Array<{
-      id: string
-      startMs: number
-      durationMs: number
-      taken: boolean
-    }>
+    this.breakSchedule = buildBreakSchedule({
+      virtualTime: this.virtualTime,
+      breaks: breakCandidates,
+      workdaySettings: this.fleet?.settings?.workday,
+      optimizationSettings: this.fleet?.settings?.optimizationSettings,
+    })
   }
 
   private hasReachedEndOfWorkday(): boolean {
@@ -237,20 +219,18 @@ class Truck extends Vehicle {
       b.taken = true
     })
 
-    this.status = 'returning'
-    if (this.statusEvents) this.statusEvents.next(this)
+    this.setStatus('returning')
 
     await this.navigateTo(this.startPosition)
 
-    this.status = 'end'
-    if (this.statusEvents) this.statusEvents.next(this)
+    this.setStatus('end')
   }
 
   private async maybeTakeBreak(): Promise<boolean> {
     if (this.breakActive) {
       return false
     }
-    if (!Array.isArray(this.breakSchedule) || !this.breakSchedule.length) {
+    if (!this.breakSchedule.length) {
       return false
     }
 
@@ -265,111 +245,27 @@ class Truck extends Vehicle {
 
     const previousStatus = this.status
     this.breakActive = upcoming
-    this.status = 'break'
     this.speed = 0
-    if (this.statusEvents) this.statusEvents.next(this)
-    if (this.movedEvents) this.movedEvents.next(this)
+    this.setStatus('break')
+    this.emitMoved()
 
     await this.virtualTime.wait(upcoming.durationMs)
 
     upcoming.taken = true
     this.breakActive = null
-    this.status = previousStatus || 'ready'
-    if (this.statusEvents) this.statusEvents.next(this)
-    if (this.movedEvents) this.movedEvents.next(this)
+    this.setStatus(previousStatus || 'ready')
+    this.emitMoved()
 
     return true
   }
 
-  /** Build internal compartments from provided fackDetails or fallback to a single general compartment. */
-  private buildCompartments() {
-    const fackDetails = (this as any).fackDetails || []
-    const list: Array<{
-      fackNumber: number
-      allowedWasteTypes: string[]
-      capacityLiters: number | null
-      capacityKg: number | null
-      fillLiters: number
-      fillKg: number
-    }> = []
-
-    if (Array.isArray(fackDetails) && fackDetails.length) {
-      for (const f of fackDetails) {
-        const types = Array.isArray(f?.avfallstyper)
-          ? f.avfallstyper.map((t: any) => t?.avftyp).filter(Boolean)
-          : []
-        const vol =
-          typeof f?.volym === 'number' && f.volym > 0 ? f.volym * 1000 : null // assume m³ → L
-        const kg = typeof f?.vikt === 'number' && f.vikt > 0 ? f.vikt : null
-        list.push({
-          fackNumber: f.fackNumber,
-          allowedWasteTypes: types.length ? types : ['*'],
-          capacityLiters: vol,
-          capacityKg: kg,
-          fillLiters: 0,
-          fillKg: 0,
-        })
-      }
-    }
-
-    if (!list.length) {
-      // Fallback: one general compartment that accepts all and has no explicit caps
-      list.push({
-        fackNumber: 1,
-        allowedWasteTypes: ['*'],
-        capacityLiters: null,
-        capacityKg: null,
-        fillLiters: 0,
-        fillKg: 0,
-      })
-    }
-    return list
-  }
-
   /** Compute expected pickup volume (liters) and weight (kg) for a booking using dataset settings. */
-  private computeBookingLoad(booking: any): {
-    volumeLiters: number
-    weightKg: number | null
-  } {
+  private computeBookingLoad(booking: any): LoadEstimate {
     const settings = this.fleet?.settings || {}
     return estimateBookingLoad(booking, settings)
   }
 
   /** Pick an eligible compartment for a given waste type and load, preferring most remaining capacity. */
-  private selectCompartment(
-    typeId: string,
-    load: { volumeLiters: number; weightKg: number | null }
-  ) {
-    const candidates = this.compartments.filter(
-      (c) =>
-        c.allowedWasteTypes.includes('*') ||
-        c.allowedWasteTypes.includes(typeId)
-    )
-    if (!candidates.length) return null
-    // Score by remaining liters then kg; if no explicit caps, treat as Infinity
-    let best: any = null
-    let bestScore = -Infinity
-    for (const c of candidates) {
-      const volRem =
-        c.capacityLiters != null
-          ? c.capacityLiters - c.fillLiters
-          : Number.POSITIVE_INFINITY
-      const kgRem =
-        c.capacityKg != null && load.weightKg != null
-          ? c.capacityKg - c.fillKg
-          : Number.POSITIVE_INFINITY
-      const score = Math.min(
-        volRem / (load.volumeLiters || 1),
-        kgRem / (load.weightKg || 1)
-      )
-      if (score > bestScore) {
-        bestScore = score
-        best = c
-      }
-    }
-    return best
-  }
-
   /**
    * Picks the next instruction from the plan.
    * @returns A promise that resolves when the next instruction is picked.
@@ -381,9 +277,8 @@ class Truck extends Vehicle {
     }
 
     if (this.breakActive) {
-      this.status = 'break'
       this.speed = 0
-      if (this.statusEvents) this.statusEvents.next(this)
+      this.setStatus('break')
       return
     }
 
@@ -424,8 +319,7 @@ class Truck extends Vehicle {
       this.booking = null
     }
 
-    this.status = this.instruction?.action || 'returning'
-    if (this.statusEvents) this.statusEvents.next(this)
+    this.setStatus(this.instruction?.action || 'returning')
     switch (this.status) {
       case 'start':
         return this.navigateTo(this.startPosition)
@@ -478,9 +372,8 @@ class Truck extends Vehicle {
     }
 
     if (this.breakActive) {
-      this.status = 'break'
       this.speed = 0
-      if (this.statusEvents) this.statusEvents.next(this)
+      this.setStatus('break')
       return
     }
 
@@ -506,15 +399,13 @@ class Truck extends Vehicle {
         }
 
         this.position = this.startPosition
-        this.status = 'parked'
         this.instruction = undefined
-        if (this.statusEvents) this.statusEvents.next(this)
-        if (this.movedEvents) this.movedEvents.next(this)
+        this.setStatus('parked')
+        this.emitMoved()
         return
       }
 
-      this.status = 'end'
-      if (this.statusEvents) this.statusEvents.next(this)
+      this.setStatus('end')
       await this.navigateTo(this.startPosition)
       this.instruction = undefined
       return
@@ -549,11 +440,10 @@ class Truck extends Vehicle {
     // Assign booking to a compartment (fack) and update fill levels
     const typeId = activeBooking?.recyclingType
     const load = this.computeBookingLoad(activeBooking)
-    const comp = this.selectCompartment(typeId, load)
+    const comp = selectBestCompartment(this.compartments, typeId, load)
 
     if (comp) {
-      comp.fillLiters += load.volumeLiters
-      if (load.weightKg != null) comp.fillKg += load.weightKg
+      applyLoadToCompartment(comp, load)
       ;(activeBooking as any).assignedFack = comp.fackNumber
       ;(activeBooking as any).loadEstimate = load
     } else {
@@ -589,7 +479,7 @@ class Truck extends Vehicle {
     if (!activeBooking) return
 
     this.cargo.push(activeBooking)
-    if (this.cargoEvents) this.cargoEvents.next(this)
+    this.emitCargo()
     if (activeBooking.pickedUp) activeBooking.pickedUp(this.position)
 
     // Prevent base Vehicle.stopped() from re-triggering pickup on next stop
@@ -603,7 +493,7 @@ class Truck extends Vehicle {
 
     // Trigger delivery if capacity reached OR fallback to pickup-count strategy
     if (
-      this.isAnyCompartmentFull() ||
+      isAnyCompartmentFull(this.compartments) ||
       this.cargo.length >= pickupsBeforeDelivery
     ) {
       // Only add delivery instruction if the next instruction isn't already a delivery
@@ -634,15 +524,13 @@ class Truck extends Vehicle {
         if (item.delivered) item.delivered(this.position)
         // Decrement fills per assigned fack
         const assigned = (item as any).assignedFack
-        const load = (item as any).loadEstimate as
-          | { volumeLiters: number; weightKg: number | null }
-          | undefined
+        const load = (item as any).loadEstimate as LoadEstimate | undefined
         if (assigned && load) {
-          const c = this.compartments.find((x) => x.fackNumber === assigned)
-          if (c) {
-            c.fillLiters = Math.max(0, c.fillLiters - (load.volumeLiters || 0))
-            if (load.weightKg != null)
-              c.fillKg = Math.max(0, c.fillKg - load.weightKg)
+          const compartment = this.compartments.find(
+            (x) => x.fackNumber === assigned
+          )
+          if (compartment) {
+            releaseLoadFromCompartment(compartment, load)
           }
         }
       })
@@ -653,7 +541,7 @@ class Truck extends Vehicle {
         )
       }
       this.cargo = []
-      if (this.cargoEvents) this.cargoEvents.next(this)
+      this.emitCargo()
 
       // Continue with next instruction after delivery
       if (this.plan.length > 0) {
@@ -665,8 +553,7 @@ class Truck extends Vehicle {
             return this.pickNextInstructionFromPlan()
           }
         }
-        this.status = 'end'
-        if (this.statusEvents) this.statusEvents.next(this)
+        this.setStatus('end')
         return this.navigateTo(this.startPosition)
       }
     }
@@ -674,19 +561,17 @@ class Truck extends Vehicle {
     // Otherwise, deliver specific booking (legacy behavior)
     // Decrement fill for the specific booking
     const assigned = (this.booking as any).assignedFack
-    const load = (this.booking as any).loadEstimate as
-      | { volumeLiters: number; weightKg: number | null }
-      | undefined
-    if (assigned && load) {
-      const c = this.compartments.find((x) => x.fackNumber === assigned)
-      if (c) {
-        c.fillLiters = Math.max(0, c.fillLiters - (load.volumeLiters || 0))
-        if (load.weightKg != null)
-          c.fillKg = Math.max(0, c.fillKg - load.weightKg)
-      }
+  const load = (this.booking as any).loadEstimate as LoadEstimate | undefined
+  if (assigned && load) {
+    const compartment = this.compartments.find(
+      (x) => x.fackNumber === assigned
+    )
+    if (compartment) {
+      releaseLoadFromCompartment(compartment, load)
     }
+  }
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
-    if (this.cargoEvents) this.cargoEvents.next(this)
+    this.emitCargo()
     if (this.isSequentialExperiment() && this.booking) {
       this.queue = this.queue.filter((queued: any) => queued !== this.booking)
       if (this.plan.length === 0 && this.queue.length > 0) {
