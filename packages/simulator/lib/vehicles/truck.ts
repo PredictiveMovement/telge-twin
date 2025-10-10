@@ -47,6 +47,7 @@ class Truck extends Vehicle {
   private shiftEndedForDay = false
   private breakSchedule: ScheduledBreak[] = []
   private breakActive: ScheduledBreak | null = null
+  private finishingWorkday = false
 
   private isSequentialExperiment(): boolean {
     const fleetExperimentType =
@@ -184,6 +185,7 @@ class Truck extends Vehicle {
   private async concludeWorkday(): Promise<void> {
     if (this.shiftEndedForDay) return
     this.shiftEndedForDay = true
+    this.finishingWorkday = true
 
     const pendingBookings = new Set<any>()
     ;(this.plan || []).forEach((instruction: Instruction) => {
@@ -222,8 +224,6 @@ class Truck extends Vehicle {
     this.setStatus('returning')
 
     await this.navigateTo(this.startPosition)
-
-    this.setStatus('end')
   }
 
   private async maybeTakeBreak(): Promise<boolean> {
@@ -286,7 +286,18 @@ class Truck extends Vehicle {
       return this.pickNextInstructionFromPlan()
     }
 
-    this.instruction = this.plan.shift()
+    let nextInstruction: Instruction | undefined
+
+    while (this.plan.length > 0 && !nextInstruction) {
+      const candidate = this.plan.shift()
+      const candidateBooking: any = candidate?.booking
+      if (candidateBooking?.status === 'Unreachable') {
+        continue
+      }
+      nextInstruction = candidate
+    }
+
+    this.instruction = nextInstruction
 
     // If instruction is a pickup but booking already in cargo, skip to next
     if (
@@ -368,6 +379,9 @@ class Truck extends Vehicle {
 
   private async handlePostStop(): Promise<void> {
     if (this.shiftEndedForDay) {
+      if (this.finishingWorkday) {
+        await this.finalizeEndOfWorkday()
+      }
       return
     }
 
@@ -387,12 +401,41 @@ class Truck extends Vehicle {
     }
 
     if (this.plan.length === 0) {
-      if (
-        this.status === 'end' &&
+      const hasReachableQueue = this.queue.some(
+        (queued: any) => queued?.status !== 'Unreachable'
+      )
+      const canMeasureDistance =
         this.position &&
         this.startPosition &&
-        this.position.distanceTo(this.startPosition) < 100
-      ) {
+        typeof this.position.distanceTo === 'function'
+      const atStart =
+        canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
+
+      if (!hasReachableQueue) {
+        this.queue = this.queue.filter(
+          (queued: any) => queued?.status !== 'Unreachable'
+        )
+        this.instruction = undefined
+        this.booking = null
+
+        if (!atStart) {
+          this.setStatus('returning')
+          await this.navigateTo(this.startPosition)
+          return
+        }
+
+        if (this.hasAnyLoad()) {
+          await this.dropOff()
+        }
+
+        this.position = this.startPosition
+        this.instruction = undefined
+        this.setStatus('parked')
+        this.emitMoved()
+        return
+      }
+
+      if (this.status === 'end' && atStart) {
         if (this.hasAnyLoad()) {
           await this.dropOff()
           return
@@ -463,10 +506,7 @@ class Truck extends Vehicle {
             }. Compartments: ${JSON.stringify(overview)}`
         )
       } catch (error) {
-        warn(
-          `Failed to log compartment overview for truck ${this.id}`,
-          error
-        )
+        warn(`Failed to log compartment overview for truck ${this.id}`, error)
       }
     }
 
@@ -561,15 +601,15 @@ class Truck extends Vehicle {
     // Otherwise, deliver specific booking (legacy behavior)
     // Decrement fill for the specific booking
     const assigned = (this.booking as any).assignedFack
-  const load = (this.booking as any).loadEstimate as LoadEstimate | undefined
-  if (assigned && load) {
-    const compartment = this.compartments.find(
-      (x) => x.fackNumber === assigned
-    )
-    if (compartment) {
-      releaseLoadFromCompartment(compartment, load)
+    const load = (this.booking as any).loadEstimate as LoadEstimate | undefined
+    if (assigned && load) {
+      const compartment = this.compartments.find(
+        (x) => x.fackNumber === assigned
+      )
+      if (compartment) {
+        releaseLoadFromCompartment(compartment, load)
+      }
     }
-  }
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     this.emitCargo()
     if (this.isSequentialExperiment() && this.booking) {
@@ -583,6 +623,61 @@ class Truck extends Vehicle {
       }
     }
     if (this.booking.delivered) this.booking.delivered(this.position)
+  }
+
+  /** Drop all cargo at the depot without triggering further navigation. */
+  private dischargeAllCargo(): void {
+    if (!Array.isArray(this.cargo) || !this.cargo.length) {
+      return
+    }
+
+    const deliveredNow = [...this.cargo]
+    deliveredNow.forEach((item: any) => {
+      if (item.delivered) item.delivered(this.position)
+      const assigned = (item as any).assignedFack
+      const load = (item as any).loadEstimate as LoadEstimate | undefined
+      if (assigned && load) {
+        const compartment = this.compartments.find(
+          (x) => x.fackNumber === assigned
+        )
+        if (compartment) {
+          releaseLoadFromCompartment(compartment, load)
+        }
+      }
+    })
+
+    if (this.isSequentialExperiment()) {
+      const deliveredSet = new Set(deliveredNow)
+      this.queue = this.queue.filter((queued: any) => !deliveredSet.has(queued))
+    }
+
+    this.cargo = []
+    this.emitCargo()
+  }
+
+  private async finalizeEndOfWorkday(): Promise<void> {
+    const canMeasureDistance =
+      this.position &&
+      this.startPosition &&
+      typeof this.position.distanceTo === 'function'
+    const atStart =
+      canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
+
+    if (!atStart) {
+      this.setStatus('returning')
+      await this.navigateTo(this.startPosition)
+      return
+    }
+
+    this.speed = 0
+    this.position = this.startPosition
+    this.instruction = undefined
+    this.booking = null
+    this.dischargeAllCargo()
+    this.setStatus('end')
+    this.setStatus('parked')
+    this.emitMoved()
+    this.finishingWorkday = false
   }
 
   /**

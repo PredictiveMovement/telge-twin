@@ -296,136 +296,136 @@ export class ExperimentController {
       durationMinutes: number
     }> | null = null
 
-      if (isReplay && experimentId) {
-        const experimentData = await elasticsearchService.getExperiment(
-          experimentId
+    if (isReplay && experimentId) {
+      const experimentData = await elasticsearchService.getExperiment(
+        experimentId
+      )
+
+      if (experimentData.sourceDatasetId) {
+        // Loading dataset for replay
+        datasetData = await elasticsearchService.getDataset(
+          experimentData.sourceDatasetId
         )
-
-        if (experimentData.sourceDatasetId) {
-          // Loading dataset for replay
-          datasetData = await elasticsearchService.getDataset(
-            experimentData.sourceDatasetId
-          )
-          datasetWorkdaySettings = this.buildWorkdaySettings(
-            datasetData?.optimizationSettings?.workingHours
-          )
-          fleetsConfig = datasetData?.fleetConfiguration || []
-        } else {
-          fleetsConfig = experimentData.fleets || []
-        }
-
-        experimentSettings = {
-          ...experimentData.settings,
-          replayExperiment: experimentId,
-          isReplay: true,
-        }
-
-        // Replay mode: Loading experiment with fleets
-      } else if (datasetId) {
-        datasetData = await elasticsearchService.getDataset(datasetId)
-        fleetsConfig = datasetData?.fleetConfiguration || []
-
-        datasetWorkdaySettings = this.buildWorkdaySettings(
-          datasetData.optimizationSettings?.workingHours
-        )
-        const datasetBreakSettings = this.buildBreakSettings(
-          datasetData.optimizationSettings?.breaks,
-          datasetData.optimizationSettings?.extraBreaks
-        )
-
-        const newExperimentData = {
-          id: currentExperimentId,
-          name: `Experiment from ${datasetData.name}`,
-          description: `Auto-generated from dataset: ${datasetData.description}`,
-          datasetId: datasetId,
-          fleets: fleetsConfig,
-          settings: {
-            ...(datasetData.originalSettings || {}),
-            ...(datasetData.optimizationSettings
-              ? { optimizationSettings: datasetData.optimizationSettings }
-              : {}),
-            ...(datasetWorkdaySettings
-              ? { workday: datasetWorkdaySettings }
-              : {}),
-            ...(datasetBreakSettings.length
-              ? { breaks: datasetBreakSettings }
-              : {}),
-          },
-          startDate: new Date().toISOString(),
-          status: 'running',
-        }
-        datasetBreakSettingsRef = datasetBreakSettings
-
-        await elasticsearchService.saveExperiment(
-          currentExperimentId,
-          newExperimentData
-        )
-      } else if (simData.sourceDatasetId || datasetId) {
-        const targetDatasetId = simData.sourceDatasetId || datasetId
-        datasetData = await elasticsearchService.getDataset(targetDatasetId)
         datasetWorkdaySettings = this.buildWorkdaySettings(
           datasetData?.optimizationSettings?.workingHours
         )
-        datasetBreakSettingsRef = this.buildBreakSettings(
-          datasetData?.optimizationSettings?.breaks,
-          datasetData?.optimizationSettings?.extraBreaks
-        )
         fleetsConfig = datasetData?.fleetConfiguration || []
       } else {
-        const defaultConfig = createFleetConfigFromDataset(
-          [],
-          undefined,
-          parameters
-        )
-        fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
+        fleetsConfig = experimentData.fleets || []
       }
 
-      // Use experimentType from parameters, default to 'vroom' if not specified
-      const experimentType = parameters.experimentType || 'vroom'
+      experimentSettings = {
+        ...experimentData.settings,
+        replayExperiment: experimentId,
+        isReplay: true,
+      }
 
-      const workdaySettings =
-        datasetWorkdaySettings || parameters?.workdaySettings
-      const breakSettings = datasetBreakSettingsRef?.length
-        ? datasetBreakSettingsRef
-        : parameters?.breakSettings
+      // Replay mode: Loading experiment with fleets
+    } else if (datasetId) {
+      datasetData = await elasticsearchService.getDataset(datasetId)
+      fleetsConfig = datasetData?.fleetConfiguration || []
 
-      // Creating experiment with specified type
+      datasetWorkdaySettings = this.buildWorkdaySettings(
+        datasetData.optimizationSettings?.workingHours
+      )
+      const datasetBreakSettings = this.buildBreakSettings(
+        datasetData.optimizationSettings?.breaks,
+        datasetData.optimizationSettings?.extraBreaks
+      )
 
-      this.globalExperiment = null
-      const experiment = this.createGlobalExperiment({
-        ...parameters,
-        ...experimentSettings,
-        experimentId: currentExperimentId,
-        experimentType,
-        sourceDatasetId: simData.sourceDatasetId || datasetId,
-        datasetName: simData.datasetName,
-        routeDataSource: 'elasticsearch',
-        workdaySettings,
-        breakSettings,
-        optimizationSettings: datasetData?.optimizationSettings,
-        fleets: {
-          'Södertälje kommun': {
-            settings: {
-              experimentType, // ✅ Forward experimentType to fleet settings
-              workday: workdaySettings || undefined,
-              breaks: breakSettings || undefined,
-              ...(experimentType === 'replay' && experimentId
-                ? { replayExperiment: experimentId }
-                : {}),
-            },
-            fleets: fleetsConfig,
-          },
+      const newExperimentData = {
+        id: currentExperimentId,
+        name: `Experiment from ${datasetData.name}`,
+        description: `Auto-generated from dataset: ${datasetData.description}`,
+        datasetId: datasetId,
+        fleets: fleetsConfig,
+        settings: {
+          ...(datasetData.originalSettings || {}),
+          ...(datasetData.optimizationSettings
+            ? { optimizationSettings: datasetData.optimizationSettings }
+            : {}),
+          ...(datasetWorkdaySettings
+            ? { workday: datasetWorkdaySettings }
+            : {}),
+          ...(datasetBreakSettings.length
+            ? { breaks: datasetBreakSettings }
+            : {}),
         },
-      })
-
-      virtualTime.reset()
-
-      return {
-        success: true,
-        experiment,
-        experimentId: currentExperimentId,
-        isReplay: !!isReplay,
+        startDate: new Date().toISOString(),
+        status: 'running',
       }
+      datasetBreakSettingsRef = datasetBreakSettings
+
+      await elasticsearchService.saveExperiment(
+        currentExperimentId,
+        newExperimentData
+      )
+    } else if (simData.sourceDatasetId || datasetId) {
+      const targetDatasetId = simData.sourceDatasetId || datasetId
+      datasetData = await elasticsearchService.getDataset(targetDatasetId)
+      datasetWorkdaySettings = this.buildWorkdaySettings(
+        datasetData?.optimizationSettings?.workingHours
+      )
+      datasetBreakSettingsRef = this.buildBreakSettings(
+        datasetData?.optimizationSettings?.breaks,
+        datasetData?.optimizationSettings?.extraBreaks
+      )
+      fleetsConfig = datasetData?.fleetConfiguration || []
+    } else {
+      const defaultConfig = createFleetConfigFromDataset(
+        [],
+        undefined,
+        parameters
+      )
+      fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
+    }
+
+    // Use experimentType from parameters, default to 'vroom' if not specified
+    const experimentType = parameters.experimentType || 'vroom'
+
+    const workdaySettings =
+      datasetWorkdaySettings || parameters?.workdaySettings
+    const breakSettings = datasetBreakSettingsRef?.length
+      ? datasetBreakSettingsRef
+      : parameters?.breakSettings
+
+    // Creating experiment with specified type
+
+    this.globalExperiment = null
+    const experiment = this.createGlobalExperiment({
+      ...parameters,
+      ...experimentSettings,
+      experimentId: currentExperimentId,
+      experimentType,
+      sourceDatasetId: simData.sourceDatasetId || datasetId,
+      datasetName: simData.datasetName,
+      routeDataSource: 'elasticsearch',
+      workdaySettings,
+      breakSettings,
+      optimizationSettings: datasetData?.optimizationSettings,
+      fleets: {
+        'Södertälje kommun': {
+          settings: {
+            experimentType, // ✅ Forward experimentType to fleet settings
+            workday: workdaySettings || undefined,
+            breaks: breakSettings || undefined,
+            ...(experimentType === 'replay' && experimentId
+              ? { replayExperiment: experimentId }
+              : {}),
+          },
+          fleets: fleetsConfig,
+        },
+      },
+    })
+
+    virtualTime.reset()
+
+    return {
+      success: true,
+      experiment,
+      experimentId: currentExperimentId,
+      isReplay: !!isReplay,
+    }
   }
 
   /**
@@ -441,81 +441,75 @@ export class ExperimentController {
     experimentId: string,
     parameters: any
   ) {
-      const experimentData = await elasticsearchService.getExperiment(
-        experimentId
+    const experimentData = await elasticsearchService.getExperiment(
+      experimentId
+    )
+
+    if (!experimentData) {
+      throw new Error('Experiment not found for replay')
+    }
+
+    let fleetsConfig = []
+    let datasetData: any = null
+    if (experimentData.sourceDatasetId) {
+      datasetData = await elasticsearchService.getDataset(
+        experimentData.sourceDatasetId
       )
+      fleetsConfig = datasetData?.fleetConfiguration || []
+    } else {
+      fleetsConfig = experimentData.fleets || []
+    }
 
-      if (!experimentData) {
-        throw new Error('Experiment not found for replay')
-      }
+    const experimentSettings = {
+      ...experimentData.settings,
+      replayExperiment: experimentId,
+      isReplay: true,
+    }
 
-      let fleetsConfig = []
-      let datasetData: any = null
-      if (experimentData.sourceDatasetId) {
-        datasetData = await elasticsearchService.getDataset(
-          experimentData.sourceDatasetId
-        )
-        fleetsConfig = datasetData?.fleetConfiguration || []
-      } else {
-        fleetsConfig = experimentData.fleets || []
-      }
+    const workdaySettings =
+      this.buildWorkdaySettings(
+        datasetData?.optimizationSettings?.workingHours
+      ) || this.buildWorkdaySettings(experimentData?.settings?.workday)
+    const breakSettings =
+      this.buildBreakSettings(
+        datasetData?.optimizationSettings?.breaks,
+        datasetData?.optimizationSettings?.extraBreaks
+      ) || experimentData?.settings?.breaks
 
-      const experimentSettings = {
-        ...experimentData.settings,
-        replayExperiment: experimentId,
-        isReplay: true,
-      }
+    const datasetFleetSettings =
+      (datasetData?.originalSettings as Record<string, unknown>) ||
+      (experimentData?.settings as Record<string, unknown>) ||
+      {}
 
-      const workdaySettingsBase =
-        this.buildWorkdaySettings(
-          datasetData?.optimizationSettings?.workingHours
-        ) || this.buildWorkdaySettings(experimentData?.settings?.workday)
-
-      const workdaySettings = workdaySettingsBase ? { ...workdaySettingsBase } : null
-      if (workdaySettings) {
-        delete (workdaySettings as any).end
-        delete (workdaySettings as any).endMinutes
-      }
-      const breakSettings =
-        this.buildBreakSettings(
-          datasetData?.optimizationSettings?.breaks,
-          datasetData?.optimizationSettings?.extraBreaks
-        ) || experimentData?.settings?.breaks
-
-      const datasetFleetSettings =
-        (datasetData?.originalSettings as Record<string, unknown>) ||
-        (experimentData?.settings as Record<string, unknown>) ||
-        {}
-
-      const sessionParams = {
-        ...parameters,
-        ...experimentSettings,
-        experimentId: experimentId,
-        experimentType: 'replay',
-        sourceDatasetId: experimentData.sourceDatasetId,
-        datasetName: experimentData.datasetName,
-        routeDataSource: 'elasticsearch',
-        workdaySettings,
-        breakSettings,
-        fleets: {
-          'Södertälje kommun': {
-            settings: {
-              ...datasetFleetSettings,
-              experimentType: 'replay',
-              workday: workdaySettings || undefined,
-              breaks: breakSettings || undefined,
-              replayExperiment: experimentId,
-            },
-            fleets: fleetsConfig,
+    const sessionParams = {
+      ...parameters,
+      ...experimentSettings,
+      experimentId: experimentId,
+      experimentType: 'replay',
+      sourceDatasetId: experimentData.sourceDatasetId,
+      datasetName: experimentData.datasetName,
+      routeDataSource: 'elasticsearch',
+      workdaySettings,
+      breakSettings,
+      fleets: {
+        'Södertälje kommun': {
+          settings: {
+            ...datasetFleetSettings,
+            experimentType: 'replay',
+            workday: workdaySettings || undefined,
+            breaks: breakSettings || undefined,
+            replayExperiment: experimentId,
           },
+          fleets: fleetsConfig,
         },
-      }
+      },
+    }
 
-      const experiment = this.createSessionExperiment(sessionId, sessionParams)
-      experiment.virtualTime.reset()
-      experiment.virtualTime.pause()
+    const experiment = this.createSessionExperiment(sessionId, sessionParams)
+    experiment.virtualTime.reset()
+    experiment.virtualTime.pause()
 
-      return experiment
+    return experiment
   }
 
   /**
@@ -537,10 +531,6 @@ export class ExperimentController {
     const workdaySettings = this.buildWorkdaySettings(
       datasetData?.optimizationSettings?.workingHours
     )
-    if (workdaySettings) {
-      delete (workdaySettings as any).end
-      delete (workdaySettings as any).endMinutes
-    }
     const breakSettings = this.buildBreakSettings(
       datasetData?.optimizationSettings?.breaks,
       datasetData?.optimizationSettings?.extraBreaks
