@@ -116,6 +116,9 @@ jobs:
           build-args: |
             VITE_MAPBOX_ACCESS_TOKEN=${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
             VITE_SIMULATOR_URL=${{ secrets.VITE_SIMULATOR_URL }}
+            VITE_AZURE_AD_CLIENT_ID=${{ secrets.VITE_AZURE_AD_CLIENT_ID }}
+            VITE_AZURE_AD_TENANT_ID=${{ secrets.VITE_AZURE_AD_TENANT_ID }}
+            VITE_AZURE_AD_REDIRECT_URI=${{ secrets.VITE_AZURE_AD_REDIRECT_URI }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:${{ steps.package-version.outputs.current-version}}
       - name: 🔧 Build and push SampleAdresses
@@ -169,6 +172,9 @@ jobs:
           build-args: |
             VITE_MAPBOX_ACCESS_TOKEN=${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
             VITE_SIMULATOR_URL=${{ secrets.VITE_SIMULATOR_URL_DEV }}
+            VITE_AZURE_AD_CLIENT_ID=${{ secrets.VITE_AZURE_AD_CLIENT_ID }}
+            VITE_AZURE_AD_TENANT_ID=${{ secrets.VITE_AZURE_AD_TENANT_ID }}
+            VITE_AZURE_AD_REDIRECT_URI=${{ secrets.VITE_AZURE_AD_REDIRECT_URI_DEV }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev-${{ steps.meta.outputs.sha_short }}
