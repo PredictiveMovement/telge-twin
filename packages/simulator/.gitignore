@@ -10,3 +10,4 @@ data/parameteres.json
 .env
 *.zip
 dist/
+coverage/

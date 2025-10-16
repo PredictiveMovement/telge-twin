@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 declare module 'multer'
 declare module 'point-in-polygon'
 declare module 'node-fetch'

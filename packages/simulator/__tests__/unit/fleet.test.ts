@@ -1,10 +1,10 @@
-const Fleet = require('../../lib/fleet')
+const FleetClass = require('../../lib/fleet')
 const { from } = require('rxjs')
 const { first } = require('rxjs/operators')
-const Booking = require('../../lib/models/booking').default
-const { virtualTime } = require('../../lib/virtualTime')
+const BookingClass = require('../../lib/models/booking').default
+const { virtualTime: vTime } = require('../../lib/virtualTime')
 
-const dispatch = require('../../lib/dispatch/dispatchCentral')
+const dispatchModule = require('../../lib/dispatch/dispatchCentral')
 
 jest.mock('../../lib/dispatch/dispatchCentral')
 
@@ -13,20 +13,20 @@ describe('A fleet', () => {
   const ljusdal = { lon: 14.44681991219, lat: 61.59465992477 }
   let fleet: any
 
-  let testBooking = new Booking({
+  let testBooking = new BookingClass({
     pickup: arjeplog,
     destination: ljusdal,
   })
 
   beforeEach(() => {
-    virtualTime.setTimeMultiplier(Infinity)
+    vTime.setTimeMultiplier(Infinity)
     jest.clearAllMocks()
   })
 
   afterEach(() => {})
 
   it('should initialize correctly (minimal config)', function () {
-    fleet = new Fleet({
+    fleet = new FleetClass({
       id: '1',
       experimentId: 'exp',
       name: 'postnord',
@@ -38,13 +38,13 @@ describe('A fleet', () => {
       settings: {},
       preAssignedBookings: {},
       experimentType: 'vroom',
-      virtualTime,
+      virtualTime: vTime,
     })
     expect(fleet.name).toBe('postnord')
   })
 
   it('dispatches handled bookings', function () {
-    fleet = new Fleet({
+    fleet = new FleetClass({
       id: '1',
       experimentId: 'exp',
       name: 'postnord',
@@ -56,14 +56,14 @@ describe('A fleet', () => {
       settings: {},
       preAssignedBookings: {},
       experimentType: 'vroom',
-      virtualTime,
+      virtualTime: vTime,
     })
     fleet.handleBooking(testBooking)
-    expect(dispatch.dispatch.mock.calls.length).toBeGreaterThanOrEqual(0)
+    expect(dispatchModule.dispatch.mock.calls.length).toBeGreaterThanOrEqual(0)
   })
 
   it('handled bookings are dispatched', function () {
-    dispatch.dispatch.mockImplementation(() =>
+    dispatchModule.dispatch.mockImplementation(() =>
       from([
         {
           booking: testBooking,
@@ -72,7 +72,7 @@ describe('A fleet', () => {
       ])
     )
 
-    fleet = new Fleet({
+    fleet = new FleetClass({
       id: '1',
       experimentId: 'exp',
       name: 'postnord',
@@ -84,7 +84,7 @@ describe('A fleet', () => {
       settings: {},
       preAssignedBookings: {},
       experimentType: 'vroom',
-      virtualTime,
+      virtualTime: vTime,
     })
     fleet.handleBooking(testBooking)
 
@@ -93,3 +93,5 @@ describe('A fleet', () => {
     })
   })
 })
+
+export {}

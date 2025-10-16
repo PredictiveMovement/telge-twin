@@ -63,3 +63,5 @@ describe('VirtualTime', () => {
     }, 1100)
   })
 })
+
+export {}

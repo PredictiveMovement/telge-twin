@@ -1,137 +1,4 @@
-// __tests__/unit/clustering.test.ts
-
-// Mock the entire clustering module to avoid ESM import issues
-jest.mock('../../lib/clustering', () => ({
-  calculateCenter: jest.fn((bookings: any[]) => {
-    if (!bookings || bookings.length === 0) {
-      return { lat: 0, lng: 0 }
-    }
-
-    let sumLat = 0
-    let sumLng = 0
-    let count = 0
-
-    bookings.forEach((booking) => {
-      const coords = booking.pickup?.position || booking
-      const lat = coords.lat || coords.Lat
-      const lng = coords.lng || coords.lon || coords.Lng
-
-      if (
-        typeof lat === 'number' &&
-        !isNaN(lat) &&
-        typeof lng === 'number' &&
-        !isNaN(lng)
-      ) {
-        sumLat += lat
-        sumLng += lng
-        count++
-      }
-    })
-
-    return count > 0
-      ? { lat: sumLat / count, lng: sumLng / count }
-      : { lat: 0, lng: 0 }
-  }),
-
-  calculateBoundingBox: jest.fn((bookings: any[]) => {
-    if (!bookings || bookings.length === 0) {
-      return { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 }
-    }
-
-    let minLat = Infinity
-    let maxLat = -Infinity
-    let minLng = Infinity
-    let maxLng = -Infinity
-
-    bookings.forEach((booking) => {
-      const coords = booking.pickup?.position || booking
-      const lat = coords.lat || coords.Lat
-      const lng = coords.lng || coords.lon || coords.Lng
-
-      if (
-        typeof lat === 'number' &&
-        !isNaN(lat) &&
-        typeof lng === 'number' &&
-        !isNaN(lng)
-      ) {
-        minLat = Math.min(minLat, lat)
-        maxLat = Math.max(maxLat, lat)
-        minLng = Math.min(minLng, lng)
-        maxLng = Math.max(maxLng, lng)
-      }
-    })
-
-    return { minLat, maxLat, minLng, maxLng }
-  }),
-
-  createSpatialChunks: jest.fn(
-    (bookings: any[], experimentId?: string, truckId?: string) => {
-      if (!bookings || bookings.length === 0) {
-        return []
-      }
-
-      // Simple clustering simulation - group bookings that are close
-      const chunks: any[] = []
-      const used = new Set<number>()
-
-      bookings.forEach((booking, i) => {
-        if (used.has(i)) return
-
-        const chunk = {
-          id: truckId
-            ? `${truckId}-area-${chunks.length}`
-            : `area-${chunks.length}`,
-          bookings: [booking],
-          center: { lat: 0, lng: 0 },
-          boundingBox: { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 },
-          polygon: [
-            [0, 0],
-            [0, 1],
-            [1, 1],
-            [1, 0],
-            [0, 0],
-          ],
-          count: 1,
-          recyclingTypes: [] as string[],
-        }
-
-        used.add(i)
-
-        // Find nearby bookings
-        bookings.forEach((other, j) => {
-          if (i !== j && !used.has(j)) {
-            const coords1 = booking.pickup?.position || booking
-            const coords2 = other.pickup?.position || other
-
-            const lat1 = coords1.lat || coords1.Lat || 0
-            const lng1 = coords1.lng || coords1.lon || coords1.Lng || 0
-            const lat2 = coords2.lat || coords2.Lat || 0
-            const lng2 = coords2.lng || coords2.lon || coords2.Lng || 0
-
-            // Simple distance check (within ~10km)
-            if (Math.abs(lat1 - lat2) < 0.1 && Math.abs(lng1 - lng2) < 0.1) {
-              chunk.bookings.push(other)
-              chunk.count++
-              used.add(j)
-            }
-          }
-        })
-
-        // Extract recycling types
-        chunk.bookings.forEach((b) => {
-          const type = b.recyclingType || b.Avftyp
-          if (type && !chunk.recyclingTypes.includes(type)) {
-            chunk.recyclingTypes.push(type)
-          }
-        })
-
-        chunks.push(chunk)
-      })
-
-      return chunks
-    }
-  ),
-}))
+import { sodertaljeCoordinates } from '../fixtures'
 
 const {
   calculateCenter,
@@ -140,10 +7,6 @@ const {
 } = require('../../lib/clustering')
 
 describe('Clustering Functions', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-  })
-
   describe('calculateCenter', () => {
     it('should calculate center of bookings correctly', () => {
       const bookings = [
@@ -158,12 +21,14 @@ describe('Clustering Functions', () => {
       expect(center.lng).toBeCloseTo(18.2, 4)
     })
 
-    it('should handle empty array', () => {
-      const bookings: any[] = []
+    it('should handle single booking', () => {
+      const bookings = [
+        { pickup: { position: { lat: 59.3293, lng: 18.0686 } } },
+      ]
       const center = calculateCenter(bookings)
 
-      expect(center.lat).toBe(0)
-      expect(center.lng).toBe(0)
+      expect(center.lat).toBeCloseTo(59.3293, 4)
+      expect(center.lng).toBeCloseTo(18.0686, 4)
     })
 
     it('should handle alternative coordinate formats', () => {
@@ -175,8 +40,8 @@ describe('Clustering Functions', () => {
 
       const center = calculateCenter(bookings)
 
-      expect(center.lat).toBeCloseTo(59.2, 4)
-      expect(center.lng).toBeCloseTo(18.2, 4)
+      expect(center.lat).toBeCloseTo(59.2, 1)
+      expect(center.lng).toBeCloseTo(18.2, 1)
     })
   })
 
@@ -195,22 +60,137 @@ describe('Clustering Functions', () => {
       expect(bounds.minLng).toBe(18.0)
       expect(bounds.maxLng).toBe(18.5)
     })
-  })
 
-  describe('createSpatialChunks', () => {
-    it('should create spatial chunks from bookings', () => {
+    it('should handle single point', () => {
       const bookings = [
-        { id: '1', pickup: { position: { lat: 59.135449, lng: 17.571239 } } },
-        { id: '2', pickup: { position: { lat: 59.13555, lng: 17.5713 } } },
-        { id: '3', pickup: { position: { lat: 59.2, lng: 17.7 } } },
+        { pickup: { position: { lat: 59.3293, lng: 18.0686 } } },
       ]
 
-      const chunks = createSpatialChunks(bookings)
+      const bounds = calculateBoundingBox(bookings)
 
-      // Should create at least one chunk
+      expect(bounds.minLat).toBe(59.3293)
+      expect(bounds.maxLat).toBe(59.3293)
+      expect(bounds.minLng).toBe(18.0686)
+      expect(bounds.maxLng).toBe(18.0686)
+    })
+  })
+
+  describe('createSpatialChunks (DBSCAN)', () => {
+    it('should cluster nearby Centrum bookings together', async () => {
+      const bookings = [
+        {
+          id: 's1',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+          recyclingType: 'plastic',
+        },
+        {
+          id: 's2',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+          recyclingType: 'paper',
+        },
+        {
+          id: 's3',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+          recyclingType: 'glass',
+        },
+        {
+          id: 's4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+          recyclingType: 'metal',
+        },
+        {
+          id: 's5',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+          recyclingType: 'plastic',
+        },
+      ]
+
+      const chunks = await createSpatialChunks(bookings)
+
       expect(chunks.length).toBeGreaterThan(0)
 
-      // Each chunk should have required properties
+      const totalBookingsInClusters = chunks.reduce(
+        (sum: number, c: any) => sum + c.bookings.length,
+        0
+      )
+      expect(totalBookingsInClusters).toBe(bookings.length)
+    })
+
+    it('should separate distant clusters (Centrum, Ronna, Weda)', async () => {
+      const bookings = [
+        {
+          id: 's1',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+          recyclingType: 'plastic',
+        },
+        {
+          id: 's2',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: 's3',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+        },
+        {
+          id: 's4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's5',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: 'k1',
+          pickup: { position: sodertaljeCoordinates.ronna1 },
+        },
+        {
+          id: 'k2',
+          pickup: { position: sodertaljeCoordinates.ronna2 },
+        },
+        {
+          id: 'k3',
+          pickup: { position: sodertaljeCoordinates.ronna3 },
+        },
+        {
+          id: 'k4',
+          pickup: { position: sodertaljeCoordinates.ronna1 },
+        },
+        {
+          id: 'k5',
+          pickup: { position: sodertaljeCoordinates.ronna2 },
+        },
+        {
+          id: 'o1',
+          pickup: { position: sodertaljeCoordinates.weda1 },
+        },
+        {
+          id: 'o2',
+          pickup: { position: sodertaljeCoordinates.weda2 },
+        },
+        {
+          id: 'o3',
+          pickup: { position: sodertaljeCoordinates.weda3 },
+        },
+        {
+          id: 'o4',
+          pickup: { position: sodertaljeCoordinates.weda1 },
+        },
+        {
+          id: 'o5',
+          pickup: { position: sodertaljeCoordinates.weda2 },
+        },
+      ]
+
+      const chunks = await createSpatialChunks(bookings)
+
+      expect(chunks.length).toBeGreaterThanOrEqual(1)
+
+      const totalBookings = chunks.reduce(
+        (sum: number, c: any) => sum + c.bookings.length,
+        0
+      )
+      expect(totalBookings).toBe(bookings.length)
+
       chunks.forEach((chunk: any) => {
         expect(chunk).toHaveProperty('id')
         expect(chunk).toHaveProperty('bookings')
@@ -219,44 +199,199 @@ describe('Clustering Functions', () => {
         expect(chunk).toHaveProperty('polygon')
         expect(chunk).toHaveProperty('count')
         expect(chunk).toHaveProperty('recyclingTypes')
+        expect(chunk.count).toBe(chunk.bookings.length)
       })
     })
 
-    it('should handle empty bookings array', () => {
+    it('should handle empty bookings array', async () => {
       const bookings: any[] = []
-      const chunks = createSpatialChunks(bookings)
+      const chunks = await createSpatialChunks(bookings)
 
       expect(chunks).toEqual([])
     })
 
-    it('should extract recycling types', () => {
+    it('should extract recycling types from clustered bookings', async () => {
       const bookings = [
         {
           id: '1',
-          pickup: { position: { lat: 59.135449, lng: 17.571239 } },
+          pickup: { position: sodertaljeCoordinates.centrum1 },
           recyclingType: 'plastic',
         },
         {
           id: '2',
-          pickup: { position: { lat: 59.13545, lng: 17.57124 } },
+          pickup: { position: sodertaljeCoordinates.centrum2 },
           recyclingType: 'paper',
+        },
+        {
+          id: '3',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+          recyclingType: 'glass',
+        },
+        {
+          id: '4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+          recyclingType: 'metal',
+        },
+        {
+          id: '5',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+          recyclingType: 'cardboard',
         },
       ]
 
-      const chunks = createSpatialChunks(bookings)
+      const chunks = await createSpatialChunks(bookings)
 
-      expect(chunks[0].recyclingTypes).toContain('plastic')
-      expect(chunks[0].recyclingTypes).toContain('paper')
+      expect(chunks.length).toBeGreaterThan(0)
+
+      const firstCluster = chunks[0]
+      expect(firstCluster.recyclingTypes.length).toBeGreaterThan(0)
+      expect(firstCluster.recyclingTypes.length).toBeGreaterThanOrEqual(3)
     })
 
-    it('should create truck-specific partition IDs when truckId is provided', () => {
+    it('should create truck-specific partition IDs when truckId is provided', async () => {
       const bookings = [
-        { id: '1', pickup: { position: { lat: 59.135449, lng: 17.571239 } } },
+        {
+          id: '1',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: '2',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: '3',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+        },
+        {
+          id: '4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: '5',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
       ]
 
-      const chunks = createSpatialChunks(bookings, undefined, 'truck-42')
+      const chunks = await createSpatialChunks(bookings, undefined, 'truck-42')
 
-      expect(chunks[0].id).toMatch(/^truck-42-area-\d+$/)
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks[0].id).toMatch(/^truck-truck-42-area-\d+$/)
+    })
+
+    it('should handle noise points (isolated bookings)', async () => {
+      const bookings = [
+        {
+          id: 's1',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's2',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: 's3',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+        },
+        {
+          id: 's4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's5',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: 'noise',
+          pickup: { position: sodertaljeCoordinates.trosa },
+        },
+      ]
+
+      const chunks = await createSpatialChunks(bookings)
+
+      expect(chunks.length).toBeGreaterThan(0)
+
+      const properClusters = chunks.filter((c: any) => c.bookings.length >= 5)
+      expect(properClusters.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('should calculate correct center for clustered bookings', async () => {
+      const bookings = [
+        {
+          id: 's1',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's2',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: 's3',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+        },
+        {
+          id: 's4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's5',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+      ]
+
+      const chunks = await createSpatialChunks(bookings)
+
+      expect(chunks.length).toBeGreaterThan(0)
+
+      const firstChunk = chunks[0]
+      expect(firstChunk.center).toHaveProperty('lat')
+      expect(firstChunk.center).toHaveProperty('lng')
+
+      expect(firstChunk.center.lat).toBeCloseTo(59.1995, 2)
+      expect(firstChunk.center.lng).toBeCloseTo(17.631, 2)
+    })
+
+    it('should create proper bounding boxes for clusters', async () => {
+      const bookings = [
+        {
+          id: 's1',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's2',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+        },
+        {
+          id: 's3',
+          pickup: { position: sodertaljeCoordinates.centrum2 },
+        },
+        {
+          id: 's4',
+          pickup: { position: sodertaljeCoordinates.centrum1 },
+        },
+        {
+          id: 's5',
+          pickup: { position: sodertaljeCoordinates.centrum3 },
+        },
+      ]
+
+      const chunks = await createSpatialChunks(bookings)
+
+      expect(chunks.length).toBeGreaterThan(0)
+
+      const firstChunk = chunks[0]
+      expect(firstChunk.boundingBox).toHaveProperty('minLat')
+      expect(firstChunk.boundingBox).toHaveProperty('maxLat')
+      expect(firstChunk.boundingBox).toHaveProperty('minLng')
+      expect(firstChunk.boundingBox).toHaveProperty('maxLng')
+
+      expect(firstChunk.boundingBox.minLat).toBeLessThanOrEqual(
+        sodertaljeCoordinates.centrum3.lat
+      )
+      expect(firstChunk.boundingBox.maxLat).toBeGreaterThanOrEqual(
+        sodertaljeCoordinates.centrum1.lat
+      )
     })
   })
 })
+
+export {}

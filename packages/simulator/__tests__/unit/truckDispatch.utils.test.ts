@@ -1,5 +1,3 @@
-// Tests for utility helpers in truckDispatch: simpleGeographicSplit, combineSubResults
-
 const {
   simpleGeographicSplit,
   combineSubResults,
@@ -69,3 +67,5 @@ describe('truckDispatch utils', () => {
     })
   })
 })
+
+export {}

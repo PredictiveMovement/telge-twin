@@ -27,7 +27,6 @@ describe('vroom mapping utilities', () => {
       delivery: { id: 1, location: [18.2, 59.2] },
       service: 60,
     })
-    // time windows exist and are arrays of [start,end]
     expect(Array.isArray(shipment.pickup.time_windows)).toBe(true)
     expect(Array.isArray(shipment.delivery.time_windows)).toBe(true)
   })
@@ -61,7 +60,6 @@ describe('vroom mapping utilities', () => {
       start: [18.0, 59.0],
       end: [18.5, 59.5],
     })
-    // time_window exists and looks like [start,end]
     expect(Array.isArray(veh.time_window)).toBe(true)
     expect(veh.time_window.length).toBe(2)
 
@@ -70,3 +68,5 @@ describe('vroom mapping utilities', () => {
     expect(dimensions).toEqual(['volumeLiters', 'weightKg'])
   })
 })
+
+export {}

@@ -1,6 +1,5 @@
 const { from, Subject } = require('rxjs')
 const { toArray } = require('rxjs/operators')
-const { dispatch } = require('../../lib/dispatch/dispatchCentral')
 
 describe('dispatch (current implementation)', () => {
   it('passes through items from an array Observable', (done) => {
@@ -26,3 +25,5 @@ describe('dispatch (current implementation)', () => {
     subj.next(20)
   })
 })
+
+export {}

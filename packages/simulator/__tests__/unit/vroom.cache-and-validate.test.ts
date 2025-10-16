@@ -6,7 +6,7 @@ jest.mock('../../lib/vroom', () => {
   }
 })
 
-const vroom = require('../../lib/vroom')
+const vroomLib = require('../../lib/vroom')
 
 describe('VROOM cache normalization', () => {
   it('normalizes time windows in cache key so identical geo problems hit cache', async () => {
@@ -41,10 +41,9 @@ describe('VROOM cache normalization', () => {
       .spyOn(cache, 'updateCache')
       .mockResolvedValue({ code: 0 })
 
-    await vroom.plan({ jobs, shipments, vehicles })
+    await vroomLib.plan({ jobs, shipments, vehicles })
     expect(getSpy).toHaveBeenCalled()
 
-    // Call again with different time windows but same locations
     const shipments2 = [
       {
         ...shipments[0],
@@ -52,12 +51,12 @@ describe('VROOM cache normalization', () => {
         delivery: { ...shipments[0].delivery, time_windows: [[350, 450]] },
       },
     ]
-    await vroom.plan({ jobs, shipments: shipments2, vehicles })
+    await vroomLib.plan({ jobs, shipments: shipments2, vehicles })
 
-    // Both calls should have used normalized time windows for cache key
     expect(getSpy).toHaveBeenCalledTimes(2)
 
-    // Clean up spy
     updSpy.mockRestore()
   })
 })
+
+export {}

@@ -41,6 +41,7 @@ describe('cleanCars mapping', () => {
       vehicleType: 'truck',
       recyclingTypes: ['paper'],
       delivered: 3,
+      compartments: [],
     })
   })
 
@@ -64,3 +65,5 @@ describe('cleanCars mapping', () => {
     expect(out.position).toEqual([18.0, 59.0, 0])
   })
 })
+
+export {}

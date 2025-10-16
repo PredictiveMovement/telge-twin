@@ -2,24 +2,25 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>'],
-  testMatch: ['**/__tests__/**/*.ts', '**/__tests__/**/*.js'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.js'],
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   collectCoverageFrom: ['lib/**/*.{js,ts}', '!lib/**/*.d.ts'],
-  // Ignore ESM modules that cause issues
   transformIgnorePatterns: ['node_modules/(?!(polyclip-ts|@turf)/)'],
   globals: {
     'ts-jest': {
       tsconfig: {
         allowJs: true,
         esModuleInterop: true,
+        types: ['jest', 'node'],
       },
     },
   },
-  // Mock modules that have ESM issues
   moduleNameMapper: {
-    '^@turf/(.*)$': '<rootDir>/__mocks__/turf.js',
+    '^@turf/turf$': '<rootDir>/__mocks__/turf.ts',
+    '^@turf/clusters-dbscan$': '<rootDir>/__mocks__/@turf/clusters-dbscan.ts',
+    '^@turf/(.*)$': '<rootDir>/__mocks__/turf.ts',
   },
 }

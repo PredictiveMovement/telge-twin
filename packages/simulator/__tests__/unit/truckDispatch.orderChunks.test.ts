@@ -41,7 +41,8 @@ describe('truckDispatch ordering via VROOM TSP (mocked)', () => {
     const plan = await findBestRouteToPickupBookings('exp', truck, chunks, [
       'pickup',
     ])
-    // With reverse() in mocked VROOM, last cluster should be first in instructions
     expect(Array.isArray(plan)).toBe(true)
   })
 })
+
+export {}

@@ -14,8 +14,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "checkJs": false
+    "checkJs": false,
+    "types": ["jest", "node"]
   },
-  "include": ["**/*"],
-  "exclude": ["node_modules", "dist", "__tests__"]
+  "include": ["lib/**/*", "types/**/*", "__tests__/**/*", "*.ts"],
+  "exclude": ["node_modules", "dist"]
 } 
