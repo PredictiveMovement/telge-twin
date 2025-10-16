@@ -3,6 +3,7 @@ import App from './App.js'
 import './index.css'
 import { createTheme, ThemeProvider } from '@mui/material/styles'
 import { SocketIOProvider } from './context/socketIOProvider'
+import { AzureAuthProvider } from '@/auth/AzureAuthProvider'
 
 const linkPrompt = document.createElement('link')
 linkPrompt.rel = 'stylesheet'
@@ -40,12 +41,14 @@ const darkTheme = createTheme({
 })
 
 createRoot(document.getElementById('root')!).render(
-  <SocketIOProvider
-    url={import.meta.env.VITE_SIMULATOR_URL || 'http://localhost:4000'}
-    opts={{ withCredentials: true }}
-  >
-    <ThemeProvider theme={darkTheme}>
-      <App />
-    </ThemeProvider>
-  </SocketIOProvider>
+  <AzureAuthProvider>
+    <SocketIOProvider
+      url={import.meta.env.VITE_SIMULATOR_URL || 'http://localhost:4000'}
+      opts={{ withCredentials: true }}
+    >
+      <ThemeProvider theme={darkTheme}>
+        <App />
+      </ThemeProvider>
+    </SocketIOProvider>
+  </AzureAuthProvider>
 )

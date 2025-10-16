@@ -12,6 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@azure/msal-browser": "^3.30.0",
+    "@azure/msal-react": "^2.2.0",
     "@deck.gl/core": "^8.8.23",
     "@emotion/react": "^11.10.6",
     "@emotion/styled": "^11.10.6",
