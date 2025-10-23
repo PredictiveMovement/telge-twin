@@ -147,9 +147,11 @@ jobs:
         with:
           string: ${{ github.repository }}
 
-      - name: 🔎 Compute short SHA
+      - name: 🔎 Compute short SHA and timestamp
         id: meta
-        run: echo "sha_short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        run: |
+          echo "sha_short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: 🔐 Login to Docker Registry
         uses: docker/login-action@v2
@@ -170,7 +172,7 @@ jobs:
             TELGE_API_PASSWORD=${{ secrets.TELGE_API_PASSWORD }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev
-            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev-${{ steps.meta.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev-${{ steps.meta.outputs.timestamp }}-${{ steps.meta.outputs.sha_short }}
       - name: 🔧 Build and push Visualisation (dev)
         uses: docker/build-push-action@v4
         with:
@@ -185,4 +187,4 @@ jobs:
             VITE_AZURE_AD_REDIRECT_URI=${{ secrets.VITE_AZURE_AD_REDIRECT_URI_DEV }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev
-            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev-${{ steps.meta.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:dev-${{ steps.meta.outputs.timestamp }}-${{ steps.meta.outputs.sha_short }}

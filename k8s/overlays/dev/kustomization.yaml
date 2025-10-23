@@ -10,9 +10,3 @@ patches:
   - path: simulator.yaml
   - path: visualisation.yaml
   - path: sampleAddresses.yaml
-
-images:
-  - name: ghcr.io/predictivemovement/telge-twin-simulator
-    newTag: dev
-  - name: ghcr.io/predictivemovement/telge-twin-visualisation
-    newTag: dev
