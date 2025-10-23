@@ -1,12 +1,4 @@
-import {
-  BarChart3,
-  Route,
-  Map,
-  LayoutDashboard,
-  Palette,
-  Zap,
-  LucideIcon,
-} from 'lucide-react'
+import { Route, Map, LayoutDashboard, Zap, LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   title: string

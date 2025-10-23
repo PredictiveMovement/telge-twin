@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Card,
   CardContent,
@@ -55,11 +55,7 @@ const TuridComparisonView: React.FC<TuridComparisonViewProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [selectedTurid, setSelectedTurid] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchComparisonData()
-  }, [experimentId])
-
-  const fetchComparisonData = async () => {
+  const fetchComparisonData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -118,7 +114,7 @@ const TuridComparisonView: React.FC<TuridComparisonViewProps> = ({
           )
 
           let changes = 0
-          originalOrder.forEach((originalBooking, index) => {
+          originalOrder.forEach((originalBooking) => {
             const vroomBooking = vroomOrder.find(
               (v) => v.id === originalBooking.id
             )
@@ -134,12 +130,16 @@ const TuridComparisonView: React.FC<TuridComparisonViewProps> = ({
       })
 
       setData(Array.from(turidGroups.values()))
-    } catch (err) {
+    } catch (_error) {
       setError('Failed to fetch comparison data')
     } finally {
       setLoading(false)
     }
-  }
+  }, [experimentId])
+
+  useEffect(() => {
+    fetchComparisonData()
+  }, [fetchComparisonData])
 
   if (loading) {
     return (
@@ -365,7 +365,7 @@ const TuridDetailedComparison: React.FC<{ comparison: TuridComparison }> = ({
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {comparison.originalBookings
                   .sort((a, b) => a.arrayIndex - b.arrayIndex)
-                  .map((booking, index) => (
+                  .map((booking) => (
                     <div
                       key={booking.id}
                       className="p-3 bg-blue-50 rounded border flex items-center justify-between"
@@ -400,7 +400,7 @@ const TuridDetailedComparison: React.FC<{ comparison: TuridComparison }> = ({
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {comparison.vroomBookings
                   .sort((a, b) => a.arrayIndex - b.arrayIndex)
-                  .map((booking, index) => {
+                  .map((booking) => {
                     const originalBooking = comparison.originalBookings.find(
                       (orig) => orig.id === booking.id
                     )

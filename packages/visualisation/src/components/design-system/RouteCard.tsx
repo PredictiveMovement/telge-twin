@@ -14,7 +14,6 @@ interface RouteCardProps {
   title?: string
   vehicleNumber?: string
   vehicleNumbers?: string[]
-  vehicleTypes?: string[]
   wasteTypes?: string[]
   frequency?: string
   bookingsCount?: number
@@ -31,7 +30,6 @@ export const RouteCard = ({
   title = 'HEM23MÅN',
   vehicleNumber = '40',
   vehicleNumbers,
-  vehicleTypes,
   wasteTypes = ['Hushållsavfall', 'Papper', 'Plast'],
   frequency,
   bookingsCount = 47,

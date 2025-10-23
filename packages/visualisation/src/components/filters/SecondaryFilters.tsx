@@ -44,9 +44,7 @@ const SecondaryFilters: React.FC<SecondaryFiltersProps> = ({
   // Use the actual data if provided, otherwise fallback to configuration
   const filterData = data || { settings: configuration }
 
-  const isDateDisabled = (day: Date) => {
-    return false // Allow all dates by default
-  }
+  const isDateDisabled = () => false
 
   // Enhanced date change handler that clears weekday and frequency when date is selected
   const handleDateChange = (date: Date | undefined) => {
@@ -117,7 +115,6 @@ const SecondaryFilters: React.FC<SecondaryFiltersProps> = ({
       {/* Datum */}
       <div className="space-y-2">
         <Label htmlFor="datum">Specifik dag</Label>
-        {/*
         <SingleDatePicker
           selectedDate={selectedDate}
           isCalendarOpen={isCalendarOpen}
@@ -125,7 +122,6 @@ const SecondaryFilters: React.FC<SecondaryFiltersProps> = ({
           setSelectedDate={handleDateChange}
           isDateDisabled={isDateDisabled}
         />
-        */}
       </div>
     </div>
   )

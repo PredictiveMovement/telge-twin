@@ -1,30 +1,20 @@
-// components/FileUploadTab.tsx
-// Uppladdning högst upp. Ingen filter-UI (kommer senare).
-// "Hämta körtur" genererar resultatlistan (TurID / Flottor).
-// TurID-kort visar fack-spec för dominant fordon i turen.
-// "Optimera valda ..." skickar vidare till spara-sida där dataset skapas.
-
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDropzone } from 'react-dropzone'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Search } from 'lucide-react'
 
 import { RouteCard } from '@/components/design-system/RouteCard'
 import { SegmentedControl } from '@/components/design-system/SegmentedControl'
 
-import { getSettingsForPreview, processUploadedFile, type RouteRecord } from './FileUpload'
+import {
+  getSettingsForPreview,
+  processUploadedFile,
+  type RouteRecord,
+} from './FileUpload'
 import { byId, pickDominant, buildFackInfo, type BilSpec } from '@/utils/shared'
 import RouteFilterPanel from './RouteFilterPanel'
 import {
@@ -36,41 +26,10 @@ import {
 import {
   generateFleetCardsFromConfig,
   type FleetCard,
-  type FleetConfig,
   type Settings,
 } from '@/utils/fleetGenerator'
-
-// ---------------------------------------------------------
-// KONFIG: grupper för visning i "Flottor"-tabben (optional)
-// ---------------------------------------------------------
-const FLEET_CONFIG: FleetConfig = {
-  groups: [
-    {
-      id: 'HUSH',
-      label: 'Flotta – Hushåll',
-      wasteIds: ['HUSHSORT', 'HEMSORT'],
-    },
-    { id: 'MAT', label: 'Flotta – Matavfall', wasteIds: ['MATAVF'] },
-    {
-      id: 'GLAS',
-      label: 'Flotta – Glas',
-      wasteIds: ['BGLOF', 'BGLFÄ', 'GLOF', 'GLFÄ', 'FGLOF', 'FGLFÄ'],
-    },
-    {
-      id: 'FORP',
-      label: 'Flotta – Förpackningar',
-      wasteIds: [
-        'PAPPFÖRP',
-        'PLASTFÖRP',
-        'METFÖRP',
-        'BPAPPFÖRP',
-        'BPLASTFÖRP',
-        'BMETFÖRP',
-      ],
-    },
-  ],
-  fallbackTopN: 3,
-}
+import { FLEET_CONFIG } from '@/config/fleet'
+import { getTelgeRouteData } from '@/api/simulator'
 
 // ---------------------------------------------------------
 // Komponent
@@ -132,7 +91,8 @@ export default function FileUploadTab() {
   const [viewMode, setViewMode] = useState<'turid' | 'flottor'>('turid')
   const [searchQuery, setSearchQuery] = useState('')
   const resultsRef = useRef<HTMLDivElement>(null)
-  const [searchFilters, setSearchFilters] = useState<SearchFilters>(createEmptyFilters)
+  const [searchFilters, setSearchFilters] =
+    useState<SearchFilters>(createEmptyFilters)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const [filterOptions, setFilterOptions] = useState<UploadFilterOptions>({
     avfallstyper: [],
@@ -142,6 +102,8 @@ export default function FileUploadTab() {
     frekvenser: [],
     frequencyLookup: {},
   })
+  const [apiLoading, setApiLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const vehicleTypeById = useMemo(() => {
     const map: Record<string, string> = {}
@@ -169,8 +131,8 @@ export default function FileUploadTab() {
 
   // Settings (för visningsnamn etc.)
   const previewSettings = useMemo<Settings>(() => {
-    return getSettingsForPreview(uploadedData, originalFilename)
-  }, [uploadedData, originalFilename])
+    return getSettingsForPreview()
+  }, [])
 
   useEffect(() => {
     if (!uploadedData.length) {
@@ -193,38 +155,73 @@ export default function FileUploadTab() {
     setSelectedDate(undefined)
   }, [uploadedData, previewSettings])
 
-  // ------------------ Upload ------------------
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e.target?.result as string)
-        const data = processUploadedFile(parsed, file.name)
-        setUploadedData(data)
-        setOriginalFilename(file.name)
-        setTurCards([])
-        setFleetCards([])
-        setSelectedResults([])
-        setHasSearched(false)
-        setSearchQuery('')
-        toast.success(`Fil laddad: ${file.name} (${data.length} records)`)
-      } catch {
-        toast.error(
-          'Fel vid läsning av fil. Kontrollera att det är en giltig JSON fil.'
-        )
-      }
-    }
-    reader.readAsText(file)
+  // ------------------ File load (via button) ------------------
+  const handleOpenFilePicker = useCallback(() => {
+    fileInputRef.current?.click()
   }, [])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: { 'application/json': ['.json'] },
-    maxFiles: 1,
-  })
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.target?.result as string)
+          const data = processUploadedFile(parsed, file.name)
+          setUploadedData(data)
+          setOriginalFilename(file.name)
+          setTurCards([])
+          setFleetCards([])
+          setSelectedResults([])
+          setHasSearched(false)
+          setSearchQuery('')
+          toast.success(`Fil laddad: ${file.name} (${data.length} records)`)
+        } catch {
+          toast.error(
+            'Fel vid läsning av fil. Kontrollera att det är en giltig JSON fil.'
+          )
+        }
+      }
+      reader.readAsText(file)
+      // reset input so selecting same file again re-triggers change
+      e.target.value = ''
+    },
+    []
+  )
+
+  const handleLoadFromApi = useCallback(async () => {
+    try {
+      if (!selectedDate) {
+        toast.error('Välj ett datum först')
+        return
+      }
+      setApiLoading(true)
+      const dateStr = selectedDate.toISOString().split('T')[0]
+      const data = await getTelgeRouteData(dateStr)
+      if (!Array.isArray(data) || data.length === 0) {
+        toast.error('Inga körturer hämtades för valt datum')
+        return
+      }
+
+      setUploadedData(data as RouteRecord[])
+      setOriginalFilename(`API-${dateStr}`)
+      setTurCards([])
+      setFleetCards([])
+      setSelectedResults([])
+      setHasSearched(false)
+      setSearchQuery('')
+      toast.success(`API-data laddad: ${data.length} records`)
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Kunde inte läsa in data från API'
+      toast.error(message)
+    } finally {
+      setApiLoading(false)
+    }
+  }, [selectedDate])
 
   const updateFilterArray = useCallback(
     (key: ArrayFilterKey, updater: (current: string[]) => string[]) => {
@@ -232,7 +229,10 @@ export default function FileUploadTab() {
         const current = prev[key]
         const next = updater(current)
         // Avoid unnecessary state updates
-        if (next.length === current.length && next.every((v, idx) => v === current[idx])) {
+        if (
+          next.length === current.length &&
+          next.every((v, idx) => v === current[idx])
+        ) {
           return prev
         }
         return {
@@ -331,7 +331,8 @@ export default function FileUploadTab() {
 
         if (searchFilters.fordonsnummer.length) {
           const value = record?.Bil || ''
-          if (!value || !searchFilters.fordonsnummer.includes(value)) return false
+          if (!value || !searchFilters.fordonsnummer.includes(value))
+            return false
         }
 
         if (filterByVehicleType) {
@@ -397,7 +398,10 @@ export default function FileUploadTab() {
       if (!avftyp) return false
       if (!Array.isArray(fack) || fack.length === 0) return false
       for (const fx of fack) {
-        if (Array.isArray(fx.allowedWasteTypes) && fx.allowedWasteTypes.includes(avftyp)) {
+        if (
+          Array.isArray(fx.allowedWasteTypes) &&
+          fx.allowedWasteTypes.includes(avftyp)
+        ) {
           return true
         }
       }
@@ -413,7 +417,9 @@ export default function FileUploadTab() {
 
         // Count matched vs total for display
         const total = bookings.length
-        const matched = bookings.filter((b) => matchesFack(b.Avftyp, fack)).length
+        const matched = bookings.filter((b) =>
+          matchesFack(b.Avftyp, fack)
+        ).length
 
         // waste badges (topp 3)
         const wc = new Map<string, number>()
@@ -530,7 +536,9 @@ export default function FileUploadTab() {
     }
 
     if (viewMode === 'flottor') {
-      toast.info('Flottor är förhandsvisning just nu – spara/optimering kommer senare.')
+      toast.info(
+        'Flottor är förhandsvisning just nu – spara/optimering kommer senare.'
+      )
       return
     }
     // Bygg state för spar-sidan
@@ -563,59 +571,6 @@ export default function FileUploadTab() {
   // ------------------ UI ------------------
   return (
     <div className="space-y-6">
-      {/* Upload */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ladda upp Route Data</CardTitle>
-          <CardDescription>
-            Ladda upp en JSON-fil med <code>settings</code> och{' '}
-            <code>routeData</code>. Växla mellan <b>TurID</b> och <b>Flottor</b>{' '}
-            i resultatet.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <div className="space-y-2">
-              <svg
-                className="mx-auto h-12 w-12 text-gray-400"
-                stroke="currentColor"
-                fill="none"
-                viewBox="0 0 48 48"
-              >
-                <path
-                  d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <div className="text-gray-600">
-                {isDragActive ? (
-                  <p>Släpp filen här...</p>
-                ) : (
-                  <p>
-                    Dra och släpp en JSON-fil här, eller klicka för att välja
-                  </p>
-                )}
-              </div>
-              {originalFilename && (
-                <Badge variant="secondary">
-                  Laddad: {originalFilename} ({uploadedData.length} records)
-                </Badge>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Filtersektion */}
       <Card>
         <CardHeader>
@@ -658,13 +613,41 @@ export default function FileUploadTab() {
               >
                 Rensa alla filter
               </Button>
-              <Button
-                onClick={handleSearch}
-                className="w-full sm:w-auto bg-[#BBD197] hover:bg-[#BBD197]/90"
-              >
-                <Search size={16} className="mr-2" />
-                Hämta körtur
-              </Button>
+              <div className="flex flex-col w-full sm:w-auto sm:flex-row sm:items-center gap-2 sm:ml-auto">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  onClick={handleOpenFilePicker}
+                  className="w-full sm:w-auto"
+                  variant="secondary"
+                >
+                  Ladda in via fil
+                </Button>
+                <Button
+                  onClick={handleLoadFromApi}
+                  className="w-full sm:w-auto"
+                  disabled={!selectedDate || apiLoading}
+                  variant="secondary"
+                  title={
+                    !selectedDate ? 'Välj datum i filterpanelen' : undefined
+                  }
+                >
+                  {apiLoading ? 'Laddar…' : 'Ladda via API'}
+                </Button>
+                <Button
+                  onClick={handleSearch}
+                  className="w-full sm:w-auto bg-[#BBD197] hover:bg-[#BBD197]/90"
+                  disabled={uploadedData.length === 0}
+                >
+                  <Search size={16} className="mr-2" />
+                  Hämta körtur
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -699,7 +682,9 @@ export default function FileUploadTab() {
                 </div>
                 <Button
                   className="w-full sm:w-auto bg-[#BBD197] hover:bg-[#BBD197]/90"
-                  disabled={selectedResults.length === 0 || viewMode === 'flottor'}
+                  disabled={
+                    selectedResults.length === 0 || viewMode === 'flottor'
+                  }
                   title={
                     viewMode === 'flottor'
                       ? 'Endast visning just nu'
@@ -785,7 +770,9 @@ export default function FileUploadTab() {
             <div className="mt-6 flex justify-end">
               <Button
                 className="bg-[#BBD197] hover:bg-[#BBD197]/90"
-                disabled={selectedResults.length === 0 || viewMode === 'flottor'}
+                disabled={
+                  selectedResults.length === 0 || viewMode === 'flottor'
+                }
                 title={
                   viewMode === 'flottor' ? 'Endast visning just nu' : undefined
                 }

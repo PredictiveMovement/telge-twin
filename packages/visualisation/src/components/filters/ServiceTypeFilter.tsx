@@ -59,11 +59,15 @@ const ServiceTypeFilter: React.FC<ServiceTypeFilterProps> = ({
 
   const hasActiveFilters = selectedServiceTypes.length > 0
 
-  const clearFilter = (e: React.MouseEvent) => {
+  const handleClearPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
-    e.preventDefault()
-
     setPreventOpen(true)
+  }
+
+  const clearFilter = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+
     setIsOpen(false)
 
     if (onClearAllServiceTypes) {
@@ -82,7 +86,7 @@ const ServiceTypeFilter: React.FC<ServiceTypeFilterProps> = ({
       })
     }
 
-    setTimeout(() => setPreventOpen(false), 100)
+    setPreventOpen(false)
   }
 
   return (
@@ -92,9 +96,11 @@ const ServiceTypeFilter: React.FC<ServiceTypeFilterProps> = ({
         <DropdownMenu
           open={isOpen}
           onOpenChange={(open) => {
-            if (!preventOpen) {
-              setIsOpen(open)
+            if (preventOpen) {
+              setPreventOpen(false)
+              return
             }
+            setIsOpen(open)
           }}
         >
           <DropdownMenuTrigger asChild>
@@ -112,6 +118,7 @@ const ServiceTypeFilter: React.FC<ServiceTypeFilterProps> = ({
               <div className="flex items-center gap-3 flex-shrink-0">
                 {hasActiveFilters && (
                   <div
+                    onPointerDown={handleClearPointerDown}
                     onClick={clearFilter}
                     className="h-4 w-4 text-[#F57D5B] hover:bg-[#F57D5B]/10 rounded cursor-pointer flex items-center justify-center"
                   >

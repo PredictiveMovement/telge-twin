@@ -84,6 +84,7 @@ class Vehicle {
       fleet,
       co2PerKmKg = 0.013 / 1000,
       recyclingTypes, // Added
+      fackDetails,
       virtualTime,
     }: VehicleConstructorArgs = {} as VehicleConstructorArgs
   ) {
@@ -109,7 +110,7 @@ class Vehicle {
     this.recyclingTypes = recyclingTypes // Added
     // Compartments (fack) are set up by Truck subclass; keep a slot here so toObject can expose it
     this.compartments = []
-    this.fackDetails = (arguments[0] && (arguments[0] as any).fackDetails) || undefined
+    this.fackDetails = fackDetails || undefined
     this.lastPositionUpdate = 0 // Initialize, or use this.time() if appropriate at construction
 
     if (virtualTime) {

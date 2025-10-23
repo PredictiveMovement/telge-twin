@@ -178,6 +178,29 @@ export async function getExperiments(): Promise<Experiment[]> {
 }
 
 /**
+ * Loads Telge route data for a specific date.
+ * @param date - YYYY-MM-DD
+ */
+export async function getTelgeRouteData(date: string): Promise<any[]> {
+  try {
+    const response = await simulatorApi.get('/api/telge/routedata', {
+      params: { date },
+    })
+    if (!response.data?.success) {
+      const message =
+        typeof response.data?.message === 'string'
+          ? response.data.message
+          : 'Failed to load Telge route data'
+      throw new Error(message)
+    }
+    return response.data.data || []
+  } catch (error) {
+    if (error instanceof Error) throw error
+    throw new Error('Failed to load Telge route data')
+  }
+}
+
+/**
  * Gets an experiment.
  * @param experimentId - The ID of the experiment.
  * @returns The experiment.

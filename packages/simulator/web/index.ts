@@ -8,6 +8,7 @@ import { Server } from 'socket.io'
 import routes from './routes'
 import apiRouter from './api'
 import { elasticsearchService } from './services/ElasticsearchService'
+import { fetchTelgeRouteData } from './services/TelgeApiService'
 import { safeId } from '../lib/id'
 import { extractOriginalData } from '../lib/types/originalBookingData'
 
@@ -127,6 +128,32 @@ app.get('/api/experiments', async (req, res) => {
     res.json(successResponse(filtered))
   } catch (error) {
     res.status(500).json(handleError(error))
+  }
+})
+
+app.get('/api/telge/routedata', async (req, res) => {
+  try {
+    const date = String(req.query.date || '')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res
+        .status(400)
+        .json(handleError(null, 'Invalid or missing date (YYYY-MM-DD)'))
+    }
+
+    const data = await fetchTelgeRouteData(date)
+    return res.json(successResponse(data))
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Failed fetching Telge route data'
+    const status =
+      message.startsWith('VALIDATION:')
+        ? 400
+        : message.startsWith('CONFIG:')
+          ? 500
+          : 502
+    return res.status(status).json(handleError(error, message))
   }
 })
 

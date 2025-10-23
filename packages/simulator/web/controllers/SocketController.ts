@@ -187,7 +187,9 @@ export class SocketController {
         routes.push(
           require('../routes/passengers').register(experiment, socket)
         )
-      } catch (err) {}
+      } catch (_err) {
+        // Ignore if passengers route is not available
+      }
     }
 
     return routes.flat().filter(Boolean)

@@ -89,37 +89,33 @@ export class ElasticsearchService {
   }
 
   async deleteExperiment(documentId: string) {
-    try {
-      // First get the experiment to find its ID for cleaning up related data
-      const experimentResponse = await this.client.get({
-        index: 'experiments',
-        id: documentId,
-      })
+    // First get the experiment to find its ID for cleaning up related data
+    const experimentResponse = await this.client.get({
+      index: 'experiments',
+      id: documentId,
+    })
 
-      const experimentId = experimentResponse.body._source?.id
+    const experimentId = experimentResponse.body._source?.id
 
-      // Delete the experiment document
-      await this.client.delete({
-        index: 'experiments',
-        id: documentId,
-      })
+    // Delete the experiment document
+    await this.client.delete({
+      index: 'experiments',
+      id: documentId,
+    })
 
-      // Clean up related vroom-truck-plans if experimentId exists
-      if (experimentId) {
-        await this.client.deleteByQuery({
-          index: 'vroom-truck-plans',
-          body: {
-            query: {
-              term: { 'experiment.keyword': experimentId },
-            },
+    // Clean up related vroom-truck-plans if experimentId exists
+    if (experimentId) {
+      await this.client.deleteByQuery({
+        index: 'vroom-truck-plans',
+        body: {
+          query: {
+            term: { 'experiment.keyword': experimentId },
           },
-        })
-      }
-
-      return { success: true }
-    } catch (error) {
-      throw error
+        },
+      })
     }
+
+    return { success: true }
   }
 
   async saveDataset(datasetId: string, datasetBody: any) {

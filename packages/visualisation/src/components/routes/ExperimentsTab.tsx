@@ -102,7 +102,7 @@ export default function ExperimentsTab() {
       } else {
         setError(result.error || 'Kunde inte ta bort experimentet')
       }
-    } catch (err) {
+    } catch (_error) {
       setError('Ett fel uppstod vid borttagning av experimentet')
     } finally {
       setDeletingId(null)

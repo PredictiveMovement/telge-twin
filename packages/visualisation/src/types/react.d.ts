@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { ForwardRefExoticComponent, RefAttributes } from 'react'
 
 declare module 'react' {
   namespace JSX {

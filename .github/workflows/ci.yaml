@@ -105,6 +105,10 @@ jobs:
           context: .
           file: packages/simulator/Dockerfile
           push: true
+          build-args: |
+            TELGE_API_BASE_URL=${{ secrets.TELGE_API_BASE_URL }}
+            TELGE_API_USERNAME=${{ secrets.TELGE_API_USERNAME }}
+            TELGE_API_PASSWORD=${{ secrets.TELGE_API_PASSWORD }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:${{ steps.package-version.outputs.current-version}}
       - name: 🔧 Build and push Visualisation
@@ -160,6 +164,10 @@ jobs:
           context: .
           file: packages/simulator/Dockerfile
           push: true
+          build-args: |
+            TELGE_API_BASE_URL=${{ secrets.TELGE_API_BASE_URL }}
+            TELGE_API_USERNAME=${{ secrets.TELGE_API_USERNAME }}
+            TELGE_API_PASSWORD=${{ secrets.TELGE_API_PASSWORD }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-simulator:dev-${{ steps.meta.outputs.sha_short }}

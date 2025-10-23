@@ -1,3 +1,4 @@
+import telgeSettings from '@/config/telge-settings.json'
 import { type Settings } from '@/utils/fleetGenerator'
 
 interface RouteRecord {
@@ -81,37 +82,22 @@ export const filterRouteData = (
 }
 
 // Get settings for preview, with localStorage fallback
-export const getSettingsForPreview = (
-  uploadedData: RouteRecord[],
-  originalFilename: string
-): Settings => {
-  try {
-    if (!uploadedData.length) {
-      return { avftyper: [], bilar: [], tjtyper: [], frekvenser: [] }
-    }
-
-    const fileContent = localStorage.getItem(`fileContent_${originalFilename}`)
-    if (fileContent) {
-      const parsed = JSON.parse(fileContent)
-      if (parsed.settings) return parsed.settings as Settings
-    }
-
-    return extractInfoFromData(uploadedData) as Settings
-  } catch (error) {
-    return { avftyper: [], bilar: [], tjtyper: [], frekvenser: [] }
+export const getSettingsForPreview = (): Settings =>
+  (telgeSettings as { settings?: Settings }).settings ?? {
+    avftyper: [],
+    bilar: [],
+    tjtyper: [],
+    frekvenser: [],
   }
-}
 
 // Process uploaded file and extract data
-export const processUploadedFile = (rawData: any, fileName: string) => {
+export const processUploadedFile = (rawData: any, _fileName: string) => {
   let data: any[]
 
   if (Array.isArray(rawData)) {
     data = rawData
   } else if (rawData.routeData && Array.isArray(rawData.routeData)) {
     data = rawData.routeData
-    // Store original file content for settings extraction
-    localStorage.setItem(`fileContent_${fileName}`, JSON.stringify(rawData))
   } else {
     throw new Error('Invalid data format')
   }

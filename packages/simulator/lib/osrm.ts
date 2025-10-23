@@ -4,11 +4,7 @@ const fs = require('fs').promises
 const path = require('path')
 const nodeCrypto = require('crypto')
 
-const osrmUrl =
-  // eslint-disable-next-line no-undef
-  process.env.OSRM_URL ||
-  'https://osrm.telge.iteam.pub' ||
-  'http://localhost:5000'
+const osrmUrl = process.env.OSRM_URL || 'https://osrm.telge.iteam.pub'
 const { warn, write } = require('./log')
 const queue = require('./queueSubject')
 

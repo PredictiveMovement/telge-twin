@@ -45,7 +45,7 @@ if (!host) {
             }
             if (errorType === 'resource_already_exists_exception') {
               error(
-                `\n            Index ${index} already mapped.\n            If you want to re-map it:\n            - Delete it in Elasticsearch\n            - Re-run this script\n            - Recreate \"index pattern\" in kibana.\n          `
+                `\n            Index ${index} already mapped.\n            If you want to re-map it:\n            - Delete it in Elasticsearch\n            - Re-run this script\n            - Recreate "index pattern" in kibana.\n          `
               )
             } else {
               error(

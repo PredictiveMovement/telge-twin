@@ -31,25 +31,18 @@ const WasteTypeFilter: React.FC<WasteTypeFilterProps> = ({
     return `${selectedWasteTypes.length} valda`
   }
 
-  const getButtonVariant = (hasActiveFilters: boolean): 'outline' => {
-    return 'outline'
-  }
-
-  const getButtonClassName = (hasActiveFilters: boolean) => {
-    if (hasActiveFilters) {
-      return 'w-full justify-between hover:bg-[hsl(var(--muted))] bg-white border-primary border-2'
-    }
-    return 'w-full justify-between hover:bg-[hsl(var(--muted))]'
-  }
-
   return (
     <div>
       <Label htmlFor="wasteType">Välj avfallstyp</Label>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant={getButtonVariant(selectedWasteTypes.length > 0)}
-            className={getButtonClassName(selectedWasteTypes.length > 0)}
+            variant="outline"
+            className={
+              selectedWasteTypes.length > 0
+                ? 'w-full justify-between hover:bg-[hsl(var(--muted))] bg-white border-primary border-2'
+                : 'w-full justify-between hover:bg-[hsl(var(--muted))]'
+            }
           >
             <div className="flex items-center gap-2">
               {selectedWasteTypes.length > 0 && (

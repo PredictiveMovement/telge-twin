@@ -57,11 +57,15 @@ const VehicleFilter: React.FC<VehicleFilterProps> = ({
 
   const hasActiveFilters = selectedVehicles.length > 0
 
-  const clearFilter = (e: React.MouseEvent) => {
+  const handleClearPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
-    e.preventDefault()
-
     setPreventOpen(true)
+  }
+
+  const clearFilter = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+
     setIsOpen(false)
 
     if (onClearAllVehicles) {
@@ -72,7 +76,7 @@ const VehicleFilter: React.FC<VehicleFilterProps> = ({
       })
     }
 
-    setTimeout(() => setPreventOpen(false), 100)
+    setPreventOpen(false)
   }
 
   return (
@@ -82,9 +86,11 @@ const VehicleFilter: React.FC<VehicleFilterProps> = ({
         <DropdownMenu
           open={isOpen}
           onOpenChange={(open) => {
-            if (!preventOpen) {
-              setIsOpen(open)
+            if (preventOpen) {
+              setPreventOpen(false)
+              return
             }
+            setIsOpen(open)
           }}
         >
           <DropdownMenuTrigger asChild>
@@ -102,6 +108,7 @@ const VehicleFilter: React.FC<VehicleFilterProps> = ({
               <div className="flex items-center gap-3 flex-shrink-0">
                 {hasActiveFilters && (
                   <div
+                    onPointerDown={handleClearPointerDown}
                     onClick={clearFilter}
                     className="h-4 w-4 text-[#F57D5B] hover:bg-[#F57D5B]/10 rounded cursor-pointer flex items-center justify-center"
                   >

@@ -33,25 +33,26 @@ const VehicleTypeFilter: React.FC<VehicleTypeFilterProps> = ({
 
   const hasActiveFilters = selectedVehicleTypes.length > 0;
 
-  const clearFilter = (e: React.MouseEvent) => {
+  const handleClearPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    e.preventDefault();
-    
     setPreventOpen(true);
+  };
+
+  const clearFilter = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     setIsOpen(false);
-    
+
     if (onClearAllVehicleTypes) {
-      // Use dedicated clear function if provided
       onClearAllVehicleTypes();
     } else {
-      // Fallback to individual clearing for backward compatibility
       selectedVehicleTypes.forEach(vehicleTypeId => {
         onVehicleTypeChange(vehicleTypeId, false);
       });
     }
-    
-    // Reset prevent flag after a short delay
-    setTimeout(() => setPreventOpen(false), 100);
+
+    setPreventOpen(false);
   };
 
   return (
@@ -61,9 +62,11 @@ const VehicleTypeFilter: React.FC<VehicleTypeFilterProps> = ({
         <DropdownMenu 
           open={isOpen} 
           onOpenChange={(open) => {
-            if (!preventOpen) {
-              setIsOpen(open);
+            if (preventOpen) {
+              setPreventOpen(false);
+              return;
             }
+            setIsOpen(open);
           }}
         >
           <DropdownMenuTrigger asChild>
@@ -80,12 +83,13 @@ const VehicleTypeFilter: React.FC<VehicleTypeFilterProps> = ({
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 {hasActiveFilters && (
-                  <button
+                  <div
+                    onPointerDown={handleClearPointerDown}
                     onClick={clearFilter}
                     className="h-4 w-4 text-[#F57D5B] hover:bg-[#F57D5B]/10 rounded cursor-pointer flex items-center justify-center"
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </div>
                 )}
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </div>

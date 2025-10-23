@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { FilterButton } from '@/components/ui/filter-button';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -20,6 +20,8 @@ const FrequencyFilter: React.FC<FrequencyFilterProps> = ({
   onClearAllFrequencies
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [preventOpen, setPreventOpen] = useState(false);
   const options = data?.settings?.frekvenser || [];
 
   const { getDisplayText } = useFilterPreview({
@@ -31,26 +33,42 @@ const FrequencyFilter: React.FC<FrequencyFilterProps> = ({
 
   const hasActiveFilters = selectedFrequencies.length > 0;
 
-  const clearFilter = (e: React.MouseEvent) => {
+  const handleClearPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
+    setPreventOpen(true);
+  };
+
+  const clearFilter = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    setIsOpen(false);
+
     if (onClearAllFrequencies) {
-      // Use dedicated clear function if provided
       onClearAllFrequencies();
     } else {
-      // Fallback to individual clearing for backward compatibility
       selectedFrequencies.forEach(frequencyId => {
         onFrequencyChange(frequencyId, false);
       });
     }
+
+    setPreventOpen(false);
   };
 
   return (
     <div className="space-y-2">
       <Label htmlFor="frequency">Frekvens</Label>
       <div className="relative">
-        <DropdownMenu>
+        <DropdownMenu
+          open={isOpen}
+          onOpenChange={(open) => {
+            if (preventOpen) {
+              setPreventOpen(false);
+              return;
+            }
+            setIsOpen(open);
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <FilterButton 
               ref={buttonRef}
@@ -65,12 +83,13 @@ const FrequencyFilter: React.FC<FrequencyFilterProps> = ({
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 {hasActiveFilters && (
-                  <button
+                  <div
+                    onPointerDown={handleClearPointerDown}
                     onClick={clearFilter}
                     className="h-4 w-4 text-[#F57D5B] hover:bg-[#F57D5B]/10 rounded cursor-pointer flex items-center justify-center"
                   >
                     <X className="h-4 w-4" />
-                  </button>
+                  </div>
                 )}
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </div>
