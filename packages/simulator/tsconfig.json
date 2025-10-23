@@ -17,6 +17,6 @@
     "checkJs": false,
     "types": ["jest", "node"]
   },
-  "include": ["lib/**/*", "types/**/*", "__tests__/**/*", "*.ts"],
+  "include": ["lib/**/*", "web/**/*", "types/**/*", "__tests__/**/*", "*.ts"],
   "exclude": ["node_modules", "dist"]
 } 
