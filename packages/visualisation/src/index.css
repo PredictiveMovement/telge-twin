@@ -1,28 +1,3 @@
-@font-face {
-  font-family: 'Avenir Next';
-  src: local('Avenir Next'), local('AvenirNext'),
-       url('https://fonts.cdnfonts.com/css/avenir-next-lt-pro') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Avenir Next';
-  src: local('Avenir Next Medium'), local('AvenirNext-Medium'),
-       url('https://fonts.cdnfonts.com/css/avenir-next-lt-pro') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Avenir Next';
-  src: local('Avenir Next Bold'), local('AvenirNext-Bold'),
-       url('https://fonts.cdnfonts.com/css/avenir-next-lt-pro') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 
 @tailwind base;
 @tailwind components;
@@ -31,7 +6,7 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 13%;
+    --foreground: 0 0% 13%; /* Telge svart */
 
     --card: 0 0% 100%;
     --card-foreground: 0 0% 13%;
@@ -39,42 +14,58 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 13%;
 
-    --primary: 88 33% 67%;
-    --primary-foreground: 0 0% 13%;
+    --primary: 88 31% 73%; /* Telge ljusgron #BBD197 */
+    --primary-foreground: 0 0% 13%; /* Improved contrast for text on primary background */
 
-    --secondary: 45 100% 69%;
+    --secondary: 13 89% 66%; /* Telge Röd */
     --secondary-foreground: 0 0% 13%;
 
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 35%;
+    --muted: 0 0% 95%; /* Ljusgra - adjusted to match the new #F2F2F2 */
+    --muted-foreground: 0 0% 35%; /* Updated to match Telge Grå */
 
-    --accent: 82 31% 84%;
+    --accent: 82 31% 84%; /* Ljusgron */
+    --accent-light: 0 0% 97%; /* #f7f7f7 med 100% opacitet */
     --accent-foreground: 0 0% 13%;
 
-    --destructive: 13 100% 47%;
+    --accent-secondary: 203 65% 88%; /* New accent color based on #C7E4F1 */
+    --accent-secondary-foreground: 0 0% 13%;
+
+    --destructive: 13 100% 47%; /* Telge Rod */
     --destructive-foreground: 0 0% 100%;
+
+    --custom-orange: 13 95% 47%; /* CB4522 */
+    --custom-orange-foreground: 0 0% 100%;
 
     --border: 0 0% 85%;
     --input: 0 0% 85%;
-    --ring: 88 33% 67%;
+    --ring: 0 0% 70%; /* Neutral grey for focus rings */
 
-    --text-primary: 0 0% 13%;
-    --text-secondary: 0 0% 35%;
+    /* Text colors using HSL tokens */
+    --text-primary: 0 0% 13%; /* Telge svart */
+    --text-secondary: 0 0% 35%; /* Telge grå */
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 95%;
-    --sidebar-foreground: 0 0% 13%;
-    --sidebar-primary: 88 33% 67%;
-    --sidebar-primary-foreground: 0 0% 13%;
-    --sidebar-accent: 0 0% 85%;
-    --sidebar-accent-foreground: 0 0% 13%;
-    --sidebar-border: 0 0% 75%;
-    --sidebar-ring: 88 33% 67%;
+    /* Custom dashboard sidebar colors */
+    --sidebar-background: 0 0% 98%; /* Ljusgrå 15% från design systemet */
+    --sidebar-foreground: 0 0% 35%; /* mörkare färg för titlar och ikoner (#595959) */
+    --sidebar-primary: 120 15% 35%;
+    --sidebar-primary-foreground: 120 30% 96%;
+    --sidebar-accent: 0 0% 90%; /* E5E5E5 för hover och active */
+    --sidebar-accent-foreground: 0 0% 35%;
+    --sidebar-border: 120 15% 88%;
+    --sidebar-ring: 120 15% 35%;
+    
+    /* User section background */
+    --sidebar-user-background: 0 0% 95%; /* Ljusgrå 25% från design systemet */
+    
+    /* Hover states */
+    --sidebar-hover: 78 27% 86%;
+    --sidebar-active: 120 25% 82%;
   }
 
   .dark {
-    --background: 0 0% 13%;
+    --background: 0 0% 13%; /* Telge svart - using #222222 for dark mode background */
     --foreground: 0 0% 100%;
 
     --card: 0 0% 15%;
@@ -83,36 +74,46 @@
     --popover: 0 0% 15%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 88 33% 67%;
-    --primary-foreground: 0 0% 13%;
+    --primary: 88 31% 73%; /* Telge ljusgron #BBD197 */
+    --primary-foreground: 0 0% 13%; /* Improved contrast for text on primary background */
 
-    --secondary: 45 100% 69%;
+    --secondary: 13 89% 66%; /* Telge Röd */
     --secondary-foreground: 0 0% 13%;
 
     --muted: 0 0% 25%;
-    --muted-foreground: 0 0% 80%;
+    --muted-foreground: 0 0% 80%; /* Improved contrast for muted text */
 
     --accent: 82 31% 30%;
     --accent-foreground: 0 0% 100%;
 
+    --accent-secondary: 203 65% 30%; /* Darker version for dark mode */
+    --accent-secondary-foreground: 0 0% 100%;
+
     --destructive: 13 100% 40%;
     --destructive-foreground: 0 0% 100%;
 
+    --custom-orange: 13 95% 47%; /* CB4522 */
+    --custom-orange-foreground: 0 0% 100%;
+
     --border: 0 0% 30%;
     --input: 0 0% 30%;
-    --ring: 88 33% 67%;
+    --ring: 0 0% 70%; /* Neutral grey for focus rings */
 
-    --text-primary: 0 0% 100%;
-    --text-secondary: 0 0% 80%;
+    /* Text colors using HSL tokens for dark mode */
+    --text-primary: 0 0% 100%; /* White for dark mode */
+    --text-secondary: 0 0% 80%; /* Lighter gray for dark mode */
 
-    --sidebar-background: 0 0% 15%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 88 33% 67%;
-    --sidebar-primary-foreground: 0 0% 13%;
-    --sidebar-accent: 0 0% 25%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 40%;
-    --sidebar-ring: 88 33% 67%;
+    --sidebar-background: 0 0% 20%; /* mörkare grå för dark mode */
+    --sidebar-foreground: 0 0% 70%; /* ljusare grå för text i dark mode */
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* User section background */
+    --sidebar-user-background: 0 0% 15%; /* mörkare för avatar-sektion i dark mode */
   }
 }
 
@@ -125,16 +126,28 @@
     @apply bg-background text-foreground font-sans;
   }
   
+  /* Add smooth scrolling and focus styles */
   html {
     scroll-behavior: smooth;
   }
   
-  :focus-visible {
+  /* Subtle focus styles - only for truly focusable elements */
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible,
+  [role="button"]:focus-visible,
+  [role="link"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="menuitem"]:focus-visible {
     @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
   }
 }
 
 @layer components {
+  /* Interactive link hover effect */
   .nav-link {
     @apply relative overflow-hidden;
   }
@@ -147,15 +160,28 @@
     @apply scale-x-100 origin-bottom-left;
   }
   
+  /* Card hover effect */
   .hover-card {
     @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
   }
 
+  /* Enhanced sidebar styles */
   .sidebar-icon {
-    @apply text-sidebar-foreground h-4 w-4 stroke-[1.5px];
+    @apply text-sidebar-foreground h-4 w-4 stroke-[1.5px]; /* Smaller icon size and thinner stroke */
   }
   
   .sidebar-menu-item {
-    @apply py-3 px-4 text-base;
+    @apply py-3 px-4 text-base; /* Larger padding and text */
+  }
+}
+
+@layer utilities {
+  .hyphens-auto {
+    hyphens: auto;
+  }
+  @supports (text-wrap: balance) {
+    .text-balance {
+      text-wrap: balance;
+    }
   }
 }

@@ -10,8 +10,25 @@ export default function RouteDataTabs() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('upload')
 
-  // Sätt aktiv tabb via navigation state (t.ex. { activeTab: 'datasets' })
+  // Sätt aktiv tabb via navigation state (t.ex. { activeTab: 'datasets' }) eller query parameter
   useEffect(() => {
+    // Check URL query parameters first
+    const searchParams = new URLSearchParams(location.search)
+    const tabParam = searchParams.get('tab')
+
+    if (tabParam) {
+      // Map legacy tab names for backwards compatibility
+      let mappedTab = tabParam
+      if (tabParam === 'previous') mappedTab = 'datasets'
+      if (tabParam === 'fetch') mappedTab = 'upload'
+
+      // Validate that the tab exists
+      if (['upload', 'datasets', 'experiments'].includes(mappedTab)) {
+        setActiveTab(mappedTab)
+      }
+    }
+
+    // Also check navigation state (for programmatic navigation)
     const st = (location.state as any) || {}
     if (st.activeTab && typeof st.activeTab === 'string') {
       setActiveTab(st.activeTab)
@@ -19,7 +36,7 @@ export default function RouteDataTabs() {
       navigate(location.pathname, { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state])
+  }, [location.state, location.search])
 
   return (
     <div className="container mx-auto py-6">
