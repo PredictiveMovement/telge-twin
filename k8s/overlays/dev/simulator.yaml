@@ -45,12 +45,12 @@ spec:
           imagePullPolicy: Always
           env:
             - name: ELASTICSEARCH_URL
-              value: http://elastic-dev-elasticsearch.elasticsearch-dev.svc.cluster.local:9200
+              value: http://elasticsearch-master.elasticsearch-dev.svc.cluster.local:9200
       initContainers:
         - name: elastic-init
           image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251024120104-64df22f # {"$imagepolicy": "flux-system:simulator-dev"}
           imagePullPolicy: Always
           env:
             - name: ELASTICSEARCH_URL
-              value: http://elastic-dev-elasticsearch.elasticsearch-dev.svc.cluster.local:9200
+              value: http://elasticsearch-master.elasticsearch-dev.svc.cluster.local:9200
           command: ["node", "dist/preboot.js"]
