@@ -16,6 +16,19 @@ pnpm start
 
 `pnpm start` launches both the simulator and the visualisation. Run them individually with `pnpm run simulator` or `pnpm run visualisation` if you only need one of them.
 
+### Local Development with Docker
+
+For a complete local development stack with Elasticsearch, Kibana, and the simulator backend:
+
+```shell
+cd packages/simulator
+cp .env.example .env
+cd ../..
+docker-compose --env-file packages/simulator/.env up
+```
+
+See [docs/local-elasticsearch-setup.md](docs/local-elasticsearch-setup.md) for details.
+
 ### Configuration
 
 #### Simulator

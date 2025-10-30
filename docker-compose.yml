@@ -1,0 +1,69 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.1
+    container_name: telge-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx2g"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.5.1
+    container_name: telge-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  preboot:
+    build:
+      context: .
+      dockerfile: packages/simulator/Dockerfile
+    container_name: telge-preboot
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    command: ["node", "dist/preboot.js"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: on-failure
+
+  simulator:
+    build:
+      context: .
+      dockerfile: packages/simulator/Dockerfile
+      args:
+        - TELGE_API_BASE_URL=${TELGE_API_BASE_URL}
+        - TELGE_API_USERNAME=${TELGE_API_USERNAME}
+        - TELGE_API_PASSWORD=${TELGE_API_PASSWORD}
+    container_name: telge-simulator
+    env_file:
+      - ./packages/simulator/.env
+    environment:
+      - PORT=4000
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CACHE_DIR=/app/.cache
+    ports:
+      - "4000:4000"
+    volumes:
+      - simulator-cache:/app/.cache
+    depends_on:
+      preboot:
+        condition: service_completed_successfully
+
+volumes:
+  elasticsearch-data:
+  simulator-cache:
+
