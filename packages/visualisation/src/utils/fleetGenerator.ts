@@ -236,7 +236,11 @@ function calculateParcelCapacity(bilSpec: any, vehicleClass: string): number {
     (bilSpec.FACK3_VOLYM || 0) +
     (bilSpec.FACK4_VOLYM || 0)
 
-  if (totalVolume > 0) return Math.floor(totalVolume / 10)
+  if (totalVolume > 0) {
+    const totalVolumeLiters = totalVolume * 1000
+    const typicalPickupVolume = 140 // Standard bin size in liters
+    return Math.floor(totalVolumeLiters / typicalPickupVolume)
+  }
 
   const defaults: Record<string, number> = {
     truck: 200,

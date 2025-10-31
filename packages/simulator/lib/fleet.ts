@@ -134,12 +134,43 @@ class Fleet {
       })
     })
 
-    // After vehicles are constructed, log capacity estimates for observability
     try {
       const preAssigned: Record<string, any[]> =
         (this as any).preAssignedBookings || {}
+      
+      let vehiclesWithFacks = 0
+      let vehiclesWithoutFacks = 0
+      let vehiclesWithDefaultParcelCapacity = 0
+      const recyclingTypeCoverage: Record<string, number> = {}
+      
+      if (Array.isArray(this.recyclingTypes)) {
+        this.recyclingTypes.forEach((type) => {
+          recyclingTypeCoverage[type] = 0
+        })
+      }
+      
       vehicleSpecs.forEach((spec: any) => {
         const obs = preAssigned?.[spec.originalId] || []
+        const hasFacks = Array.isArray(spec.fackDetails) && spec.fackDetails.length > 0
+        
+        if (hasFacks) {
+          vehiclesWithFacks++
+          spec.fackDetails.forEach((fack: any) => {
+            const types = (fack.avfallstyper || []).map((w: any) => w.avftyp).filter(Boolean)
+            types.forEach((typeId: string) => {
+              if (recyclingTypeCoverage.hasOwnProperty(typeId)) {
+                recyclingTypeCoverage[typeId]++
+              }
+            })
+          })
+        } else {
+          vehiclesWithoutFacks++
+        }
+        
+        if (spec.parcelCapacity === 250 || !spec.parcelCapacity || spec.parcelCapacity < 10) {
+          vehiclesWithDefaultParcelCapacity++
+        }
+        
         logVehicleCapacity(
           this.name,
           this.experimentId,
@@ -148,8 +179,45 @@ class Fleet {
           obs
         )
       })
+      
+      const totalVehicles = vehicleSpecs.length
+      const fleetWarnings: string[] = []
+      
+      if (vehiclesWithoutFacks === totalVehicles) {
+        fleetWarnings.push('No vehicles have fack details - all using fallback capacity')
+      } else if (vehiclesWithoutFacks > 0) {
+        fleetWarnings.push(`${vehiclesWithoutFacks}/${totalVehicles} vehicles missing fack details`)
+      }
+      
+      if (vehiclesWithDefaultParcelCapacity === totalVehicles) {
+        fleetWarnings.push('All vehicles using default parcelCapacity (250)')
+      } else if (vehiclesWithDefaultParcelCapacity > 0) {
+        fleetWarnings.push(`${vehiclesWithDefaultParcelCapacity}/${totalVehicles} vehicles using default parcelCapacity`)
+      }
+      
+      const uncoveredTypes: string[] = []
+      Object.entries(recyclingTypeCoverage).forEach(([typeId, count]) => {
+        if (count === 0) {
+          uncoveredTypes.push(typeId)
+        }
+      })
+      
+      if (uncoveredTypes.length > 0) {
+        fleetWarnings.push(`Recycling types with no vehicle coverage: ${uncoveredTypes.join(', ')}`)
+      }
+      
+      info(`Fleet capacity summary: ${this.name}`, {
+        experimentId: this.experimentId,
+        totalVehicles,
+        vehiclesWithFacks,
+        vehiclesWithoutFacks,
+        vehiclesWithDefaultParcelCapacity,
+        recyclingTypeCoverage,
+        warnings: fleetWarnings.length > 0 ? fleetWarnings : undefined,
+      })
+      
     } catch (e) {
-      // non-fatal: logging helper should never break simulation
+      error('Error logging vehicle capacities:', e)
     }
 
     return from(vehicles).pipe(shareReplay())

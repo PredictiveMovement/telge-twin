@@ -8,7 +8,7 @@ import { CLUSTERING_CONFIG } from './config'
 import {
   estimateBookingLoad,
   getCapacityDimensions,
-} from './loadEstimator'
+} from './capacity'
 
 // eslint-disable-next-line no-undef
 const vroomUrl: string =

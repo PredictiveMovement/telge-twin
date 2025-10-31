@@ -1,7 +1,7 @@
 import {
   estimateBookingLoad,
   getCapacityDimensions,
-} from '../../lib/loadEstimator'
+} from '../../lib/capacity'
 import { testSettings } from '../fixtures'
 
 describe('Load Estimator (Unit Tests)', () => {

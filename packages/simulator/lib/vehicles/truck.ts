@@ -5,20 +5,19 @@ const {
 } = require('../dispatch/truckDispatch')
 const { warn } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
-import { estimateBookingLoad } from '../loadEstimator'
+import {
+  estimateBookingLoad,
+  applyLoadToCompartment,
+  createCompartments,
+  isAnyCompartmentFull,
+  releaseLoadFromCompartment,
+  selectBestCompartment,
+} from '../capacity'
+import type { Compartment, LoadEstimate } from '../capacity'
 const Vehicle = require('./vehicle').default
 const { createSpatialChunks } = require('../clustering')
 import type { Instruction } from '../dispatch/truckDispatch'
 import { buildBreakSchedule, ScheduledBreak } from './breaks'
-import {
-  applyLoadToCompartment,
-  Compartment,
-  createCompartments,
-  isAnyCompartmentFull,
-  LoadEstimate,
-  releaseLoadFromCompartment,
-  selectBestCompartment,
-} from './compartments'
 
 interface TruckConstructorArgs {
   id?: string

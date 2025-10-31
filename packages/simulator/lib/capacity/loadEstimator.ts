@@ -1,12 +1,10 @@
-import { CLUSTERING_CONFIG } from './config'
-
-export interface LoadEstimate {
-  volumeLiters: number
-  weightKg: number | null
-}
-
-const FALLBACK_VOLUME_LITERS = 140
-const FALLBACK_FILL_PERCENT = 100
+import { CLUSTERING_CONFIG } from '../config'
+import {
+  LoadEstimate,
+  STANDARD_PICKUP_VOLUME_LITERS,
+  STANDARD_FILL_PERCENT,
+} from './types'
+import { buildSettingsIndexes } from './utils'
 
 function resolveServiceType(booking: any): string | null {
   return (
@@ -16,15 +14,22 @@ function resolveServiceType(booking: any): string | null {
   )
 }
 
+/**
+ * Estimates the volume and weight of a booking based on service type and waste type.
+ * 
+ * Uses settings to look up:
+ * - Service type (Tjtyp) → VOLYM (liters) and FYLLNADSGRAD (fill %)
+ * - Waste type (Avftyp) → VOLYMVIKT (density in kg/m³)
+ * 
+ * @param booking - The booking to estimate load for
+ * @param settings - Dataset settings containing tjtyper and avftyper
+ * @returns LoadEstimate with volumeLiters and weightKg
+ */
 export function estimateBookingLoad(
   booking: any,
   settings: any
 ): LoadEstimate {
-  const tjIndex: Record<string, { VOLYM?: number; FYLLNADSGRAD?: number }> =
-    Object.fromEntries((settings?.tjtyper || []).map((t: any) => [t.ID, t]))
-  const avfIndex: Record<string, { VOLYMVIKT?: number }> = Object.fromEntries(
-    (settings?.avftyper || []).map((a: any) => [a.ID, a])
-  )
+  const { avfIndex, tjIndex } = buildSettingsIndexes(settings)
 
   const tjid = resolveServiceType(booking)
   const tj = tjid ? tjIndex[tjid] : undefined
@@ -32,11 +37,11 @@ export function estimateBookingLoad(
   const baseVolume =
     typeof tj?.VOLYM === 'number' && tj.VOLYM > 0
       ? tj.VOLYM
-      : FALLBACK_VOLUME_LITERS
+      : STANDARD_PICKUP_VOLUME_LITERS
   const fillPercent =
     typeof tj?.FYLLNADSGRAD === 'number' && tj.FYLLNADSGRAD > 0
       ? tj.FYLLNADSGRAD
-      : FALLBACK_FILL_PERCENT
+      : STANDARD_FILL_PERCENT
 
   const volumeLiters = Math.max(
     1,
@@ -52,6 +57,17 @@ export function estimateBookingLoad(
   return { volumeLiters, weightKg }
 }
 
+/**
+ * Gets the remaining capacity dimensions for a truck based on its compartments.
+ * 
+ * Returns the capacity dimensions that should be used for VROOM optimization:
+ * - volumeLiters: Total remaining volume across all compartments
+ * - weightKg: Total remaining weight capacity across all compartments
+ * - count: Fallback to parcelCapacity - cargo count if no compartment data
+ * 
+ * @param truck - The truck to get capacity dimensions for
+ * @returns Object with keys (dimension names) and values (remaining capacity)
+ */
 export function getCapacityDimensions(
   truck: any
 ): { keys: ('volumeLiters' | 'weightKg' | 'count')[]; values: number[] } {

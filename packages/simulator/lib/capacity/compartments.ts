@@ -1,21 +1,18 @@
-export interface Compartment {
-  fackNumber: number
-  allowedWasteTypes: string[]
-  capacityLiters: number | null
-  capacityKg: number | null
-  fillLiters: number
-  fillKg: number
-}
-
-export interface LoadEstimate {
-  volumeLiters: number
-  weightKg: number | null
-}
+import { Compartment, LoadEstimate, FackDetail } from './types'
 
 const ALLOW_ALL = '*'
 
+/**
+ * Creates compartments from vehicle fack details.
+ * 
+ * If no fack details are provided, creates a single default compartment
+ * that accepts all waste types with no capacity limits.
+ * 
+ * @param fackDetails - Array of FackDetail objects from vehicle spec
+ * @returns Array of Compartment objects with initial fill levels at 0
+ */
 export function createCompartments(
-  fackDetails?: any[] | null
+  fackDetails?: FackDetail[] | null
 ): Compartment[] {
   const details = Array.isArray(fackDetails) ? fackDetails : []
 
@@ -40,7 +37,7 @@ export function createCompartments(
       : []
     const capacityLiters =
       typeof detail?.volym === 'number' && detail.volym > 0
-        ? detail.volym * 1000
+        ? detail.volym * 1000 // Convert m³ to liters
         : null
     const capacityKg =
       typeof detail?.vikt === 'number' && detail.vikt > 0
@@ -63,6 +60,21 @@ export function createCompartments(
   })
 }
 
+/**
+ * Selects the best compartment for a given waste type and load.
+ * 
+ * Selection criteria:
+ * 1. Compartment must allow the waste type (or allow all types)
+ * 2. Choose compartment with best remaining capacity ratio
+ * 
+ * The score is calculated as: min(remainingVolume/loadVolume, remainingWeight/loadWeight)
+ * This ensures we don't overload on either dimension.
+ * 
+ * @param compartments - Array of available compartments
+ * @param typeId - Waste type ID (Avftyp)
+ * @param load - Load estimate with volume and weight
+ * @returns Best matching compartment or null if none can accommodate
+ */
 export function selectBestCompartment(
   compartments: Compartment[],
   typeId: string | undefined,
@@ -112,12 +124,28 @@ export function selectBestCompartment(
   return best
 }
 
+/**
+ * Checks if any compartment is full (reached capacity limit).
+ * 
+ * @param compartments - Array of compartments to check
+ * @returns true if at least one compartment is full
+ */
 export function isAnyCompartmentFull(
   compartments: Compartment[]
 ): boolean {
   return compartments.some(isCompartmentFull)
 }
 
+/**
+ * Checks if a single compartment is full.
+ * 
+ * A compartment is considered full if either:
+ * - Volume capacity is reached (fillLiters >= capacityLiters)
+ * - Weight capacity is reached (fillKg >= capacityKg)
+ * 
+ * @param compartment - The compartment to check
+ * @returns true if compartment is full on either dimension
+ */
 export function isCompartmentFull(compartment: Compartment): boolean {
   const litersFull =
     typeof compartment.capacityLiters === 'number' &&
@@ -134,6 +162,15 @@ export function isCompartmentFull(compartment: Compartment): boolean {
   return litersFull || kgFull
 }
 
+/**
+ * Applies a load to a compartment, updating its fill levels.
+ * 
+ * This mutates the compartment object by adding the load volume and weight
+ * to the current fill levels.
+ * 
+ * @param compartment - The compartment to add load to (mutated)
+ * @param load - The load to add
+ */
 export function applyLoadToCompartment(
   compartment: Compartment,
   load: LoadEstimate
@@ -144,6 +181,17 @@ export function applyLoadToCompartment(
   }
 }
 
+/**
+ * Releases a load from a compartment, reducing its fill levels.
+ * 
+ * This mutates the compartment object by subtracting the load volume and weight
+ * from the current fill levels. Fill levels are clamped to 0 minimum.
+ * 
+ * Used when a vehicle delivers/unloads its cargo.
+ * 
+ * @param compartment - The compartment to release load from (mutated)
+ * @param load - The load to release
+ */
 export function releaseLoadFromCompartment(
   compartment: Compartment,
   load: LoadEstimate
@@ -159,3 +207,4 @@ export function releaseLoadFromCompartment(
     )
   }
 }
+

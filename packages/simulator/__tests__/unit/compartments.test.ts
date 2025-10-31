@@ -7,7 +7,7 @@ import {
   releaseLoadFromCompartment,
   type Compartment,
   type LoadEstimate,
-} from '../../lib/vehicles/compartments'
+} from '../../lib/capacity'
 
 describe('Compartments (Unit Tests)', () => {
   describe('createCompartments', () => {
