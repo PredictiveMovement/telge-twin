@@ -81,7 +81,7 @@ export const filterRouteData = (
   })
 }
 
-// Get settings for preview, with localStorage fallback
+// Get settings for preview
 export const getSettingsForPreview = (): Settings =>
   (telgeSettings as { settings?: Settings }).settings ?? {
     avftyper: [],

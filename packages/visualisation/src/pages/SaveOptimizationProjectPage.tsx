@@ -33,25 +33,13 @@ const SaveOptimizationProjectPage = () => {
   } | null
 
   const handleSaveOptimization = async (optimization: any) => {
-    // Save to localStorage
-    const saved = localStorage.getItem('savedOptimizations')
-    let optimizations = [] as any[]
-    if (saved) {
-      try {
-        optimizations = JSON.parse(saved)
-      } catch {
-        toast.error('Kunde inte läsa sparade optimeringar')
-      }
-    }
     // Ensure archived flag exists
     const normalized = {
       ...optimization,
       archived: optimization?.archived ?? false,
     }
-    optimizations.unshift(normalized)
-    localStorage.setItem('savedOptimizations', JSON.stringify(optimizations))
 
-    // Create dataset from selection (mock UI, real save)
+    // Create dataset from selection and save to Elasticsearch
     try {
       if (!navigationState?.uploadedData?.length) {
         toast.error('Ingen data att spara (saknar uploadedData).')

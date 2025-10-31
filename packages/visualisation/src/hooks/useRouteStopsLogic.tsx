@@ -192,44 +192,8 @@ const INITIAL_CURRENT_STOPS: Stop[] = [{
 const INITIAL_OPTIMIZED_STOPS: Stop[] = [...INITIAL_CURRENT_STOPS];
 
 export const useRouteStopsLogic = () => {
-  // Load persisted data or use initial data
-  const loadPersistedOptimizedStops = () => {
-    try {
-      const persistedStops = localStorage.getItem('optimizeStops');
-      if (persistedStops) {
-        const parsed = JSON.parse(persistedStops);
-        const validatedStops = parsed.map((stop: Stop) => {
-          if (stop.type === 'regular') {
-            const originalStop = INITIAL_CURRENT_STOPS.find(orig => orig.id === stop.id);
-            if (originalStop && originalStop.compartments && (!stop.compartments || stop.compartments.length === 0)) {
-              return { ...stop, compartments: originalStop.compartments };
-            }
-          }
-          return stop;
-        });
-        return validatedStops;
-      }
-    } catch (error) {
-      console.error('Failed to load persisted stops:', error);
-      return INITIAL_OPTIMIZED_STOPS;
-    }
-    return INITIAL_OPTIMIZED_STOPS;
-  };
-
-  const loadPersistedVehicle = () => {
-    try {
-      const persistedVehicle = localStorage.getItem('optimizeVehicle');
-      if (persistedVehicle) {
-        return persistedVehicle;
-      }
-    } catch (error) {
-      console.error('Failed to load persisted vehicle:', error);
-    }
-    return "401";
-  };
-
   const [currentStops] = useState<Stop[]>(INITIAL_CURRENT_STOPS);
-  const [optimizedStops, setOptimizedStops] = useState<Stop[]>(loadPersistedOptimizedStops());
+  const [optimizedStops, setOptimizedStops] = useState<Stop[]>(INITIAL_OPTIMIZED_STOPS);
 
   // History states for undo/redo functionality (only for optimized column)
   const [optimizedHistory, setOptimizedHistory] = useState<Stop[][]>([]);
@@ -239,25 +203,7 @@ export const useRouteStopsLogic = () => {
   const [dragListType, setDragListType] = useState<'optimized' | null>(null);
 
   // Vehicle selection state
-  const [selectedVehicle, setSelectedVehicle] = useState(loadPersistedVehicle());
-
-  // Persist optimized stops to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('optimizeStops', JSON.stringify(optimizedStops));
-    } catch (error) {
-      console.error('Failed to persist optimized stops:', error);
-    }
-  }, [optimizedStops]);
-
-  // Persist vehicle selection to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('optimizeVehicle', selectedVehicle);
-    } catch (error) {
-      console.error('Failed to persist vehicle selection:', error);
-    }
-  }, [selectedVehicle]);
+  const [selectedVehicle, setSelectedVehicle] = useState("401");
 
   // Save state to history before making changes (only for optimized column)
   const saveToHistory = useCallback((newStops: Stop[]) => {
@@ -290,18 +236,12 @@ export const useRouteStopsLogic = () => {
     saveToHistory(currentStops);
   };
 
-  // Reset to factory defaults - clears localStorage and resets to initial data
+  // Reset to factory defaults - resets to initial data
   const resetToDefaults = () => {
-    try {
-      localStorage.removeItem('optimizeStops');
-      localStorage.removeItem('optimizeVehicle');
-      setOptimizedStops(INITIAL_OPTIMIZED_STOPS);
-      setSelectedVehicle("401");
-      setOptimizedHistory([]);
-      setOptimizedHistoryIndex(-1);
-    } catch (error) {
-      console.error('Failed to reset to defaults:', error);
-    }
+    setOptimizedStops(INITIAL_OPTIMIZED_STOPS);
+    setSelectedVehicle("401");
+    setOptimizedHistory([]);
+    setOptimizedHistoryIndex(-1);
   };
 
   // Drag and drop functions

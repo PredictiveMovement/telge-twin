@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import WorkerSettingsSection from './WorkerSettingsSection';
 import BreaksSection from './BreaksSection';
 import ProjectDetailsSection from './ProjectDetailsSection';
+import { getRouteDatasets } from '@/api/simulator';
 
 interface SaveOptimizationFormProps {
   onSave: (optimization: any) => void;
@@ -82,10 +83,9 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
 const timeOptions = generateTimeOptions();
 
 // Generate next auto-increment name: "Optimering 01", "Optimering 02", ...
-const getNextOptimizationName = useCallback((): string => {
+const getNextOptimizationName = useCallback(async (): Promise<string> => {
   try {
-    const savedRaw = localStorage.getItem('savedOptimizations');
-    const saved: any[] = savedRaw ? JSON.parse(savedRaw) : [];
+    const saved = await getRouteDatasets();
     const nums = saved
       .map((o) => (typeof o?.name === 'string' ? o.name.match(/^Optimering\s(\d{2})$/) : null))
       .filter(Boolean)
@@ -153,19 +153,23 @@ const getVehiclesFromSelection = useCallback((): string[] => {
 
 // Prefill form values on mount/update if empty
 useEffect(() => {
-  const currentName = form.getValues('name');
-  if (!currentName || !currentName.trim()) {
-    form.setValue('name', getNextOptimizationName());
-    setIsNameAutofilled(true);
-  }
-  const currentDesc = form.getValues('description');
-  if (!currentDesc || !currentDesc.trim()) {
-    const auto = buildAutoDescription();
-    if (auto) {
-      form.setValue('description', auto);
-      setIsDescriptionAutofilled(true);
+  const prefillForm = async () => {
+    const currentName = form.getValues('name');
+    if (!currentName || !currentName.trim()) {
+      const nextName = await getNextOptimizationName();
+      form.setValue('name', nextName);
+      setIsNameAutofilled(true);
     }
-  }
+    const currentDesc = form.getValues('description');
+    if (!currentDesc || !currentDesc.trim()) {
+      const auto = buildAutoDescription();
+      if (auto) {
+        form.setValue('description', auto);
+        setIsDescriptionAutofilled(true);
+      }
+    }
+  };
+  prefillForm();
 }, [form, getNextOptimizationName, buildAutoDescription]);
 
 // Track form dirty state and breaks changes
@@ -174,8 +178,8 @@ useEffect(() => {
     if (onFormDirtyChange) {
       // Check if any form field has been manually edited (not autofilled)
       const hasManualChanges = 
-        (!isNameAutofilled && values.name !== getNextOptimizationName()) ||
-        (!isDescriptionAutofilled && values.description !== buildAutoDescription()) ||
+        !isNameAutofilled ||
+        !isDescriptionAutofilled ||
         values.startTime !== '06:00' ||
         values.endTime !== '15:00';
       
@@ -189,8 +193,6 @@ useEffect(() => {
   onFormDirtyChange,
   isNameAutofilled,
   isDescriptionAutofilled,
-  getNextOptimizationName,
-  buildAutoDescription,
 ]);
 
 // Track breaks changes
@@ -204,8 +206,8 @@ useEffect(() => {
   }
 }, [breaks, extraBreaks, onFormDirtyChange]);
 
-const onSubmit = (data: any) => {
-  const ensuredName = data?.name && data.name.trim() ? data.name.trim() : getNextOptimizationName();
+const onSubmit = async (data: any) => {
+  const ensuredName = data?.name && data.name.trim() ? data.name.trim() : await getNextOptimizationName();
 
   const vehicles = getVehiclesFromSelection();
 
