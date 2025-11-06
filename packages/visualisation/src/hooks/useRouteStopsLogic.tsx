@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Stop } from '@/types/stops';
 
 // Initial data constants with enhanced information

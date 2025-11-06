@@ -4,7 +4,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FolderOpen, ArrowRight } from 'lucide-react'
@@ -291,7 +290,7 @@ const SavedOptimizationsCard: React.FC = () => {
     }
   }
 
-  const handleOptimizationClick = (opt: SavedOptimization) => {
+  const handleOptimizationClick = (_opt: SavedOptimization) => {
     // Navigate to datasets tab where user can start simulation
     navigate('/routes?tab=datasets')
   }
@@ -346,7 +345,7 @@ const SavedOptimizationsCard: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
-        {optimizations.map((opt, index) => (
+        {optimizations.map((opt) => (
           <button
             key={opt.id}
             onClick={() => handleOptimizationClick(opt)}
