@@ -346,24 +346,41 @@ function truckToVehicle(
   const rawBreaks = Array.isArray(fleet?.settings?.breaks)
     ? fleet.settings.breaks
     : []
+
   const breaks = rawBreaks
     .map((br: any, index: number) => {
+      const startMinutes =
+        typeof br?.startMinutes === 'number'
+          ? br.startMinutes
+          : parseTimeToMinutes(br?.desiredTime)
+
+      const durationMinutes =
+        typeof br?.durationMinutes === 'number'
+          ? br.durationMinutes
+          : typeof br?.duration === 'number'
+            ? br.duration
+            : null
+
       if (
-        typeof br?.startMinutes !== 'number' ||
-        typeof br?.durationMinutes !== 'number'
+        startMinutes == null ||
+        !Number.isFinite(startMinutes) ||
+        durationMinutes == null ||
+        !Number.isFinite(durationMinutes)
       ) {
         return null
       }
-      const startMs = dayStartMs + br.startMinutes * 60 * 1000
-      const durationSeconds = Math.max(0, br.durationMinutes * 60)
+
+      const startMs = dayStartMs + startMinutes * 60 * 1000
+      const durationSeconds = Math.max(0, durationMinutes * 60)
       if (durationSeconds <= 0) return null
       const startSeconds = Math.max(
         0,
         Math.floor((startMs - nowMs) / 1000)
       )
       const endSeconds = startSeconds + durationSeconds
+
       return {
-        id: br?.id || `break-${index}`,
+        id: index,
         time_windows: [[startSeconds, endSeconds]],
         duration: durationSeconds,
       }
@@ -388,6 +405,28 @@ function truckToVehicle(
   })
 
   return vehicle
+}
+
+/**
+ * Parse time string (HH:MM) to minutes since midnight
+ */
+function parseTimeToMinutes(timeStr?: string | null): number | null {
+  if (typeof timeStr !== 'string') return null
+  const match = timeStr.trim().match(/^([0-9]{1,2}):([0-9]{2})$/)
+  if (!match) return null
+  const hours = parseInt(match[1], 10)
+  const minutes = parseInt(match[2], 10)
+  if (
+    Number.isFinite(hours) &&
+    Number.isFinite(minutes) &&
+    hours >= 0 &&
+    hours < 24 &&
+    minutes >= 0 &&
+    minutes < 60
+  ) {
+    return hours * 60 + minutes
+  }
+  return null
 }
 
 export default {

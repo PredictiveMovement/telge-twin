@@ -302,7 +302,6 @@ export class ExperimentController {
       )
 
       if (experimentData.sourceDatasetId) {
-        // Loading dataset for replay
         datasetData = await elasticsearchService.getDataset(
           experimentData.sourceDatasetId
         )
@@ -320,7 +319,6 @@ export class ExperimentController {
         isReplay: true,
       }
 
-      // Replay mode: Loading experiment with fleets
     } else if (datasetId) {
       datasetData = await elasticsearchService.getDataset(datasetId)
       fleetsConfig = datasetData?.fleetConfiguration || []
@@ -380,16 +378,12 @@ export class ExperimentController {
       fleetsConfig = defaultConfig['Södertälje kommun']?.fleets || []
     }
 
-    // Use experimentType from parameters, default to 'vroom' if not specified
     const experimentType = parameters.experimentType || 'vroom'
-
     const workdaySettings =
       datasetWorkdaySettings || parameters?.workdaySettings
     const breakSettings = datasetBreakSettingsRef?.length
       ? datasetBreakSettingsRef
       : parameters?.breakSettings
-
-    // Creating experiment with specified type
 
     this.globalExperiment = null
     const experiment = this.createGlobalExperiment({
@@ -406,9 +400,15 @@ export class ExperimentController {
       fleets: {
         'Södertälje kommun': {
           settings: {
-            experimentType, // ✅ Forward experimentType to fleet settings
+            experimentType,
             workday: workdaySettings || undefined,
             breaks: breakSettings || undefined,
+            pickupsBeforeDelivery:
+              datasetData?.originalSettings?.pickupsBeforeDelivery ||
+              parameters?.pickupsBeforeDelivery ||
+              undefined,
+            tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
+            avftyper: datasetData?.originalSettings?.avftyper || undefined,
             ...(experimentType === 'replay' && experimentId
               ? { replayExperiment: experimentId }
               : {}),
@@ -498,6 +498,12 @@ export class ExperimentController {
             experimentType: 'replay',
             workday: workdaySettings || undefined,
             breaks: breakSettings || undefined,
+            pickupsBeforeDelivery:
+              datasetData?.originalSettings?.pickupsBeforeDelivery ||
+              parameters?.pickupsBeforeDelivery ||
+              undefined,
+            tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
+            avftyper: datasetData?.originalSettings?.avftyper || undefined,
             replayExperiment: experimentId,
           },
           fleets: fleetsConfig,
@@ -525,7 +531,6 @@ export class ExperimentController {
     datasetId: string,
     parameters: any
   ) {
-    // Get dataset to access optimizationSettings for breaks and workday
     const datasetData = await elasticsearchService.getDataset(datasetId)
 
     const workdaySettings = this.buildWorkdaySettings(
@@ -536,7 +541,6 @@ export class ExperimentController {
       datasetData?.optimizationSettings?.extraBreaks
     )
 
-    // Mark as non-persistent by setting isReplay=true to avoid indexing a new experiment document
     const experiment = this.createSessionExperiment(sessionId, {
       ...parameters,
       sourceDatasetId: datasetId,
@@ -550,6 +554,12 @@ export class ExperimentController {
             experimentType: 'sequential',
             workday: workdaySettings || undefined,
             breaks: breakSettings || undefined,
+            pickupsBeforeDelivery:
+              datasetData?.originalSettings?.pickupsBeforeDelivery ||
+              parameters?.pickupsBeforeDelivery ||
+              undefined,
+            tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
+            avftyper: datasetData?.originalSettings?.avftyper || undefined,
           },
           fleets: parameters.fleets?.['Södertälje kommun']?.fleets || [],
         },

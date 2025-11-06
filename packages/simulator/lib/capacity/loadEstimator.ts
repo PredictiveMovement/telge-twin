@@ -9,7 +9,9 @@ import { buildSettingsIndexes } from './utils'
 function resolveServiceType(booking: any): string | null {
   return (
     booking?.originalData?.originalTjtyp ||
+    booking?.originalData?.originalRouteRecord?.Tjtyp ||
     booking?.originalRecord?.Tjtyp ||
+    booking?.Tjtyp ||
     null
   )
 }

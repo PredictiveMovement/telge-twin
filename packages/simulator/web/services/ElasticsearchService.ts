@@ -62,11 +62,11 @@ export class ElasticsearchService {
       index: 'vroom-truck-plans',
       body: {
         query: {
-          terms: { 'experiment.keyword': experimentIds },
+          terms: { experiment: experimentIds },
         },
         aggs: {
           vehicles_per_experiment: {
-            terms: { field: 'experiment.keyword', size: 1000 },
+            terms: { field: 'experiment', size: 1000 },
             aggs: {
               unique_vehicles: {
                 cardinality: { field: 'truckId' },
@@ -109,7 +109,7 @@ export class ElasticsearchService {
         index: 'vroom-truck-plans',
         body: {
           query: {
-            term: { 'experiment.keyword': experimentId },
+            term: { experiment: experimentId },
           },
         },
       })
@@ -175,7 +175,7 @@ export class ElasticsearchService {
     const searchResult = await search({
       index: 'vroom-truck-plans',
       body: {
-        query: { term: { 'experiment.keyword': experimentId } },
+        query: { term: { experiment: experimentId } },
         size: 100,
       },
     })

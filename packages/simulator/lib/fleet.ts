@@ -462,10 +462,10 @@ class Fleet {
                           must: [
                             {
                               term: {
-                                'experiment.keyword': replayExperimentId,
+                                experiment: replayExperimentId,
                               },
                             },
-                            { term: { truckId: truck.id } },
+                            { term: { truckId: String(truck.id) } },
                           ],
                         },
                       },
