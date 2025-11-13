@@ -23,6 +23,8 @@ function resolveServiceType(booking: any): string | null {
  * - Service type (Tjtyp) → VOLYM (liters) and FYLLNADSGRAD (fill %)
  * - Waste type (Avftyp) → VOLYMVIKT (density in kg/m³)
  * 
+ * Applies volume compression factor from config to simulate waste compaction.
+ * 
  * @param booking - The booking to estimate load for
  * @param settings - Dataset settings containing tjtyper and avftyper
  * @returns LoadEstimate with volumeLiters and weightKg
@@ -45,9 +47,11 @@ export function estimateBookingLoad(
       ? tj.FYLLNADSGRAD
       : STANDARD_FILL_PERCENT
 
+  // Apply compression factor to simulate waste compaction in truck
+  const compressionFactor = CLUSTERING_CONFIG.CAPACITY.VOLUME_COMPRESSION_FACTOR
   const volumeLiters = Math.max(
     1,
-    Math.round((baseVolume * fillPercent) / 100)
+    Math.round((baseVolume * fillPercent / 100) * compressionFactor)
   )
 
   const density = avfIndex[booking?.recyclingType || '']?.VOLYMVIKT

@@ -182,6 +182,25 @@ const ENABLE_NOISE_ASSIGNMENT = true
 const MAX_NOISE_ASSIGNMENT_DISTANCE_METERS = 3000
 
 // ========================================================================
+// CAPACITY CONFIGURATION
+// ========================================================================
+
+/**
+ * Volume compression factor for waste collection
+ * Used in: loadEstimator.ts - reduces calculated volume to simulate compression
+ * Impact: Lower values = more pickups fit in truck before delivery needed
+ * Value: 0.5 means 190L becomes ~95L (50% of original volume)
+ * Recommended range: 0.3-1.0 (1.0 = no compression)
+ * 
+ * Examples:
+ * - 0.47 (47%) = 190L → 90L, 240L → 113L
+ * - 0.50 (50%) = 190L → 95L, 240L → 120L
+ * - 0.60 (60%) = 190L → 114L, 240L → 144L
+ * - 1.00 (100%) = no compression (original volume)
+ */
+const VOLUME_COMPRESSION_FACTOR = 0.5
+
+// ========================================================================
 // DELIVERY STRATEGY
 // ========================================================================
 
@@ -234,6 +253,11 @@ export const CLUSTERING_CONFIG = {
   // Noise point handling
   ENABLE_NOISE_ASSIGNMENT,
   MAX_NOISE_ASSIGNMENT_DISTANCE_METERS,
+
+  // Capacity configuration
+  CAPACITY: {
+    VOLUME_COMPRESSION_FACTOR,
+  },
 
   // Delivery configuration
   DELIVERY_STRATEGIES: {
