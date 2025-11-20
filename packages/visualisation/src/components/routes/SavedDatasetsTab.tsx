@@ -178,8 +178,8 @@ export default function SavedDatasetsTab() {
         startDate = new Date(dataset.filterCriteria.dateRange.from);
       }
       
-      // Set the time
-      startDate.setHours(startHour, startMinute, 0, 0);
+      // Set the time in UTC to avoid timezone conversion issues
+      startDate.setUTCHours(startHour, startMinute, 0, 0);
 
       const parameters = { 
         experimentType: 'vroom' as const,
