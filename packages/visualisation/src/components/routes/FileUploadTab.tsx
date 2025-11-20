@@ -198,7 +198,7 @@ export default function FileUploadTab() {
       }
       setApiLoading(true)
       const dateStr = selectedDate.toISOString().split('T')[0]
-      const data = await getTelgeRouteData(dateStr)
+      const data = await getTelgeRouteData(dateStr, dateStr)
       if (!Array.isArray(data) || data.length === 0) {
         toast.error('Inga körturer hämtades för valt datum')
         return
@@ -591,8 +591,6 @@ export default function FileUploadTab() {
               avfallstyper={filterOptions.avfallstyper}
               vehicleOptions={filterOptions.vehicleOptions}
               tjanstetyper={filterOptions.tjanstetyper}
-              veckodagar={filterOptions.veckodagar}
-              frekvenser={filterOptions.frekvenser}
               selectedDate={selectedDate}
               onDateChange={handleDateSelect}
               hideHeader={true}
@@ -600,8 +598,6 @@ export default function FileUploadTab() {
               onClearAllVehicles={clearAllVehicles}
               onClearAllVehicleTypes={clearAllVehicleTypes}
               onClearAllServiceTypes={clearAllServiceTypes}
-              onClearAllWeekdays={clearAllWeekdays}
-              onClearAllFrequencies={clearAllFrequencies}
             />
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

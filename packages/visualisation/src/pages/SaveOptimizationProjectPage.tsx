@@ -68,7 +68,18 @@ const SaveOptimizationProjectPage = () => {
         fack: Array<{ number: number; allowedWasteTypes: string[] }>
       ) => {
         if (!avftyp) return false
-        if (!Array.isArray(fack) || fack.length === 0) return false
+        // If no fack defined or all fack have no waste types, accept all
+        if (!Array.isArray(fack) || fack.length === 0) return true
+        
+        // Check if any fack has allowedWasteTypes defined
+        const hasAnyWasteTypes = fack.some(fx => 
+          Array.isArray(fx.allowedWasteTypes) && fx.allowedWasteTypes.length > 0
+        )
+        
+        // If no waste types defined in any fack, accept all
+        if (!hasAnyWasteTypes) return true
+        
+        // Otherwise, check if waste type matches any fack
         for (const fx of fack) {
           if (
             Array.isArray(fx.allowedWasteTypes) &&

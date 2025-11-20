@@ -133,14 +133,22 @@ app.get('/api/experiments', async (req, res) => {
 
 app.get('/api/telge/routedata', async (req, res) => {
   try {
-    const date = String(req.query.date || '')
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const from = String(req.query.from || req.query.date || '')
+    const to = String(req.query.to || req.query.date || from)
+    
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) {
       return res
         .status(400)
-        .json(handleError(null, 'Invalid or missing date (YYYY-MM-DD)'))
+        .json(handleError(null, 'Invalid or missing from date (YYYY-MM-DD)'))
+    }
+    
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res
+        .status(400)
+        .json(handleError(null, 'Invalid or missing to date (YYYY-MM-DD)'))
     }
 
-    const data = await fetchTelgeRouteData(date)
+    const data = await fetchTelgeRouteData(from, to)
     return res.json(successResponse(data))
   } catch (error) {
     const message =
@@ -229,6 +237,34 @@ app.post('/api/datasets', async (req, res) => {
     await elasticsearchService.saveDataset(datasetId, routeDataset)
 
     res.json(successResponse({ datasetId, dataset: routeDataset }))
+  } catch (error) {
+    res.status(500).json(handleError(error))
+  }
+})
+
+app.put('/api/datasets/:datasetId', async (req, res) => {
+  try {
+    const { datasetId } = req.params
+    const updates = req.body
+
+    const existingDataset = await elasticsearchService.getDataset(datasetId)
+    
+    if (!existingDataset) {
+      return res.status(404).json(handleError(null, 'Dataset not found'))
+    }
+
+    const updatedDataset = {
+      ...existingDataset,
+      ...(updates.name !== undefined && { name: updates.name }),
+      ...(updates.description !== undefined && { description: updates.description }),
+      ...(updates.optimizationSettings !== undefined && { 
+        optimizationSettings: updates.optimizationSettings 
+      }),
+    }
+
+    await elasticsearchService.saveDataset(datasetId, updatedDataset)
+
+    res.json(successResponse({ dataset: updatedDataset }))
   } catch (error) {
     res.status(500).json(handleError(error))
   }

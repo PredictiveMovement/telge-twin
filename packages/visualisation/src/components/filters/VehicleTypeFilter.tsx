@@ -41,9 +41,9 @@ const VehicleTypeFilter: React.FC<VehicleTypeFilterProps> = ({
   const clearFilter = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-
+    
     setIsOpen(false);
-
+    
     if (onClearAllVehicleTypes) {
       onClearAllVehicleTypes();
     } else {
@@ -51,7 +51,7 @@ const VehicleTypeFilter: React.FC<VehicleTypeFilterProps> = ({
         onVehicleTypeChange(vehicleTypeId, false);
       });
     }
-
+    
     setPreventOpen(false);
   };
 
@@ -62,11 +62,9 @@ const VehicleTypeFilter: React.FC<VehicleTypeFilterProps> = ({
         <DropdownMenu 
           open={isOpen} 
           onOpenChange={(open) => {
-            if (preventOpen) {
-              setPreventOpen(false);
-              return;
+            if (!preventOpen) {
+              setIsOpen(open);
             }
-            setIsOpen(open);
           }}
         >
           <DropdownMenuTrigger asChild>

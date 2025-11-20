@@ -1,9 +1,9 @@
-
 import React from 'react';
 import MultipleSelectFilter from '@/components/filters/MultipleSelectFilter';
 import VehicleFilter from '@/components/filters/VehicleFilter';
 import VehicleTypeFilter from '@/components/filters/VehicleTypeFilter';
 import ServiceTypeFilter from '@/components/filters/ServiceTypeFilter';
+import TuridFilter from '@/components/filters/TuridFilter';
 import { FilterConfiguration } from './FilterConfiguration';
 
 interface PrimaryFiltersProps {
@@ -14,19 +14,19 @@ interface PrimaryFiltersProps {
     fordonstyp: string[];
     fordonsnummer: string[];
     tjanstetyp: string[];
-    veckodag: string[];
-    frekvens: string[];
-    datum: string;
+    turid: string[];
   };
   onWasteTypeChange: (wasteTypeId: string, checked: boolean) => void;
   onVehicleChange: (vehicleId: string, checked: boolean) => void;
   onVehicleTypeChange: (vehicleTypeId: string, checked: boolean) => void;
   onServiceTypeChange: (serviceTypeId: string, checked: boolean) => void;
+  onTuridChange: (turidId: string, checked: boolean) => void;
   // New clear functions
   onClearAllWasteTypes?: () => void;
   onClearAllVehicles?: () => void;
   onClearAllVehicleTypes?: () => void;
   onClearAllServiceTypes?: () => void;
+  onClearAllTurids?: () => void;
 }
 
 const PrimaryFilters: React.FC<PrimaryFiltersProps> = ({
@@ -37,16 +37,26 @@ const PrimaryFilters: React.FC<PrimaryFiltersProps> = ({
   onVehicleChange,
   onVehicleTypeChange,
   onServiceTypeChange,
+  onTuridChange,
   onClearAllWasteTypes,
   onClearAllVehicles,
   onClearAllVehicleTypes,
-  onClearAllServiceTypes
+  onClearAllServiceTypes,
+  onClearAllTurids
 }) => {
   // Use the actual data if provided, otherwise fallback to configuration
   const filterData = data || { settings: configuration };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* TurID */}
+        <TuridFilter 
+          data={filterData} 
+          selectedTurids={searchFilters.turid} 
+          onTuridChange={onTuridChange}
+          onClearAllTurids={onClearAllTurids}
+        />
+
         {/* Avfallstyp */}
         <MultipleSelectFilter 
           data={filterData} 

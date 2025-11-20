@@ -51,14 +51,22 @@ async function getValidToken(): Promise<string> {
   return tokenCache.accessToken
 }
 
-export async function fetchTelgeRouteData(date: string): Promise<any[]> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    throw new Error('VALIDATION: Invalid date format, expected YYYY-MM-DD')
+export async function fetchTelgeRouteData(from: string, to?: string): Promise<any[]> {
+  const fromDate = from
+  const toDate = to || from
+  
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+    throw new Error('VALIDATION: Invalid from date format, expected YYYY-MM-DD')
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+    throw new Error('VALIDATION: Invalid to date format, expected YYYY-MM-DD')
+  }
+  
   const { baseUrl } = getEnv()
   const token = await getValidToken()
-  const encodedDate = encodeURIComponent(date)
-  const url = `${baseUrl}/apiRutt/ruttoptimering/routedata/${encodedDate}/${encodedDate}`
+  const encodedFrom = encodeURIComponent(fromDate)
+  const encodedTo = encodeURIComponent(toDate)
+  const url = `${baseUrl}/apiRutt/ruttoptimering/routedata/${encodedFrom}/${encodedTo}`
   const res = await fetch(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },

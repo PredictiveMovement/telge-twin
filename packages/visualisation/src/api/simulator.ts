@@ -21,6 +21,15 @@ export interface OptimizationSettings {
     start: string
     end: string
   }
+  weeklySchedule?: {
+    monday?: { enabled: boolean; startTime: string; endTime: string }
+    tuesday?: { enabled: boolean; startTime: string; endTime: string }
+    wednesday?: { enabled: boolean; startTime: string; endTime: string }
+    thursday?: { enabled: boolean; startTime: string; endTime: string }
+    friday?: { enabled: boolean; startTime: string; endTime: string }
+    saturday?: { enabled: boolean; startTime: string; endTime: string }
+    sunday?: { enabled: boolean; startTime: string; endTime: string }
+  }
   breaks?: OptimizationBreakSetting[]
   extraBreaks?: OptimizationBreakSetting[]
 }
@@ -140,6 +149,33 @@ export async function getRouteDatasets(): Promise<RouteDataset[]> {
 }
 
 /**
+ * Updates a route dataset.
+ * @param datasetId - The ID of the dataset to update.
+ * @param updates - The fields to update.
+ * @returns The response from the API.
+ */
+
+export async function updateRouteDataset(
+  datasetId: string,
+  updates: {
+    name?: string
+    description?: string
+    optimizationSettings?: OptimizationSettings
+  }
+): Promise<{ success: boolean; dataset?: RouteDataset; error?: string }> {
+  try {
+    const response = await simulatorApi.put(`/api/datasets/${datasetId}`, updates)
+    return response.data
+  } catch (_error) {
+    return {
+      success: false,
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+/**
  * Deletes a route dataset.
  * @param datasetId - The ID of the dataset to delete.
  * @returns The response from the API.
@@ -178,13 +214,17 @@ export async function getExperiments(): Promise<Experiment[]> {
 }
 
 /**
- * Loads Telge route data for a specific date.
- * @param date - YYYY-MM-DD
+ * Loads Telge route data for a specific date or date range.
+ * @param from - YYYY-MM-DD (start date)
+ * @param to - YYYY-MM-DD (end date, optional - defaults to from)
  */
-export async function getTelgeRouteData(date: string): Promise<any[]> {
+export async function getTelgeRouteData(from: string, to?: string): Promise<any[]> {
   try {
     const response = await simulatorApi.get('/api/telge/routedata', {
-      params: { date },
+      params: { 
+        from,
+        to: to || from
+      },
     })
     if (!response.data?.success) {
       const message =

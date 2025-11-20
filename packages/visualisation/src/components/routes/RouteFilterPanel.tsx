@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Filter } from 'lucide-react';
 import FilterConfigurationProvider from '@/components/filters/FilterConfiguration';
-import FilterRow from '@/components/filters/FilterRow';
+import PrimaryFilters from '@/components/filters/PrimaryFilters';
 
 interface RouteFilterPanelProps {
   searchFilters: {
@@ -10,11 +9,10 @@ interface RouteFilterPanelProps {
     fordonstyp: string[];
     fordonsnummer: string[];
     tjanstetyp: string[];
-    veckodag: string[];
-    frekvens: string[];
-    datum: string;
+    turid: string[];
   };
   onFilterChange: (filterName: string, value: string) => void;
+  onClearFilters?: () => void;
   activeFilterCount: number;
   avfallstyper: string[];
   vehicleOptions: Array<{
@@ -22,82 +20,48 @@ interface RouteFilterPanelProps {
     display: string;
   }>;
   tjanstetyper: string[];
-  veckodagar: string[];
-  frekvenser: string[];
-  selectedDate: Date | undefined;
-  onDateChange: (date: Date | undefined) => void;
+  turids: string[];
   hideHeader?: boolean;
-  // New clear functions
+  // Clear functions
   onClearAllWasteTypes?: () => void;
   onClearAllVehicles?: () => void;
   onClearAllVehicleTypes?: () => void;
   onClearAllServiceTypes?: () => void;
-  onClearAllWeekdays?: () => void;
-  onClearAllFrequencies?: () => void;
+  onClearAllTurids?: () => void;
 }
 
 const RouteFilterPanel: React.FC<RouteFilterPanelProps> = ({
   searchFilters,
   onFilterChange,
+  onClearFilters,
   activeFilterCount,
   avfallstyper,
   vehicleOptions,
   tjanstetyper,
-  veckodagar,
-  frekvenser,
-  selectedDate,
-  onDateChange,
+  turids,
   hideHeader = false,
   onClearAllWasteTypes,
   onClearAllVehicles,
   onClearAllVehicleTypes,
   onClearAllServiceTypes,
-  onClearAllWeekdays,
-  onClearAllFrequencies
+  onClearAllTurids
 }) => {
-  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
-
-  // Enhanced date change handler that clears weekday when date is selected
-  const handleDateChange = (date: Date | undefined) => {
-    onDateChange(date);
-    
-    // Clear weekday filter when a date is selected
-    if (date && searchFilters.veckodag.length > 0) {
-      // Clear all weekday selections
-      searchFilters.veckodag.forEach(weekday => {
-        onFilterChange('veckodag', weekday);
-      });
-    }
-  };
-
   // Filter change handlers
-  const handleWasteTypeChange = (wasteTypeId: string, _checked: boolean) => {
+  const handleWasteTypeChange = (wasteTypeId: string, checked: boolean) => {
     onFilterChange('avfallstyp', wasteTypeId);
   };
 
-  const handleVehicleChange = (vehicleId: string, _checked: boolean) => {
+  const handleVehicleChange = (vehicleId: string, checked: boolean) => {
     onFilterChange('fordonsnummer', vehicleId);
   };
 
-  const handleServiceTypeChange = (serviceTypeId: string, _checked: boolean) => {
-    const serviceType = tjanstetyper.find((_, index) => (index + 1).toString() === serviceTypeId);
-    if (serviceType) {
-      onFilterChange('tjanstetyp', serviceType);
-    }
+  const handleServiceTypeChange = (serviceTypeId: string, checked: boolean) => {
+    // ServiceTypeId is now the actual type description (same as other filters)
+    onFilterChange('tjanstetyp', serviceTypeId);
   };
 
-  const handleWeekdayChange = (weekdayId: string, _checked: boolean) => {
-    const weekday = veckodagar.find((_, index) => (index + 1).toString() === weekdayId);
-    if (weekday) {
-      onFilterChange('veckodag', weekday);
-    }
-  };
-
-  const handleFrequencyChange = (frequencyId: string, _checked: boolean) => {
-    const frequency = frekvenser.find((_, index) => (index + 1).toString() === frequencyId);
-    if (frequency) {
-      onFilterChange('frekvens', frequency);
-    }
+  const handleTuridChange = (turidId: string, checked: boolean) => {
+    onFilterChange('turid', turidId);
   };
 
   const handleVehicleTypeChange = (vehicleTypeId: string, checked: boolean) => {
@@ -152,54 +116,26 @@ const RouteFilterPanel: React.FC<RouteFilterPanelProps> = ({
         avfallstyper={avfallstyper}
         vehicleOptions={vehicleOptions}
         tjanstetyper={tjanstetyper}
-        veckodagar={veckodagar}
-        frekvenser={frekvenser}
+        veckodagar={[]}
+        frekvenser={[]}
+        turids={turids}
       >
         {(configuration) => (
-          <div className="space-y-4">
-            {/* Primary filters container */}
-            <div className="bg-muted p-6 rounded-lg">
-              <FilterRow
-                type="primary"
-                configuration={configuration}
-                searchFilters={searchFilters}
-                selectedDate={selectedDate}
-                isCalendarOpen={isCalendarOpen}
-                setIsCalendarOpen={setIsCalendarOpen}
-                onWasteTypeChange={handleWasteTypeChange}
-                onVehicleChange={handleVehicleChange}
-                onVehicleTypeChange={handleVehicleTypeChange}
-                onServiceTypeChange={handleServiceTypeChange}
-                onWeekdayChange={handleWeekdayChange}
-                onFrequencyChange={handleFrequencyChange}
-                onDateChange={handleDateChange}
-                onClearAllWasteTypes={onClearAllWasteTypes}
-                onClearAllVehicles={onClearAllVehicles}
-                onClearAllVehicleTypes={onClearAllVehicleTypes}
-                onClearAllServiceTypes={onClearAllServiceTypes}
-              />
-            </div>
-
-            {/* Secondary filters container */}
-            <div className="bg-muted p-6 rounded-lg">
-              <FilterRow
-                type="secondary"
-                configuration={configuration}
-                searchFilters={searchFilters}
-                selectedDate={selectedDate}
-                isCalendarOpen={isCalendarOpen}
-                setIsCalendarOpen={setIsCalendarOpen}
-                onWasteTypeChange={handleWasteTypeChange}
-                onVehicleChange={handleVehicleChange}
-                onVehicleTypeChange={handleVehicleTypeChange}
-                onServiceTypeChange={handleServiceTypeChange}
-                onWeekdayChange={handleWeekdayChange}
-                onFrequencyChange={handleFrequencyChange}
-                onDateChange={handleDateChange}
-                onClearAllWeekdays={onClearAllWeekdays}
-                onClearAllFrequencies={onClearAllFrequencies}
-              />
-            </div>
+          <div className="bg-muted p-6 rounded-lg">
+            <PrimaryFilters
+              configuration={configuration}
+              searchFilters={searchFilters}
+              onWasteTypeChange={handleWasteTypeChange}
+              onVehicleChange={handleVehicleChange}
+              onVehicleTypeChange={handleVehicleTypeChange}
+              onServiceTypeChange={handleServiceTypeChange}
+              onTuridChange={handleTuridChange}
+              onClearAllWasteTypes={onClearAllWasteTypes}
+              onClearAllVehicles={onClearAllVehicles}
+              onClearAllVehicleTypes={onClearAllVehicleTypes}
+              onClearAllServiceTypes={onClearAllServiceTypes}
+              onClearAllTurids={onClearAllTurids}
+            />
           </div>
         )}
       </FilterConfigurationProvider>

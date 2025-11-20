@@ -1,112 +1,75 @@
-import React, { useMemo, useRef, useState } from 'react'
-import { FilterButton } from '@/components/ui/filter-button'
-import { Label } from '@/components/ui/label'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ChevronDown, Check, X } from 'lucide-react'
-import { useFilterPreview } from '@/hooks/useFilterPreview'
+import React, { useRef, useState } from 'react';
+import { FilterButton } from '@/components/ui/filter-button';
+import { Label } from '@/components/ui/label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ChevronDown, Check, X } from 'lucide-react';
+import { useFilterPreview } from '@/hooks/useFilterPreview';
 
 interface ServiceTypeFilterProps {
-  data: any
-  selectedServiceTypes: string[]
-  onServiceTypeChange: (serviceTypeId: string, checked: boolean) => void
-  onClearAllServiceTypes?: () => void
+  data: any;
+  selectedServiceTypes: string[];
+  onServiceTypeChange: (serviceTypeId: string, checked: boolean) => void;
+  onClearAllServiceTypes?: () => void;
 }
 
 const ServiceTypeFilter: React.FC<ServiceTypeFilterProps> = ({
   data,
   selectedServiceTypes,
   onServiceTypeChange,
-  onClearAllServiceTypes,
+  onClearAllServiceTypes
 }) => {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const [preventOpen, setPreventOpen] = useState(false)
-
-  const rawServiceTypes = useMemo(() => data?.settings?.tjtyper || [], [data?.settings?.tjtyper])
-
-  const previewOptions = useMemo(() => {
-    const optionMap = new Map<string, string>()
-
-    rawServiceTypes.forEach((type: any) => {
-      const identifier = type?.ID ?? type?.BESKRIVNING
-      const display = type?.BESKRIVNING ?? type?.ID
-      if (identifier) optionMap.set(String(identifier), String(display ?? identifier))
-      if (display) optionMap.set(String(display), String(display))
-    })
-
-    return Array.from(optionMap.entries()).map(([id, label]) => ({
-      ID: id,
-      BESKRIVNING: label,
-    }))
-  }, [rawServiceTypes])
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [preventOpen, setPreventOpen] = useState(false);
+  const options = data?.settings?.tjtyper || [];
 
   const { getDisplayText } = useFilterPreview({
     selectedValues: selectedServiceTypes,
-    options: previewOptions,
-    placeholder: 'Alla tjänstetyper',
-    containerRef: buttonRef,
-  })
+    options,
+    placeholder: "Alla behållare",
+    containerRef: buttonRef
+  });
 
-  const selectedLookup = useMemo(
-    () => new Set(selectedServiceTypes.map((value) => String(value))),
-    [selectedServiceTypes]
-  )
-
-  const hasActiveFilters = selectedServiceTypes.length > 0
+  const hasActiveFilters = selectedServiceTypes.length > 0;
 
   const handleClearPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-    setPreventOpen(true)
-  }
+    e.stopPropagation();
+    setPreventOpen(true);
+  };
 
   const clearFilter = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    setIsOpen(false)
-
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsOpen(false);
+    
     if (onClearAllServiceTypes) {
-      onClearAllServiceTypes()
+      onClearAllServiceTypes();
     } else {
-      rawServiceTypes.forEach((type: any) => {
-        const display = type?.BESKRIVNING ?? type?.ID
-        const identifier = type?.ID ?? display
-        if (!display || !identifier) return
-        if (
-          selectedLookup.has(String(display)) ||
-          selectedLookup.has(String(identifier))
-        ) {
-          onServiceTypeChange(String(identifier), false)
-        }
-      })
+      selectedServiceTypes.forEach(serviceTypeId => {
+        onServiceTypeChange(serviceTypeId, false);
+      });
     }
-
-    setPreventOpen(false)
-  }
+    
+    setPreventOpen(false);
+  };
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="serviceType">Tjänstetyp</Label>
+      <Label htmlFor="serviceType">Behållare (tjänstetyp)</Label>
       <div className="relative">
-        <DropdownMenu
-          open={isOpen}
+        <DropdownMenu 
+          open={isOpen} 
           onOpenChange={(open) => {
-            if (preventOpen) {
-              setPreventOpen(false)
-              return
+            if (!preventOpen) {
+              setIsOpen(open);
             }
-            setIsOpen(open)
           }}
         >
           <DropdownMenuTrigger asChild>
-            <FilterButton
+            <FilterButton 
               ref={buttonRef}
-              variant={hasActiveFilters ? 'outline-active' : 'outline'}
+              variant={hasActiveFilters ? "outline-active" : "outline"}
               className="w-full h-[42px] justify-between hover:bg-[#fafafa] pr-2"
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -131,33 +94,22 @@ const ServiceTypeFilter: React.FC<ServiceTypeFilterProps> = ({
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[300px] bg-white border border-gray-200 shadow-lg z-50" align="start">
             <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
-              {rawServiceTypes.map((type: any) => {
-                const display = type?.BESKRIVNING ?? type?.ID
-                const identifier = type?.ID ?? display
-                if (!display || !identifier) return null
-                const isChecked =
-                  selectedLookup.has(String(display)) ||
-                  selectedLookup.has(String(identifier))
-
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={String(identifier)}
-                    checked={isChecked}
-                    onCheckedChange={(checked) =>
-                      onServiceTypeChange(String(identifier), checked)
-                    }
-                    className="cursor-pointer hover:bg-[hsl(var(--accent))] !important focus:bg-[hsl(var(--accent))] !important"
-                  >
-                    <span>{display}</span>
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
+              {options.map((type: any) => (
+                <DropdownMenuCheckboxItem
+                  key={type.ID}
+                  checked={selectedServiceTypes.includes(type.ID)}
+                  onCheckedChange={(checked) => onServiceTypeChange(type.ID, checked)}
+                  className="cursor-pointer hover:bg-[hsl(var(--accent))] !important focus:bg-[hsl(var(--accent))] !important"
+                >
+                  {type.BESKRIVNING}
+                </DropdownMenuCheckboxItem>
+              ))}
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ServiceTypeFilter
+export default ServiceTypeFilter;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Trash2, Pencil, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trash2, Pencil, ArrowUpDown, ChevronUp, ChevronDown, Play } from 'lucide-react';
 
 export interface SavedOptimization {
   id: string;
@@ -11,6 +11,21 @@ export interface SavedOptimization {
   filters: any;
   createdAt: string;
   archived?: boolean;
+  breaks?: Array<{
+    id: string;
+    name: string;
+    duration: number;
+    enabled: boolean;
+    desiredTime?: string;
+  }>;
+  extraBreaks?: Array<{
+    id: string;
+    name: string;
+    duration: number;
+    enabled: boolean;
+    desiredTime?: string;
+  }>;
+  vehicles?: string[];
 }
 
 interface SavedOptimizationsTableProps {
@@ -86,15 +101,6 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
           {optimizations.map((opt) => (
             <TableRow
               key={opt.id}
-              className="cursor-pointer"
-              onClick={() => onOpen(opt)}
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onOpen(opt);
-                }
-              }}
             >
               <TableCell className="font-medium w-[40%] max-w-[520px] md:max-w-[640px] truncate">{opt.name}</TableCell>
               <TableCell className="text-muted-foreground w-[40%] max-w-[520px] md:max-w-[640px] truncate">
@@ -103,6 +109,16 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
               <TableCell className="w-[160px] whitespace-nowrap">{new Date(opt.createdAt).toLocaleDateString('sv-SE')}</TableCell>
               <TableCell className="w-[128px] text-center">
                 <div className="flex items-center justify-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-[#E5E5E5]"
+                    onClick={() => onOpen(opt)}
+                    aria-label={`Starta ${opt.name}`}
+                    title="Starta simulering"
+                  >
+                    <Play size={14} />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
