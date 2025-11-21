@@ -1,7 +1,20 @@
 export {}
 
 const elastic = require('@elastic/elasticsearch')
-const mappings = require('../data/elasticsearch_mappings.json')
+const fs = require('fs')
+const path = require('path')
+
+// Resolve mappings file both in source tree and compiled dist (no copy step needed)
+const mappingCandidates = [
+  path.resolve(__dirname, '..', 'data', 'elasticsearch_mappings.json'),
+  path.resolve(process.cwd(), 'data', 'elasticsearch_mappings.json'),
+  path.resolve(process.cwd(), 'packages', 'simulator', 'data', 'elasticsearch_mappings.json'),
+]
+const mappingsPath = mappingCandidates.find((p) => fs.existsSync(p))
+if (!mappingsPath) {
+  throw new Error('Cannot locate elasticsearch_mappings.json')
+}
+const mappings = require(mappingsPath)
 const { error, info } = require('./log')
 
 const host = process.env.ELASTICSEARCH_URL
@@ -33,26 +46,12 @@ if (!host) {
             body: mappings[index],
           })
           .catch((err: any) => {
-            let errorType
-            try {
-              errorType = JSON.parse(err.response)?.error?.type
-            } catch (e) {
-              error(
-                '>>>= Cannot create indices, Malformed Elasticsearch Error',
-                e,
-                err
-              )
-            }
+            const errorType = err?.meta?.body?.error?.type
             if (errorType === 'resource_already_exists_exception') {
-              error(
-                `\n            Index ${index} already mapped.\n            If you want to re-map it:\n            - Delete it in Elasticsearch\n            - Re-run this script\n            - Recreate "index pattern" in kibana.\n          `
-              )
-            } else {
-              error(
-                '>>>= Cannot create indices, Unkown Elasticsearch Error',
-                err
-              )
+              info(`Index ${index} already exists, skipping creation`)
+              return
             }
+            error('>>>= Cannot create indices, Unknown Elasticsearch Error', err)
           })
       })
     )

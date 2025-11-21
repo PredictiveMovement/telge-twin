@@ -10,6 +10,8 @@ interface RouteRecord {
   Bil: string
   Turordningsnr: string
   Avftyp: string
+  Hsadress?: string
+  Nyckelkod?: string
   [key: string]: any
 }
 

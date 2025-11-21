@@ -22,6 +22,7 @@ import {
 interface Experiment {
   id: string
   startDate: string
+  createdAt?: string
   fixedRoute: number
   emitters: string[]
   fleets: Record<string, unknown>
@@ -66,15 +67,23 @@ export default function ExperimentsTab() {
     loadExperiments()
   }, [])
 
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString('sv-SE', {
+  const formatTimestamp = (timestamp?: string) => {
+    if (!timestamp) return 'N/A'
+    const parsed = new Date(timestamp)
+    if (isNaN(parsed.getTime())) return 'N/A'
+
+    return parsed.toLocaleString('sv-SE', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
     })
   }
+
+  const getExperimentTimestamp = (experiment: Experiment) =>
+    experiment.createdAt || experiment.startDate
 
   const handleOpenExperimentDetails = (experimentId: string) => {
     navigate(`/experiment/${experimentId}`)
@@ -195,7 +204,7 @@ export default function ExperimentsTab() {
                 <CardContent className="p-4">
                   <div className="text-2xl font-bold text-purple-600">
                     {latestExperiment
-                      ? formatTimestamp(latestExperiment.startDate)
+                      ? formatTimestamp(getExperimentTimestamp(latestExperiment))
                       : 'N/A'}
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -250,7 +259,7 @@ export default function ExperimentsTab() {
                               : experiment.id || 'N/A'}
                           </td>
                           <td className="border border-gray-300 py-2 px-3 text-sm">
-                            {formatTimestamp(experiment.startDate)}
+                            {formatTimestamp(getExperimentTimestamp(experiment))}
                           </td>
                           <td className="border border-gray-300 py-2 px-3">
                             <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">

@@ -81,6 +81,7 @@ const determineStopType = (
 const extractAddress = (record?: DatasetRouteRecord) => {
   if (!record) return undefined
   const candidate =
+    record.Hsadress ||
     record.Adress ||
     record.address ||
     record.Adress1 ||
@@ -163,7 +164,7 @@ const normaliseVehicleId = (
 }
 
 const createStopFromBooking = (
-  booking: ExperimentBooking,
+  booking: ExperimentBooking & { originalData?: any },
   record?: DatasetRouteRecord
 ): Stop => {
   const serviceType = booking.serviceType || record?.Tjtyp
@@ -181,7 +182,7 @@ const createStopFromBooking = (
   const stop: Stop = {
     id: booking.id,
     type: stopType,
-    address: extractAddress(record) || booking.id,
+    address: extractAddress(booking.originalData?.originalRouteRecord) || extractAddress(record) || booking.id,
     wasteTypes: extractWasteTypes(booking.recyclingType, record),
     vehicle: normaliseVehicleId(booking, record),
     routeNumber: booking.turid
@@ -199,7 +200,7 @@ const createStopFromBooking = (
     customerName:
       record?.Kundnamn ||
       (record?.Kundnr != null ? String(record.Kundnr) : undefined),
-    accessKey: record?.Nyckel || record?.Nyckeltext,
+    accessKey: booking.originalData?.originalRouteRecord?.Nyckelkod || record?.Nyckelkod || record?.Nyckel || record?.Nyckeltext,
     walkingDistance:
       parseMaybeNumber(record?.Gangstracka || record?.['Gångsträcka'] || record?.GangAvstand) ||
       undefined,

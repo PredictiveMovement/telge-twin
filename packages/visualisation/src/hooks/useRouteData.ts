@@ -9,6 +9,8 @@ export interface RouteRecord {
   Frekvens?: string
   Volym?: number
   Vikt?: number
+  Hsadress?: string
+  Nyckelkod?: string
   [key: string]: any
 }
 

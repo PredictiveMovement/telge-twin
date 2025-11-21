@@ -7,6 +7,7 @@ import http from 'http'
 import { Server } from 'socket.io'
 import routes from './routes'
 import apiRouter from './api'
+import { createIndices } from '../lib/elastic'
 import { elasticsearchService } from './services/ElasticsearchService'
 import { fetchTelgeRouteData } from './services/TelgeApiService'
 import { safeId } from '../lib/id'
@@ -15,6 +16,11 @@ import { extractOriginalData } from '../lib/types/originalBookingData'
 // Constants and configuration
 const PORT = env.PORT || 4000
 const BODY_LIMIT = '50mb'
+
+// Ensure required Elasticsearch indices/mappings exist on boot.
+createIndices().catch((err: unknown) => {
+  console.error('Failed to ensure Elasticsearch indices on startup', err)
+})
 
 // Common error handler
 const handleError = (

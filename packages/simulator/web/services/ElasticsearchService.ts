@@ -27,10 +27,15 @@ export class ElasticsearchService {
   }
 
   async saveExperiment(experimentId: string, experimentData: any) {
+    const experimentBody = {
+      createdAt: experimentData?.createdAt || new Date().toISOString(),
+      ...experimentData,
+    }
+
     await this.client.index({
       index: 'experiments',
       id: experimentId,
-      body: experimentData,
+      body: experimentBody,
     })
   }
 
@@ -43,8 +48,21 @@ export class ElasticsearchService {
         },
         sort: [
           {
+            createdAt: {
+              order: 'desc',
+              missing: '_last',
+            },
+          },
+          {
             startDate: {
               order: 'desc',
+              missing: '_last',
+            },
+          },
+          {
+            id: {
+              order: 'desc',
+              missing: '_last',
             },
           },
         ],

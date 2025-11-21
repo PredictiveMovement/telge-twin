@@ -11,6 +11,7 @@ const { info, error, logStream } = require('./lib/log')
 export interface ExperimentParameters {
   id: string
   startDate: Date
+  createdAt?: Date
   fixedRoute: number
   emitters?: any
   fleets: Record<string, any>
@@ -70,6 +71,7 @@ const engine = {
       startDate: directParams?.startDate
         ? new Date(directParams.startDate)
         : new Date(),
+      createdAt: new Date(),
       fixedRoute: savedParams.fixedRoute || 100,
       emitters: directParams?.emitters || defaultEmitters,
       fleets: savedParams.fleets || {},

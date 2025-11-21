@@ -1,199 +1,10 @@
+import type React from 'react';
 import { useState, useCallback } from 'react';
 import { Stop } from '@/types/stops';
 
-// Initial data constants with enhanced information
-const INITIAL_CURRENT_STOPS: Stop[] = [{
-  id: '1',
-  type: 'regular',
-  address: 'Storgatan 12',
-  wasteTypes: ['Färgat glas', 'Ofärgat glas'],
-  vehicle: 'Lastbil 401',
-  routeNumber: 'R001',
-  duration: 30,
-  originalPosition: 0,
-  containerType: '370L',
-  containerCount: 3,
-  containerDetails: [
-    { wasteType: 'Färgat glas', containerType: '370L', count: 2 },
-    { wasteType: 'Ofärgat glas', containerType: '370L', count: 1 }
-  ],
-  compartments: [
-    { number: 1, wasteType: 'Hemsort', volume: 9, weightLimit: 0, containerType: '240L', count: 1 },
-    { number: 2, wasteType: 'Hushsort', volume: 5, weightLimit: 0, containerType: 'Säck', count: 1 },
-    { number: 3, wasteType: 'Blandavf', volume: 4, weightLimit: 0, containerType: '1100L', count: 1 },
-    { number: 4, wasteType: 'Hemsort', volume: 2, weightLimit: 0, containerType: '370L', count: 1 }
-  ],
-  serviceType: 'Hämtning',
-  customerName: '1234567890',
-  frequency: 'V2V1',
-  propertyDesignation: 'Centrum 1:12',
-  accessKey: 'T gul',
-  walkingDistance: 15,
-  timePerStop: 6
-}, {
-  id: '2',
-  type: 'regular',
-  address: 'Lillgatan 5',
-  wasteTypes: ['Färgat glas', 'Ofärgat glas'],
-  vehicle: 'Lastbil 401',
-  routeNumber: 'R001',
-  duration: 15,
-  originalPosition: 1,
-  containerType: '370L',
-  containerCount: 2,
-  containerDetails: [
-    { wasteType: 'Färgat glas', containerType: '370L', count: 1 },
-    { wasteType: 'Ofärgat glas', containerType: '370L', count: 1 }
-  ],
-  compartments: [
-    { number: 1, wasteType: 'Hemsort', volume: 9, weightLimit: 0, containerType: '240L', count: 1 },
-    { number: 2, wasteType: 'Hushsort', volume: 5, weightLimit: 0, containerType: 'Säck', count: 1 },
-    { number: 3, wasteType: 'Blandavf', volume: 4, weightLimit: 0, containerType: '1100L', count: 1 },
-    { number: 4, wasteType: 'Hemsort', volume: 2, weightLimit: 0, containerType: '370L', count: 1 }
-  ],
-  serviceType: 'Hämtning',
-  customerName: '2345678901',
-  frequency: 'V1V2',
-  propertyDesignation: 'Lillgården 3:5',
-  accessKey: 'T röd',
-  walkingDistance: 8,
-  timePerStop: 4
-}, {
-  id: '3',
-  type: 'break',
-  address: 'Pausplats Centrum',
-  duration: 15,
-  originalPosition: 7
-}, {
-  id: '4',
-  type: 'regular',
-  address: 'Parkgatan 8',
-  wasteTypes: ['Ofärgat glas'],
-  vehicle: 'Lastbil 401',
-  routeNumber: 'R001',
-  duration: 20,
-  originalPosition: 2,
-  containerType: '370L',
-  containerCount: 1,
-  containerDetails: [
-    { wasteType: 'Ofärgat glas', containerType: '370L', count: 1 }
-  ],
-  compartments: [
-    { number: 1, wasteType: 'Hemsort', volume: 9, weightLimit: 0, containerType: '240L', count: 1 },
-    { number: 2, wasteType: 'Hushsort', volume: 5, weightLimit: 0, containerType: 'Säck', count: 1 },
-    { number: 3, wasteType: 'Blandavf', volume: 4, weightLimit: 0, containerType: '1100L', count: 1 },
-    { number: 4, wasteType: 'Hemsort', volume: 2, weightLimit: 0, containerType: '370L', count: 1 }
-  ],
-  serviceType: 'Hämtning',
-  customerName: '3456789012',
-  frequency: 'V1V1',
-  propertyDesignation: 'Parkområdet 2:18',
-  accessKey: 'T blå',
-  walkingDistance: 25,
-  timePerStop: 2
-}, {
-  id: '5',
-  type: 'regular',
-  address: 'Handelsgatan 22',
-  wasteTypes: ['Färgat glas', 'Ofärgat glas'],
-  vehicle: 'Lastbil 401',
-  routeNumber: 'R001',
-  duration: 45,
-  originalPosition: 3,
-  containerType: '240L',
-  containerCount: 4,
-  containerDetails: [
-    { wasteType: 'Färgat glas', containerType: '240L', count: 2 },
-    { wasteType: 'Ofärgat glas', containerType: '240L', count: 2 }
-  ],
-  compartments: [
-    { number: 1, wasteType: 'Hemsort', volume: 9, weightLimit: 0, containerType: '240L', count: 2 },
-    { number: 2, wasteType: 'Hushsort', volume: 5, weightLimit: 0, containerType: 'Säck', count: 1 },
-    { number: 3, wasteType: 'Blandavf', volume: 4, weightLimit: 0, containerType: '1100L', count: 1 },
-    { number: 4, wasteType: 'Hemsort', volume: 2, weightLimit: 0, containerType: '370L', count: 1 }
-  ],
-  serviceType: 'Hämtning',
-  customerName: '4567890123',
-  frequency: 'V1V3',
-  propertyDesignation: 'Handelsområdet 1:33',
-  accessKey: 'T grön',
-  walkingDistance: 40,
-  timePerStop: 8
-}, {
-  id: '11',
-  type: 'tipping',
-  address: 'Tveta Återvinning',
-  duration: 15,
-  originalPosition: 8
-}, {
-  id: '6',
-  type: 'lunch',
-  address: 'Lunchpaus Restaurang',
-  duration: 30,
-  originalPosition: 6
-}, {
-  id: '7',
-  type: 'regular',
-  address: 'Industrivägen 15',
-  wasteTypes: ['Färgat glas'],
-  vehicle: 'Lastbil 401',
-  routeNumber: 'R001',
-  duration: 20,
-  originalPosition: 4,
-  containerType: '370L',
-  containerCount: 1,
-  containerDetails: [
-    { wasteType: 'Färgat glas', containerType: '370L', count: 1 }
-  ],
-  compartments: [
-    { number: 1, wasteType: 'Hemsort', volume: 9, weightLimit: 0, containerType: '240L', count: 1 },
-    { number: 2, wasteType: 'Hushsort', volume: 5, weightLimit: 0, containerType: 'Säck', count: 1 },
-    { number: 3, wasteType: 'Blandavf', volume: 4, weightLimit: 0, containerType: '1100L', count: 1 },
-    { number: 4, wasteType: 'Hemsort', volume: 2, weightLimit: 0, containerType: '370L', count: 1 }
-  ],
-  serviceType: 'Hämtning',
-  customerName: '5678901234',
-  frequency: 'V4V1',
-  propertyDesignation: 'Industriområdet 5:7',
-  accessKey: 'T orange',
-  walkingDistance: 12,
-  timePerStop: 2
-}, {
-  id: '8',
-  type: 'regular',
-  address: 'Skogsvägen 3',
-  wasteTypes: ['Färgat glas', 'Ofärgat glas'],
-  vehicle: 'Lastbil 401',
-  routeNumber: 'R001',
-  duration: 25,
-  originalPosition: 5,
-  containerType: '370L',
-  containerCount: 2,
-  containerDetails: [
-    { wasteType: 'Färgat glas', containerType: '370L', count: 1 },
-    { wasteType: 'Ofärgat glas', containerType: '370L', count: 1 }
-  ],
-  compartments: [
-    { number: 1, wasteType: 'Hemsort', volume: 9, weightLimit: 0, containerType: '240L', count: 1 },
-    { number: 2, wasteType: 'Hushsort', volume: 5, weightLimit: 0, containerType: 'Säck', count: 1 },
-    { number: 3, wasteType: 'Blandavf', volume: 4, weightLimit: 0, containerType: '1100L', count: 1 },
-    { number: 4, wasteType: 'Hemsort', volume: 2, weightLimit: 0, containerType: '370L', count: 1 }
-  ],
-  serviceType: 'Hämtning',
-  customerName: '6789012345',
-  frequency: 'V2V2',
-  propertyDesignation: 'Skogshem 4:14',
-  accessKey: 'T lila',
-  walkingDistance: 20,
-  timePerStop: 4
-}];
-
-// Initially, optimized stops should be identical to current stops
-const INITIAL_OPTIMIZED_STOPS: Stop[] = [...INITIAL_CURRENT_STOPS];
-
 export const useRouteStopsLogic = () => {
-  const [currentStops] = useState<Stop[]>(INITIAL_CURRENT_STOPS);
-  const [optimizedStops, setOptimizedStops] = useState<Stop[]>(INITIAL_OPTIMIZED_STOPS);
+  const [currentStops] = useState<Stop[]>([]);
+  const [optimizedStops, setOptimizedStops] = useState<Stop[]>([]);
 
   // History states for undo/redo functionality (only for optimized column)
   const [optimizedHistory, setOptimizedHistory] = useState<Stop[][]>([]);
@@ -231,14 +42,9 @@ export const useRouteStopsLogic = () => {
     }
   };
 
-  // Clear/Reset functionality (only for optimized column)
-  const handleClear = () => {
-    saveToHistory(currentStops);
-  };
-
   // Reset to factory defaults - resets to initial data
   const resetToDefaults = () => {
-    setOptimizedStops(INITIAL_OPTIMIZED_STOPS);
+    setOptimizedStops([]);
     setSelectedVehicle("401");
     setOptimizedHistory([]);
     setOptimizedHistoryIndex(-1);
@@ -403,7 +209,6 @@ export const useRouteStopsLogic = () => {
     dragOverIndex,
     handleUndo,
     handleRedo,
-    handleClear,
     resetToDefaults,
     handleDragStart,
     handleDragOver,

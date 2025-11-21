@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical, ChevronDown, Calendar, Key, Footprints, Timer, User, Building2 } from 'lucide-react';

@@ -11,6 +11,8 @@ export interface OriginalBookingData {
   originalSchemalagd?: number
   originalDec?: string
   originalTurordningsnr?: number
+  originalHsadress?: string
+  originalNyckelkod?: string
   originalRouteRecord?: any
 }
 
@@ -36,6 +38,8 @@ export function extractOriginalData(source: any): OriginalBookingData {
     originalSchemalagd: source.originalSchemalagd || source.Schemalagd,
     originalDec: source.originalDec || source.Dec,
     originalTurordningsnr: source.originalTurordningsnr || source.Turordningsnr,
+    originalHsadress: source.originalHsadress || source.Hsadress,
+    originalNyckelkod: source.originalNyckelkod || source.Nyckelkod,
     originalRouteRecord:
       source.originalRecord ||
       source.originalRouteRecord ||

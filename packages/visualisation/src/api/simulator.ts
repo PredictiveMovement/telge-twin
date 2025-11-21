@@ -93,6 +93,7 @@ export interface AreaPartition {
 export interface Experiment {
   id: string
   startDate: string
+  createdAt?: string
   sourceDatasetId?: string
   datasetName?: string
   simulationStatus: string

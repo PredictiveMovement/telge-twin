@@ -5,9 +5,21 @@ const { virtualTime } = require('./virtualTime')
 
 const collectExperimentMetadata = async (experiment: any) => {
   try {
+    const normalizeDate = (value: any) => {
+      if (!value) return undefined
+      const date = new Date(value)
+      if (isNaN(date.getTime())) return undefined
+      return date.toISOString()
+    }
+
+    const createdAt =
+      normalizeDate(experiment.createdAt) || new Date().toISOString()
+    const startDate = normalizeDate(experiment.startDate) || experiment.startDate
+
     const cleanExperiment = {
       id: experiment.id,
-      startDate: experiment.startDate,
+      startDate,
+      createdAt,
       fixedRoute: experiment.fixedRoute,
       emitters: experiment.emitters,
       sourceDatasetId: experiment.sourceDatasetId,

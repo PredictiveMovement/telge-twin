@@ -14,6 +14,7 @@ import { format, isSameDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { getSettingsForPreview, extractInfoFromData } from './FileUpload/utils'
+import type { Settings } from '@/utils/fleetGenerator'
 
 const RouteSearchTab: React.FC = () => {
   const navigate = useNavigate()
@@ -298,6 +299,29 @@ const RouteSearchTab: React.FC = () => {
       return
     }
 
+    const mergeSettingsWithExtracted = (
+      base: Settings,
+      extracted: Partial<Settings>
+    ): Settings => {
+      const mergeById = <T extends { ID: string }>(
+        primary: T[] = [],
+        secondary: T[] = []
+      ): T[] => {
+        const seen = new Set(primary.map((item) => item.ID))
+        const extras = secondary.filter((item) => !seen.has(item.ID))
+        return [...primary, ...extras]
+      }
+
+      return {
+        ...extracted,
+        ...base,
+        bilar: mergeById(base.bilar, extracted.bilar),
+        avftyper: mergeById(base.avftyper, extracted.avftyper),
+        tjtyper: mergeById(base.tjtyper, extracted.tjtyper),
+        frekvenser: mergeById(base.frekvenser, extracted.frekvenser),
+      }
+    }
+
     const selectedItems = filteredResults
       .filter(item => selectedSearchRoutes.includes(item.id))
       .map(item => ({
@@ -326,11 +350,11 @@ const RouteSearchTab: React.FC = () => {
     const baseSettings = getSettingsForPreview()
     const extractedInfo = extractInfoFromData(routeDataHook.routeData as any[])
     
-    // Merge base settings with extracted data (extracted data takes priority)
-    const previewSettings = {
-      ...baseSettings,
-      ...extractedInfo
-    }
+    // Merge base settings with extracted data but keep Telge fackinfo as source of truth
+    const previewSettings = mergeSettingsWithExtracted(
+      baseSettings,
+      extractedInfo
+    )
 
     // Navigate to save optimization page
     navigate('/optimize/save', {

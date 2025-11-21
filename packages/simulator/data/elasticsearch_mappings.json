@@ -272,6 +272,24 @@
             "originalTurordningsnr": {
               "type": "integer"
             },
+            "originalHsadress": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "originalNyckelkod": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
             "originalRouteRecord": {
               "type": "object",
               "enabled": false
@@ -460,6 +478,9 @@
       "properties": {
         "id": {
           "type": "keyword"
+        },
+        "createdAt": {
+          "type": "date"
         },
         "startDate": {
           "type": "date"

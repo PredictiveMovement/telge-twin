@@ -86,6 +86,8 @@ export type RouteRecord = {
   Datum?: string
   Dec?: string
   Schemalagd?: number
+  Hsadress?: string
+  Nyckelkod?: string
   [key: string]: any
 }
 
@@ -305,6 +307,8 @@ function transformToStandardizedBookings(
           typeof record.Turordningsnr === 'number'
             ? record.Turordningsnr
             : parseInt(String(record.Turordningsnr)) || 0,
+        originalHsadress: record.Hsadress,
+        originalNyckelkod: record.Nyckelkod,
         originalRouteRecord: record,
       } as OriginalBookingData
 
