@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import type { Car, Booking } from '@/types/map'
+import telgeSettings from '@/config/telge-settings.json'
 
 export type HoverInfoType =
   | 'car'
@@ -40,7 +41,29 @@ const renderDetailRow = (label: string, value: React.ReactNode) => (
   </div>
 )
 
-const renderCompartment = (comp: NonNullable<Car['compartments']>[number]) => {
+const telgeAllowedIndex: Map<string, Map<number, string[]>> = (() => {
+  const bilar = (telgeSettings as { settings?: { bilar?: any[] } }).settings
+    ?.bilar
+  const index = new Map<string, Map<number, string[]>>()
+  ;(bilar || []).forEach((bil) => {
+    const facks = new Map<number, string[]>()
+    ;(bil?.FACK || []).forEach((f: any) => {
+      if (!f?.FACK || !f?.AVFTYP) return
+      const list = facks.get(f.FACK) || []
+      list.push(f.AVFTYP)
+      facks.set(f.FACK, list)
+    })
+    if (facks.size > 0) {
+      index.set(String(bil.ID), facks)
+    }
+  })
+  return index
+})()
+
+const renderCompartment = (
+  comp: NonNullable<Car['compartments']>[number],
+  allowedOverride?: string[]
+) => {
   const hasVolumeCap =
     typeof comp.capacityLiters === 'number' && comp.capacityLiters > 0
   const hasWeightCap =
@@ -56,11 +79,21 @@ const renderCompartment = (comp: NonNullable<Car['compartments']>[number]) => {
     ? Math.min(100, (fillKg / (comp.capacityKg as number)) * 100)
     : null
 
-  const allowedTypes = Array.isArray(comp.allowedWasteTypes)
-    ? comp.allowedWasteTypes.includes('*')
+  const rawAllowed = Array.isArray(allowedOverride)
+    ? allowedOverride
+    : comp.allowedWasteTypes
+  const allowedList = Array.isArray(rawAllowed)
+    ? Array.from(new Set(rawAllowed.filter(Boolean)))
+    : []
+  const allowedTypes = allowedList.length
+    ? allowedList.includes('*')
       ? 'Alla'
-      : comp.allowedWasteTypes.join(', ')
+      : allowedList.join(', ')
     : '—'
+  const allowedLabel =
+    allowedList.length && !allowedList.includes('*')
+      ? `Typer (${allowedList.length})`
+      : 'Typer'
 
   return (
     <div
@@ -91,7 +124,9 @@ const renderCompartment = (comp: NonNullable<Car['compartments']>[number]) => {
               )} kg (${formatNumber(weightPercent ?? 0, 1)} %)`
             : `${formatNumber(fillKg, 1)} kg`}
         </div>
-        <div>Typer: {allowedTypes}</div>
+        <div>
+          {allowedLabel}: {allowedTypes}
+        </div>
       </div>
     </div>
   )
@@ -146,13 +181,23 @@ const HoverInfoBox: React.FC<HoverInfoBoxProps> = ({
 
   if (hoverInfo.type === 'car' && car) {
     const compartments = Array.isArray(car.compartments) ? car.compartments : []
+    const allowedOverrideMap = telgeAllowedIndex.get(String(car.id))
+    const allowedUnion = allowedOverrideMap
+      ? Array.from(
+          new Set(
+            Array.from(allowedOverrideMap.values()).flatMap((list) => list)
+          )
+        )
+      : []
 
     const carDetails: React.ReactNode[] = []
     if (car.status) carDetails.push(renderDetailRow('Status', car.status))
     if (car.fleet) carDetails.push(renderDetailRow('Flotta', car.fleet))
-    if (car.recyclingTypes?.length)
+    const recyclingTypesToShow =
+      allowedUnion.length > 0 ? allowedUnion : car.recyclingTypes || []
+    if (recyclingTypesToShow.length)
       carDetails.push(
-        renderDetailRow('Återvinningstyper', car.recyclingTypes.join(', '))
+        renderDetailRow('Återvinningstyper', recyclingTypesToShow.join(', '))
       )
     if (typeof car.cargo === 'number')
       carDetails.push(renderDetailRow('Lastade kärl', car.cargo))
@@ -179,7 +224,12 @@ const HoverInfoBox: React.FC<HoverInfoBoxProps> = ({
               Fackinformation
             </div>
             <div className="space-y-2">
-              {compartments.map((comp) => renderCompartment(comp))}
+              {compartments.map((comp) =>
+                renderCompartment(
+                  comp,
+                  telgeAllowedIndex.get(String(car.id))?.get(comp.fackNumber)
+                )
+              )}
             </div>
           </div>
         )}

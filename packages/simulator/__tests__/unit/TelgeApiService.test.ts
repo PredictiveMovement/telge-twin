@@ -38,7 +38,7 @@ describe('TelgeApiService', () => {
 
   it('rejects invalid date format', async () => {
     await expect(fetchTelgeRouteData('20240115')).rejects.toThrow(
-      /Invalid date format/
+      /Invalid from date format/
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })

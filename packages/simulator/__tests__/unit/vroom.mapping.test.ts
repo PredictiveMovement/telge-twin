@@ -1,4 +1,7 @@
 const vroom = require('../../lib/vroom')
+import { CLUSTERING_CONFIG } from '../../lib/config'
+
+const COMPRESSION = CLUSTERING_CONFIG.CAPACITY.VOLUME_COMPRESSION_FACTOR
 
 describe('vroom mapping utilities', () => {
   it('bookingToShipment maps coordinates, load and time windows from virtual time', () => {
@@ -20,9 +23,11 @@ describe('vroom mapping utilities', () => {
       capacityDimensions: ['volumeLiters', 'weightKg'],
       fleet: booking.fleet,
     })
+    const expectedVolume = Math.round(200 * 0.5 * COMPRESSION) // 200L * 50% * compression
+    const expectedWeight = (expectedVolume / 1000) * 100
     expect(shipment).toMatchObject({
       id: 0,
-      amount: [100, 10],
+      amount: [expectedVolume, expectedWeight],
       pickup: { id: 0, location: [18.0, 59.0] },
       delivery: { id: 1, location: [18.2, 59.2] },
       service: 60,

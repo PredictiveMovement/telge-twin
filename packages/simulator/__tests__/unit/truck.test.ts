@@ -139,7 +139,7 @@ describe('Truck Behavior', () => {
         fackDetails: [
           {
             fackNumber: 1,
-            volym: 0.112, // 112 liters
+            volym: 0.05, // 50 liters to force full with compression
             vikt: 20, // 20 kg - very small
             avfallstyper: [{ avftyp: 'HUSHSORT' }],
           },
@@ -454,8 +454,9 @@ describe('Truck Behavior', () => {
       truck.booking = booking
       await truck.pickup()
 
-      expect(booking.assignedFack).toBeDefined()
-      expect(booking.loadEstimate).toBeDefined()
+      const loads = (booking as any).appliedLoads
+      expect(Array.isArray(loads)).toBe(true)
+      expect(loads.length).toBeGreaterThan(0)
     })
 
     it('should increase fill levels on pickup (volumeLiters)', async () => {
@@ -533,7 +534,7 @@ describe('Truck Behavior', () => {
       await truck.pickup()
 
       const fillAfterPickup = truck.compartments[0].fillLiters
-      const compartmentNumber = booking.assignedFack
+      const compartmentNumber = (booking as any).appliedLoads[0].fackNumber
 
       truck.cargo = [booking]
       truck.booking = null
@@ -553,7 +554,7 @@ describe('Truck Behavior', () => {
         fackDetails: [
           {
             fackNumber: 1,
-            volym: 0.112, // 112 liters - tiny
+            volym: 0.05, // 50 liters - tiny
             vikt: 20, // 20 kg
             avfallstyper: [{ avftyp: 'HUSHSORT' }],
           },

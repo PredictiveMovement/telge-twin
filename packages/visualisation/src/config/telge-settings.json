@@ -679,14 +679,46 @@
           },
           {
             "AVFTYP": "HUSHSORT",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "HEMSORT",
             "FACK": 2
           },
           {
-            "AVFTYP": "BLANDAVF",
+            "AVFTYP": "PAPPFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "PLASTFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLFÄ",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLOF",
             "FACK": 3
           },
           {
             "AVFTYP": "HEMSORT",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "PLAST",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "METFÖRP",
             "FACK": 4
           }
         ]
@@ -735,14 +767,46 @@
           },
           {
             "AVFTYP": "HUSHSORT",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "HEMSORT",
             "FACK": 2
           },
           {
-            "AVFTYP": "BLANDAVF",
+            "AVFTYP": "PAPPFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "PLASTFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLFÄ",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLOF",
             "FACK": 3
           },
           {
             "AVFTYP": "HEMSORT",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "PLAST",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "METFÖRP",
             "FACK": 4
           }
         ]
@@ -778,14 +842,46 @@
           },
           {
             "AVFTYP": "HUSHSORT",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "HEMSORT",
             "FACK": 2
           },
           {
-            "AVFTYP": "BLANDAVF",
+            "AVFTYP": "PAPPFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "PLASTFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLFÄ",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLOF",
             "FACK": 3
           },
           {
             "AVFTYP": "HEMSORT",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "PLAST",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "METFÖRP",
             "FACK": 4
           }
         ]
@@ -808,14 +904,46 @@
           },
           {
             "AVFTYP": "HUSHSORT",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "HEMSORT",
             "FACK": 2
           },
           {
-            "AVFTYP": "BLANDAVF",
+            "AVFTYP": "PAPPFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "PLASTFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLFÄ",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLOF",
             "FACK": 3
           },
           {
             "AVFTYP": "HEMSORT",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "PLAST",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "METFÖRP",
             "FACK": 4
           }
         ]
@@ -1027,14 +1155,46 @@
           },
           {
             "AVFTYP": "HUSHSORT",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "HEMSORT",
             "FACK": 2
           },
           {
-            "AVFTYP": "BLANDAVF",
+            "AVFTYP": "PAPPFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "PLASTFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLFÄ",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLOF",
             "FACK": 3
           },
           {
             "AVFTYP": "HEMSORT",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "PLAST",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "METFÖRP",
             "FACK": 4
           }
         ]
@@ -1174,14 +1334,46 @@
           },
           {
             "AVFTYP": "HUSHSORT",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "RETURPAPP",
+            "FACK": 1
+          },
+          {
+            "AVFTYP": "HEMSORT",
             "FACK": 2
           },
           {
-            "AVFTYP": "BLANDAVF",
+            "AVFTYP": "PAPPFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "PLASTFÖRP",
+            "FACK": 2
+          },
+          {
+            "AVFTYP": "HEMSORT",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLFÄ",
+            "FACK": 3
+          },
+          {
+            "AVFTYP": "BGLOF",
             "FACK": 3
           },
           {
             "AVFTYP": "HEMSORT",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "PLAST",
+            "FACK": 4
+          },
+          {
+            "AVFTYP": "METFÖRP",
             "FACK": 4
           }
         ]

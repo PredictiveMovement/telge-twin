@@ -2,7 +2,12 @@ import {
   estimateBookingLoad,
   getCapacityDimensions,
 } from '../../lib/capacity'
+import { CLUSTERING_CONFIG } from '../../lib/config'
 import { testSettings } from '../fixtures'
+
+const COMPRESSION = CLUSTERING_CONFIG.CAPACITY.VOLUME_COMPRESSION_FACTOR
+const expectedVolume = (base: number, fillPercent: number) =>
+  Math.max(1, Math.round((base * fillPercent) / 100 * COMPRESSION))
 
 describe('Load Estimator (Unit Tests)', () => {
   describe('estimateBookingLoad', () => {
@@ -14,7 +19,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(112)
+      expect(result.volumeLiters).toBe(expectedVolume(140, 80))
     })
 
     it('should use fill percentage (FYLLNADSGRAD) from settings', () => {
@@ -25,7 +30,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(204)
+      expect(result.volumeLiters).toBe(expectedVolume(240, 85))
     })
 
     it('should calculate volumeLiters = baseVolume * fillPercent / 100', () => {
@@ -36,7 +41,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(333)
+      expect(result.volumeLiters).toBe(expectedVolume(370, 90))
     })
 
     it('should use waste type density (VOLYMVIKT) for weight', () => {
@@ -47,7 +52,8 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.weightKg).toBeCloseTo(16.8, 1)
+      const vol = expectedVolume(140, 80)
+      expect(result.weightKg).toBeCloseTo((vol / 1000) * 150, 1)
     })
 
     it('should calculate weightKg = (volumeLiters / 1000) * density', () => {
@@ -58,7 +64,8 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.weightKg).toBeCloseTo(81.6, 1)
+      const vol = expectedVolume(240, 85)
+      expect(result.weightKg).toBeCloseTo((vol / 1000) * 400, 1)
     })
 
     it('should fall back to defaults when no settings', () => {
@@ -69,7 +76,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(140)
+      expect(result.volumeLiters).toBe(expectedVolume(140, 100))
     })
 
     it('should return null weightKg when no density', () => {
@@ -80,7 +87,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(112)
+      expect(result.volumeLiters).toBe(expectedVolume(140, 80))
       expect(result.weightKg).toBeNull()
     })
 
@@ -92,7 +99,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(333)
+      expect(result.volumeLiters).toBe(expectedVolume(370, 90))
     })
 
     it('should resolve service type from originalRecord', () => {
@@ -103,7 +110,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(204)
+      expect(result.volumeLiters).toBe(expectedVolume(240, 85))
     })
 
     it('should prioritize originalData over originalRecord', () => {
@@ -115,7 +122,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.volumeLiters).toBe(333)
+      expect(result.volumeLiters).toBe(expectedVolume(370, 90))
     })
 
     it('should handle missing tjtyper in settings', () => {
@@ -128,7 +135,7 @@ describe('Load Estimator (Unit Tests)', () => {
       const result = estimateBookingLoad(booking, emptySettings)
 
       // Fallback values
-      expect(result.volumeLiters).toBe(140)
+      expect(result.volumeLiters).toBe(expectedVolume(140, 100))
       expect(result.weightKg).toBeNull()
     })
 
@@ -144,7 +151,7 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, settingsWithoutWaste)
 
-      expect(result.volumeLiters).toBe(112)
+      expect(result.volumeLiters).toBe(expectedVolume(140, 80))
       expect(result.weightKg).toBeNull()
     })
 
@@ -156,7 +163,8 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.weightKg).toBeCloseTo(56, 1)
+      const vol = expectedVolume(140, 80)
+      expect(result.weightKg).toBeCloseTo((vol / 1000) * 500, 1)
     })
 
     it('should handle low density waste (plastic)', () => {
@@ -167,7 +175,8 @@ describe('Load Estimator (Unit Tests)', () => {
 
       const result = estimateBookingLoad(booking, testSettings)
 
-      expect(result.weightKg).toBeCloseTo(6.12, 1)
+      const vol = expectedVolume(240, 85)
+      expect(result.weightKg).toBeCloseTo((vol / 1000) * 30, 1)
     })
 
     it('should ensure minimum volume of 1 liter', () => {

@@ -5,6 +5,7 @@ const {
 } = require('../dispatch/truckDispatch')
 const { warn } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
+import { getHemsortDistribution } from '../config/hemsort'
 import {
   estimateBookingLoad,
   applyLoadToCompartment,
@@ -264,6 +265,73 @@ class Truck extends Vehicle {
     return estimateBookingLoad(booking, settings)
   }
 
+  /** Resolve service type from booking with fallbacks to original data/route record. */
+  private resolveServiceType(booking: any): string | null {
+    if (!booking) return null
+    return (
+      booking?.originalData?.originalTjtyp ||
+      booking?.originalData?.originalRouteRecord?.Tjtyp ||
+      booking?.originalRecord?.Tjtyp ||
+      booking?.Tjtyp ||
+      null
+    )
+  }
+
+  /**
+   * Compute per-fack loads for HEMSORT so all four fack get filled in one stop.
+   * Applies volume compression factor and distributes weight proportionally.
+   */
+  private computeHemsortLoads(
+    booking: any
+  ): Array<{ fackNumber: number; load: LoadEstimate }> | null {
+    if (!booking || booking.recyclingType !== 'HEMSORT') {
+      return null
+    }
+
+    const serviceType = this.resolveServiceType(booking)
+    const distribution = getHemsortDistribution(serviceType)
+    if (!distribution || !distribution.length) {
+      return null
+    }
+
+    const baseLoad = this.computeBookingLoad(booking)
+    const weightPerLiter =
+      baseLoad.volumeLiters > 0 && baseLoad.weightKg != null
+        ? baseLoad.weightKg / baseLoad.volumeLiters
+        : null
+
+    const compression =
+      CLUSTERING_CONFIG?.CAPACITY?.VOLUME_COMPRESSION_FACTOR ?? 1
+
+    const appliedLoads: Array<{ fackNumber: number; load: LoadEstimate }> = []
+
+    distribution.forEach((fraction) => {
+      const target = this.compartments.find(
+        (c) => c.fackNumber === fraction.fack
+      )
+
+      if (!target) {
+        warn(
+          `Missing compartment ${fraction.fack} on truck ${this.id} for HEMSORT ${serviceType}`
+        )
+        return
+      }
+
+      const volumeLiters = Math.max(
+        1,
+        Math.round(fraction.volumeLiters * compression)
+      )
+      const weightKg =
+        weightPerLiter != null ? weightPerLiter * volumeLiters : null
+
+      const load: LoadEstimate = { volumeLiters, weightKg }
+      applyLoadToCompartment(target, load)
+      appliedLoads.push({ fackNumber: target.fackNumber, load })
+    })
+
+    return appliedLoads.length ? appliedLoads : null
+  }
+
   /** Pick an eligible compartment for a given waste type and load, preferring most remaining capacity. */
   /**
    * Picks the next instruction from the plan.
@@ -479,33 +547,39 @@ class Truck extends Vehicle {
 
     const activeBooking = this.booking
 
-    // Assign booking to a compartment (fack) and update fill levels
-    const typeId = activeBooking?.recyclingType
-    const load = this.computeBookingLoad(activeBooking)
-    const comp = selectBestCompartment(this.compartments, typeId, load)
-
-    if (comp) {
-      applyLoadToCompartment(comp, load)
-      ;(activeBooking as any).assignedFack = comp.fackNumber
-      ;(activeBooking as any).loadEstimate = load
+    // Assign booking to compartments (fack) and update fill levels
+    const hemlLoads = this.computeHemsortLoads(activeBooking)
+    if (hemlLoads && hemlLoads.length) {
+      ;(activeBooking as any).appliedLoads = hemlLoads
     } else {
-      // Debug: No matching compartment for this recycling type
-      try {
-        const overview = (this.compartments || []).map((c) => ({
-          fack: c.fackNumber,
-          allowed: Array.isArray(c.allowedWasteTypes)
-            ? c.allowedWasteTypes
-            : [],
-          capacityL: c.capacityLiters,
-        }))
-        warn(
-          `No matching compartment for type "${typeId}" on truck ${this.id}. ` +
-            `Load ~${load.volumeLiters}L${
-              load.weightKg != null ? `/${Math.round(load.weightKg)}kg` : ''
-            }. Compartments: ${JSON.stringify(overview)}`
-        )
-      } catch (error) {
-        warn(`Failed to log compartment overview for truck ${this.id}`, error)
+      const typeId = activeBooking?.recyclingType
+      const load = this.computeBookingLoad(activeBooking)
+      const comp = selectBestCompartment(this.compartments, typeId, load)
+
+      if (comp) {
+        applyLoadToCompartment(comp, load)
+        ;(activeBooking as any).appliedLoads = [
+          { fackNumber: comp.fackNumber, load },
+        ]
+      } else {
+        // Debug: No matching compartment for this recycling type
+        try {
+          const overview = (this.compartments || []).map((c) => ({
+            fack: c.fackNumber,
+            allowed: Array.isArray(c.allowedWasteTypes)
+              ? c.allowedWasteTypes
+              : [],
+            capacityL: c.capacityLiters,
+          }))
+          warn(
+            `No matching compartment for type "${typeId}" on truck ${this.id}. ` +
+              `Load ~${load.volumeLiters}L${
+                load.weightKg != null ? `/${Math.round(load.weightKg)}kg` : ''
+              }. Compartments: ${JSON.stringify(overview)}`
+          )
+        } catch (error) {
+          warn(`Failed to log compartment overview for truck ${this.id}`, error)
+        }
       }
     }
 
@@ -554,6 +628,23 @@ class Truck extends Vehicle {
    * @returns A promise that resolves when the booking is dropped off.
    */
 
+  /** Release compartment fills for a delivered booking, supporting multi-fack loads. */
+  private releaseLoadsForBooking(booking: any): void {
+    if (!booking) return
+
+    const appliedLoads = (booking as any)?.appliedLoads
+    if (!Array.isArray(appliedLoads) || !appliedLoads.length) return
+
+    appliedLoads.forEach(({ fackNumber, load }) => {
+      const compartment = this.compartments.find(
+        (x) => x.fackNumber === fackNumber
+      )
+      if (compartment && load) {
+        releaseLoadFromCompartment(compartment, load)
+      }
+    })
+  }
+
   async dropOff() {
     // If this is a delivery action (booking is null), deliver all cargo
     if (!this.booking) {
@@ -562,16 +653,7 @@ class Truck extends Vehicle {
       deliveredNow.forEach((item: any) => {
         if (item.delivered) item.delivered(this.position)
         // Decrement fills per assigned fack
-        const assigned = (item as any).assignedFack
-        const load = (item as any).loadEstimate as LoadEstimate | undefined
-        if (assigned && load) {
-          const compartment = this.compartments.find(
-            (x) => x.fackNumber === assigned
-          )
-          if (compartment) {
-            releaseLoadFromCompartment(compartment, load)
-          }
-        }
+        this.releaseLoadsForBooking(item)
       })
       if (this.isSequentialExperiment()) {
         const deliveredSet = new Set(deliveredNow)
@@ -599,16 +681,7 @@ class Truck extends Vehicle {
 
     // Otherwise, deliver specific booking (legacy behavior)
     // Decrement fill for the specific booking
-    const assigned = (this.booking as any).assignedFack
-    const load = (this.booking as any).loadEstimate as LoadEstimate | undefined
-    if (assigned && load) {
-      const compartment = this.compartments.find(
-        (x) => x.fackNumber === assigned
-      )
-      if (compartment) {
-        releaseLoadFromCompartment(compartment, load)
-      }
-    }
+    this.releaseLoadsForBooking(this.booking)
     this.cargo = this.cargo.filter((p: any) => p !== this.booking)
     this.emitCargo()
     if (this.isSequentialExperiment() && this.booking) {
@@ -633,16 +706,7 @@ class Truck extends Vehicle {
     const deliveredNow = [...this.cargo]
     deliveredNow.forEach((item: any) => {
       if (item.delivered) item.delivered(this.position)
-      const assigned = (item as any).assignedFack
-      const load = (item as any).loadEstimate as LoadEstimate | undefined
-      if (assigned && load) {
-        const compartment = this.compartments.find(
-          (x) => x.fackNumber === assigned
-        )
-        if (compartment) {
-          releaseLoadFromCompartment(compartment, load)
-        }
-      }
+      this.releaseLoadsForBooking(item)
     })
 
     if (this.isSequentialExperiment()) {
