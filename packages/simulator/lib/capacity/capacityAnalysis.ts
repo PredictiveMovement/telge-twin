@@ -1,6 +1,5 @@
 import { info } from '../log'
 import {
-  FackWasteType,
   FackDetail,
   VehicleSpec,
   BookingLike,

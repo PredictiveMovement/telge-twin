@@ -96,7 +96,7 @@ const MAX_VROOM_VEHICLES = 200
  * 500m captures natural neighborhood boundaries while avoiding oversized clusters.
  * Tested with real route data - produces 8-15 clusters per truck (optimal range).
  */
-const TRUCK_DBSCAN_EPS_METERS = 500
+const TRUCK_DBSCAN_EPS_METERS = 1000
 
 /**
  * DBSCAN minimum samples - minimum points required to form a cluster
@@ -198,7 +198,7 @@ const MAX_NOISE_ASSIGNMENT_DISTANCE_METERS = 3000
  * - 0.60 (60%) = 190L → 114L, 240L → 144L
  * - 1.00 (100%) = no compression (original volume)
  */
-const VOLUME_COMPRESSION_FACTOR = 0.5
+const VOLUME_COMPRESSION_FACTOR = 0.25
 
 // ========================================================================
 // DELIVERY STRATEGY

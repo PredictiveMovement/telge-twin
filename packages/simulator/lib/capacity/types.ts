@@ -69,4 +69,3 @@ export interface BookingLike {
  */
 export const STANDARD_PICKUP_VOLUME_LITERS = 140
 export const STANDARD_FILL_PERCENT = 100
-
