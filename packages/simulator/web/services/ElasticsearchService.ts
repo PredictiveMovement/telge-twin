@@ -1,5 +1,9 @@
 import { Client } from '@elastic/elasticsearch'
 import { search } from '../../lib/elastic'
+import {
+  calculateBaselineStatistics,
+  BaselineStatistics,
+} from '../../lib/dispatch/truckDispatch'
 
 export class ElasticsearchService {
   private client: Client
@@ -198,6 +202,61 @@ export class ElasticsearchService {
       },
     })
     return searchResult?.body?.hits?.hits?.map((hit: any) => hit._source) || []
+  }
+
+  /**
+   * Aggregated statistics for a VROOM experiment from truck plans.
+   * Sums up totalDistanceKm, totalCo2Kg, and bookingCount from all plans.
+   */
+  async getStatisticsForExperiment(experimentId: string) {
+    const result = await search({
+      index: 'vroom-truck-plans',
+      body: {
+        size: 0,
+        query: {
+          term: { experiment: experimentId },
+        },
+        aggs: {
+          total_distance: { sum: { field: 'totalDistanceKm' } },
+          total_co2: { sum: { field: 'totalCo2Kg' } },
+          total_bookings: { sum: { field: 'bookingCount' } },
+        },
+      },
+    })
+
+    const aggs = result?.body?.aggregations || {}
+    return {
+      totalDistanceKm: aggs.total_distance?.value || 0,
+      totalCo2Kg: aggs.total_co2?.value || 0,
+      bookingCount: aggs.total_bookings?.value || 0,
+    }
+  }
+
+  /**
+   * Get baseline statistics for an experiment.
+   * First checks if baseline is stored on the experiment, then falls back to on-demand calculation.
+   */
+  async getBaselineStatisticsForExperiment(
+    experimentId: string
+  ): Promise<BaselineStatistics | null> {
+    try {
+      // 1. Check if baseline is stored on the experiment
+      const experiment = await this.getExperiment(experimentId)
+      if (experiment?.baselineStatistics) {
+        return experiment.baselineStatistics as BaselineStatistics
+      }
+
+      // 2. Fallback: calculate on-demand (for older experiments)
+      const { dataset } = await this.getExperimentWithDataset(experimentId)
+
+      if (!dataset?.routeData || !Array.isArray(dataset.routeData)) {
+        return null
+      }
+
+      return calculateBaselineStatistics(dataset.routeData)
+    } catch {
+      return null
+    }
   }
 }
 

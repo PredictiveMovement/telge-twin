@@ -9,12 +9,108 @@ import Booking from '../models/booking'
 const { save, search } = require('../elastic')
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'
+import { haversine } from '../distance'
 
 export interface Instruction {
   action: string
   arrival: number
   departure: number
   booking: any
+}
+
+export interface PlanStatistics {
+  totalDistanceKm: number
+  totalCo2Kg: number
+  bookingCount: number
+}
+
+export interface BaselineStatistics {
+  totalDistanceKm: number
+  totalCo2Kg: number
+  bookingCount: number
+}
+
+/**
+ * Calculate statistics (distance, CO₂, booking count) from a complete VROOM plan.
+ * Uses haversine distance between consecutive pickup positions.
+ * CO₂ is calculated using the same formula as the vehicle simulation:
+ * co2 = (truckWeight + cargoWeight) × distanceKm × co2PerKmKg
+ */
+export function calculatePlanStatistics(
+  completePlan: Instruction[],
+  truckWeight: number = 15000, // Default 15 ton empty truck
+  co2PerKmKg: number = 0.000013 // Same as vehicle.ts default
+): PlanStatistics {
+  // Extract pickup positions in order
+  const pickupPositions = completePlan
+    .filter((step) => step.action === 'pickup' && step.booking?.pickup?.position)
+    .map((step) => step.booking.pickup.position)
+
+  // Calculate total distance using haversine between consecutive pickups
+  let totalDistanceMeters = 0
+  for (let i = 1; i < pickupPositions.length; i++) {
+    totalDistanceMeters += haversine(pickupPositions[i - 1], pickupPositions[i])
+  }
+
+  const totalDistanceKm = totalDistanceMeters / 1000
+
+  // Estimate CO₂ using average cargo weight (approximately 50% of typical capacity)
+  const avgCargoWeight = 5000 // ~5 ton average cargo
+  const totalCo2Kg = (truckWeight + avgCargoWeight) * totalDistanceKm * co2PerKmKg
+
+  return {
+    totalDistanceKm,
+    totalCo2Kg,
+    bookingCount: pickupPositions.length,
+  }
+}
+
+/**
+ * Calculate baseline statistics from original route data.
+ * Groups by vehicle (Bil) and sorts by original order (Turordningsnr).
+ * Uses the same haversine/CO₂ formula as VROOM statistics for fair comparison.
+ */
+export function calculateBaselineStatistics(
+  routeData: Array<{ Bil: string; Turordningsnr: number; Lat: number; Lng: number }>,
+  truckWeight: number = 15000,
+  co2PerKmKg: number = 0.000013
+): BaselineStatistics {
+  // Group by vehicle
+  const vehicleGroups = new Map<string, typeof routeData>()
+  for (const route of routeData) {
+    const vehicleId = route.Bil
+    if (!vehicleId || route.Lat == null || route.Lng == null) continue
+    if (!vehicleGroups.has(vehicleId)) {
+      vehicleGroups.set(vehicleId, [])
+    }
+    vehicleGroups.get(vehicleId)!.push(route)
+  }
+
+  let totalDistanceMeters = 0
+  let totalBookings = 0
+
+  // Calculate distance per vehicle in original order
+  for (const [, routes] of vehicleGroups) {
+    // Sort by original order number
+    routes.sort((a, b) => a.Turordningsnr - b.Turordningsnr)
+
+    for (let i = 1; i < routes.length; i++) {
+      const p1 = { lat: routes[i - 1].Lat, lon: routes[i - 1].Lng }
+      const p2 = { lat: routes[i].Lat, lon: routes[i].Lng }
+      totalDistanceMeters += haversine(p1, p2)
+    }
+    totalBookings += routes.length
+  }
+
+  const totalDistanceKm = totalDistanceMeters / 1000
+  const avgCargoWeight = 5000
+  const totalCo2Kg = (truckWeight + avgCargoWeight) * totalDistanceKm * co2PerKmKg
+
+  return {
+    totalDistanceKm,
+    totalCo2Kg,
+    bookingCount: totalBookings,
+  }
 }
 
 /* ----------------------------------------------------------- */
@@ -433,6 +529,9 @@ export async function saveCompletePlanForReplay(
         : null,
     }))
 
+    // Calculate plan statistics (distance, CO₂, booking count)
+    const stats = calculatePlanStatistics(completePlan)
+
     await save(
       {
         planId,
@@ -443,6 +542,9 @@ export async function saveCompletePlanForReplay(
         bookingMetadata,
         planType: 'complete',
         timestamp: new Date().toISOString(),
+        totalDistanceKm: stats.totalDistanceKm,
+        totalCo2Kg: stats.totalCo2Kg,
+        bookingCount: stats.bookingCount,
       },
       planId,
       'vroom-truck-plans'
@@ -531,7 +633,8 @@ module.exports = {
   saveCompletePlanForReplay,
   useReplayRoute,
   createBookingFromInstructionData,
-  // expose utils for unit testing
+  calculatePlanStatistics,
+  calculateBaselineStatistics,
   simpleGeographicSplit,
   combineSubResults,
 }

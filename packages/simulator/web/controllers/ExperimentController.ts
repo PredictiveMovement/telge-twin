@@ -3,8 +3,8 @@ import { filter, take } from 'rxjs/operators'
 import { emitters } from '../../config'
 import { virtualTime, VirtualTime } from '../../lib/virtualTime'
 import { safeId } from '../../lib/id'
-import { createFleetConfigFromDataset } from '../../lib/fleet-utils'
 import { elasticsearchService } from '../services/ElasticsearchService'
+import { calculateBaselineStatistics } from '../../lib/dispatch/truckDispatch'
 import engine from '../../index'
 
 export class ExperimentController {
@@ -224,7 +224,7 @@ export class ExperimentController {
     const experiment = engine.createExperiment({
       defaultEmitters: currentEmitters,
       id: experimentId,
-      directParams: directParams,
+      directParams: { ...directParams, isReplay: true },
       virtualTime: sessionVirtualTime,
     }) as any
 
@@ -348,6 +348,16 @@ export class ExperimentController {
     })
 
     virtualTime.reset()
+
+    // Calculate and save baseline statistics from original route data
+    if (datasetData?.routeData && Array.isArray(datasetData.routeData)) {
+      const baselineStats = calculateBaselineStatistics(datasetData.routeData)
+      experiment.parameters.baselineStatistics = {
+        totalDistanceKm: baselineStats.totalDistanceKm,
+        totalCo2Kg: baselineStats.totalCo2Kg,
+        bookingCount: baselineStats.bookingCount,
+      }
+    }
 
     return {
       success: true,

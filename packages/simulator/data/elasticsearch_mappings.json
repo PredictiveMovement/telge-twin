@@ -469,6 +469,15 @@
         "vroomResponse": {
           "type": "object",
           "enabled": false
+        },
+        "totalDistanceKm": {
+          "type": "float"
+        },
+        "totalCo2Kg": {
+          "type": "float"
+        },
+        "bookingCount": {
+          "type": "integer"
         }
       }
     }
@@ -552,6 +561,20 @@
         },
         "areaPartitionsTimestamp": {
           "type": "date"
+        },
+        "baselineStatistics": {
+          "type": "object",
+          "properties": {
+            "totalDistanceKm": {
+              "type": "float"
+            },
+            "totalCo2Kg": {
+              "type": "float"
+            },
+            "bookingCount": {
+              "type": "integer"
+            }
+          }
         }
       }
     }

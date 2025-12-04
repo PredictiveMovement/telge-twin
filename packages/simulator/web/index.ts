@@ -137,6 +137,63 @@ app.get('/api/experiments', async (req, res) => {
   }
 })
 
+app.get('/api/experiments/:experimentId/statistics', async (req, res) => {
+  try {
+    const { experimentId } = req.params
+
+    // Ensure experiment exists and is a VROOM optimisation
+    const hit = await findDocumentById('experiments', experimentId)
+    if (!hit) {
+      return res.status(404).json(handleError(null, 'Experiment not found'))
+    }
+
+    const experiment = hit._source as any
+    if (experiment.experimentType !== 'vroom') {
+      return res
+        .status(400)
+        .json(
+          handleError(
+            null,
+            'Statistics are only available for VROOM optimisation experiments'
+          )
+        )
+    }
+
+    // Fetch statistics from vroom-truck-plans (calculated at optimization time)
+    // Also fetch baseline statistics from original route data
+    const [planStats, vehicleCounts, baselineStats] = await Promise.all([
+      elasticsearchService.getStatisticsForExperiment(experimentId),
+      elasticsearchService.getVehicleCounts([experimentId]),
+      elasticsearchService.getBaselineStatisticsForExperiment(experimentId),
+    ])
+
+    // Cluster count from area partitions
+    const clusterCount = Array.isArray(experiment.areaPartitions)
+      ? experiment.areaPartitions.length
+      : 0
+
+    return res.json(
+      successResponse({
+        experimentId,
+        totalDistanceKm: planStats.totalDistanceKm,
+        totalCo2Kg: planStats.totalCo2Kg,
+        vehicleCount: vehicleCounts.get(experimentId) || 0,
+        bookingCount: planStats.bookingCount,
+        clusterCount,
+        baseline: baselineStats
+          ? {
+              totalDistanceKm: baselineStats.totalDistanceKm,
+              totalCo2Kg: baselineStats.totalCo2Kg,
+              bookingCount: baselineStats.bookingCount,
+            }
+          : null,
+      })
+    )
+  } catch (error) {
+    res.status(500).json(handleError(error))
+  }
+})
+
 app.get('/api/telge/routedata', async (req, res) => {
   try {
     const from = String(req.query.from || req.query.date || '')

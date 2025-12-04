@@ -104,6 +104,20 @@ export interface Experiment {
   areaPartitions?: AreaPartition[]
 }
 
+export interface ExperimentStatistics {
+  experimentId: string
+  totalDistanceKm: number
+  totalCo2Kg: number
+  vehicleCount: number
+  bookingCount: number
+  clusterCount: number
+  baseline?: {
+    totalDistanceKm: number
+    totalCo2Kg: number
+    bookingCount: number
+  } | null
+}
+
 export async function saveRouteDataset(datasetData: {
   name: string
   description?: string
@@ -297,6 +311,26 @@ export async function getVroomPlan(
     )
     if (response.data?.success && response.data?.data) {
       return response.data.data
+    }
+    return null
+  } catch (_error) {
+    return null
+  }
+}
+
+/**
+ * Gets aggregated statistics (distance, CO₂) for a VROOM experiment.
+ * @param experimentId - The ID of the experiment.
+ */
+export async function getExperimentStatistics(
+  experimentId: string
+): Promise<ExperimentStatistics | null> {
+  try {
+    const response = await simulatorApi.get(
+      `/api/experiments/${experimentId}/statistics`
+    )
+    if (response.data?.success && response.data?.data) {
+      return response.data.data as ExperimentStatistics
     }
     return null
   } catch (_error) {

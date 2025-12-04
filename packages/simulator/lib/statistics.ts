@@ -28,6 +28,7 @@ const collectExperimentMetadata = async (experiment: any) => {
       simulationStatus: experiment.simulationStatus,
       experimentType: experiment.experimentType,
       initMapState: experiment.initMapState,
+      baselineStatistics: experiment.baselineStatistics,
       fleets: experiment.fleets
         ? Object.keys(experiment.fleets).reduce((acc: any, key: string) => {
             const fleet = experiment.fleets[key]
@@ -58,9 +59,7 @@ const collectExperimentMetadata = async (experiment: any) => {
 }
 
 const collectBooking = (booking: any, experimentSettings: any) => {
-  const shouldSave = experimentSettings.experimentType !== 'replay'
-
-  if (!shouldSave) {
+  if (experimentSettings.experimentType !== 'vroom') {
     return Promise.resolve()
   }
 
@@ -116,9 +115,7 @@ const collectBooking = (booking: any, experimentSettings: any) => {
 }
 
 const collectCar = (car: any, experimentSettings: any) => {
-  const shouldSave = experimentSettings.experimentType !== 'replay'
-
-  if (!shouldSave) {
+  if (experimentSettings.experimentType !== 'vroom') {
     return Promise.resolve()
   }
 

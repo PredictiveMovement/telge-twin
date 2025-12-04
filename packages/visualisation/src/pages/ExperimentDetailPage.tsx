@@ -5,10 +5,12 @@ import { AlertTriangle, Loader2 } from 'lucide-react'
 import Layout from '@/components/layout/Layout'
 import {
   getExperiment,
+  getExperimentStatistics,
   getOriginalBookings,
   getOriginalBookingsForExperiment,
   getVroomBookingsForExperiment,
   Experiment,
+  ExperimentStatistics,
 } from '@/api/simulator'
 import OptimizeHeader from '@/components/optimize/OptimizeHeader'
 import OptimizeMapComparison from '@/components/optimize/OptimizeMapComparison'
@@ -296,6 +298,10 @@ const ExperimentDetailPage = () => {
   const [experiment, setExperiment] = useState<Experiment | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [statistics, setStatistics] = useState<ExperimentStatistics | null>(
+    null
+  )
+  const [statisticsLoading, setStatisticsLoading] = useState(false)
   const [mapData, setMapData] = useState<{
     optimizedStops: Stop[]
     selectedVehicle: string
@@ -346,6 +352,39 @@ const ExperimentDetailPage = () => {
     }
 
     fetchData()
+  }, [experimentId])
+
+  useEffect(() => {
+    if (!experimentId) {
+      setStatistics(null)
+      return
+    }
+
+    let cancelled = false
+
+    const loadStatistics = async () => {
+      try {
+        setStatisticsLoading(true)
+        const stats = await getExperimentStatistics(experimentId)
+        if (!cancelled) {
+          setStatistics(stats)
+        }
+      } catch {
+        if (!cancelled) {
+          setStatistics(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setStatisticsLoading(false)
+        }
+      }
+    }
+
+    loadStatistics()
+
+    return () => {
+      cancelled = true
+    }
   }, [experimentId])
 
   useEffect(() => {
@@ -533,7 +572,10 @@ const ExperimentDetailPage = () => {
           areaPartitions={experiment.areaPartitions}
         />
 
-        <OptimizeStatistics />
+        <OptimizeStatistics
+          statistics={statistics}
+          loading={statisticsLoading}
+        />
 
         <ExperimentRouteStops
           data={routeStopsData}
