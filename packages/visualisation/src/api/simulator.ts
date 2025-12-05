@@ -540,4 +540,33 @@ export async function getVroomBookingsForExperiment(experimentId: string) {
   }
 }
 
+/**
+ * Updates the route order for a specific truck in an experiment.
+ * @param experimentId - The ID of the experiment.
+ * @param truckId - The ID of the truck/vehicle.
+ * @param completePlan - The new ordered array of route instructions.
+ * @returns Success status or error.
+ */
+export async function updateRouteOrder(
+  experimentId: string,
+  truckId: string,
+  completePlan: any[]
+) {
+  try {
+    const response = await simulatorApi.put(
+      `/api/experiments/${experimentId}/trucks/${truckId}/route-order`,
+      { completePlan }
+    )
+    return response.data
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to update route order',
+    }
+  }
+}
+
 export default simulatorApi

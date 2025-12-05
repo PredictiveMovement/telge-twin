@@ -233,6 +233,8 @@ const HoverInfoBox: React.FC<HoverInfoBoxProps> = ({
     )
   } else if (hoverInfo.type === 'booking' && booking) {
     const bookingDetails: React.ReactNode[] = []
+    if (booking.customerName)
+      bookingDetails.push(renderDetailRow('Abonnentnr', booking.customerName))
     bookingDetails.push(
       renderDetailRow('Status', booking.status ?? 'Okänd')
     )

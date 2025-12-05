@@ -172,7 +172,10 @@ export const useRouteStopsLogic = (props?: UseRouteStopsLogicProps) => {
       return
     }
 
-    const [sourceListType, sourceId] = draggedItem.split('-')
+    // Split only on the first dash to preserve booking IDs that contain dashes
+    const firstDashIndex = draggedItem.indexOf('-')
+    const sourceListType = draggedItem.substring(0, firstDashIndex)
+    const sourceId = draggedItem.substring(firstDashIndex + 1)
 
     if (sourceListType === 'preview') {
       // Handle preview data from dataTransfer

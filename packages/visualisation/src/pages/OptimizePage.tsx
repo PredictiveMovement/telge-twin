@@ -9,6 +9,8 @@ import {
   getOriginalBookings,
   getOriginalBookingsForExperiment,
   getVroomBookingsForExperiment,
+  getVroomPlan,
+  updateRouteOrder,
   Experiment,
   ExperimentStatistics,
 } from '@/api/simulator'
@@ -401,6 +403,9 @@ const OptimizePage = () => {
     selectedVehicle: string
   } | null>(null)
 
+  // VROOM plan data (for saving route order)
+  const [vroomPlanData, setVroomPlanData] = useState<any>(null)
+
   // Version history
   const [versions, setVersions] = useState<VersionSnapshot[]>([])
 
@@ -476,13 +481,20 @@ const OptimizePage = () => {
         setStatistics(statsData)
 
         // Fetch route stops and dataset records
-        const [originalResp, vroomResp, datasetResp] = await Promise.all([
+        const [originalResp, vroomResp, vroomPlanResp, datasetResp] = await Promise.all([
           getOriginalBookingsForExperiment(experimentId),
           getVroomBookingsForExperiment(experimentId),
+          getVroomPlan(experimentId),
           expData.sourceDatasetId
             ? getOriginalBookings(expData.sourceDatasetId)
             : Promise.resolve(null),
         ])
+
+        // Store VROOM plan data for later use when saving
+        // Note: getVroomPlan returns the data directly (unwrapped), not {success, data}
+        if (vroomPlanResp) {
+          setVroomPlanData(vroomPlanResp)
+        }
 
         // Handle error responses
         if (originalResp && originalResp.success === false) {
@@ -528,6 +540,57 @@ const OptimizePage = () => {
     }
   }
 
+  const handleSaveRouteOrder = async () => {
+    if (!experimentId || !selectedVehicle || !vroomPlanData) {
+      throw new Error('Saknas nödvändiga data för att spara')
+    }
+
+    // Find the route for the selected vehicle
+    const vehicleRoute = vroomPlanData.routes?.find(
+      (route: any) => route.vehicle === selectedVehicle
+    )
+
+    if (!vehicleRoute?.steps) {
+      throw new Error('Kunde inte hitta körturdata för valt fordon')
+    }
+
+    // Get the original completePlan (steps) for this vehicle
+    const originalSteps = vehicleRoute.steps
+
+    // Build new completePlan by reordering based on optimizedStops
+    const regularStops = routeStopsLogic.optimizedStops.filter(
+      (stop) => stop.type === 'regular'
+    )
+
+    const newCompletePlan = regularStops
+      .map((stop) => {
+        // Find the original instruction that matches this stop's ID
+        const originalInstruction = originalSteps.find(
+          (instr: any) => instr.booking?.id === stop.id
+        )
+        return originalInstruction
+      })
+      .filter(Boolean)
+
+    if (newCompletePlan.length === 0) {
+      throw new Error('Inga bokningar att spara')
+    }
+
+    // Call API to update the route order
+    const result = await updateRouteOrder(
+      experimentId,
+      selectedVehicle,
+      newCompletePlan
+    )
+
+    if (!result.success) {
+      throw new Error(result.error || 'Kunde inte spara körturordning')
+    }
+
+    // Mark as saved in the local state
+    routeStopsLogic.markAsSaved()
+  }
+
   const handleRestoreVersion = (versionId: string) => {
     // Find version and restore
     const version = versions.find(v => v.id === versionId)
@@ -569,7 +632,7 @@ const OptimizePage = () => {
         <OptimizeHeader
           savedProject={experiment ? { id: experiment.documentId, name: experiment.name || 'Experiment' } : undefined}
           hasChanges={routeStopsLogic.hasChangesFromOriginal}
-          onSaveChanges={routeStopsLogic.markAsSaved}
+          onSaveChanges={handleSaveRouteOrder}
           onSendToThor={() => console.log('Send to Thor')}
           onViewMap={handleViewMap}
           isMapLoading={isMapLoading}

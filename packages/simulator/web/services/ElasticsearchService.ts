@@ -205,6 +205,51 @@ export class ElasticsearchService {
   }
 
   /**
+   * Update the route order for a specific truck plan.
+   * Updates the completePlan array with the new order of stops.
+   */
+  async updateTruckPlanOrder(
+    experimentId: string,
+    truckId: string,
+    completePlan: any[]
+  ) {
+    const searchResult = await search({
+      index: 'vroom-truck-plans',
+      body: {
+        query: {
+          bool: {
+            must: [
+              { term: { experiment: experimentId } },
+              { term: { truckId: truckId } },
+            ],
+          },
+        },
+      },
+    })
+
+    if (!searchResult?.body?.hits?.hits?.length) {
+      throw new Error('Truck plan not found')
+    }
+
+    const docId = searchResult.body.hits.hits[0]._id
+
+    await this.client.update({
+      index: 'vroom-truck-plans',
+      id: docId,
+      body: {
+        doc: {
+          completePlan,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    })
+
+    await this.client.indices.refresh({ index: 'vroom-truck-plans' })
+
+    return { success: true }
+  }
+
+  /**
    * Aggregated statistics for a VROOM experiment from truck plans.
    * Sums up totalDistanceKm, totalCo2Kg, and bookingCount from all plans.
    */

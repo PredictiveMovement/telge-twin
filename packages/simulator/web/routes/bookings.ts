@@ -19,6 +19,7 @@ const cleanBookings = () =>
         type,
         recyclingType,
         turordningsnr,
+        originalData,
       } = booking as Record<string, any>
 
       const result = {
@@ -36,6 +37,9 @@ const cleanBookings = () =>
         type,
         recyclingType,
         turordningsnr,
+        customerName:
+          originalData?.originalAbonnentnr ||
+          originalData?.originalRouteRecord?.Abonnentnr,
       }
 
       return result

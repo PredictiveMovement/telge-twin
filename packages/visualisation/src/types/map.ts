@@ -38,6 +38,7 @@ export interface Booking {
   deliveryTime?: number
   pickupDateTime?: number
   assigned?: number
+  customerName?: string
 }
 
 export interface MapState {

@@ -519,6 +519,36 @@ app.get('/api/experiments/:experimentId/vroom-bookings', async (req, res) => {
   }
 })
 
+app.put(
+  '/api/experiments/:experimentId/trucks/:truckId/route-order',
+  async (req, res) => {
+    try {
+      const { experimentId, truckId } = req.params
+      const { completePlan } = req.body
+
+      if (!completePlan || !Array.isArray(completePlan)) {
+        return res
+          .status(400)
+          .json(handleError(null, 'completePlan array is required'))
+      }
+
+      await elasticsearchService.updateTruckPlanOrder(
+        experimentId,
+        truckId,
+        completePlan
+      )
+
+      res.json(successResponse({ success: true }))
+    } catch (error) {
+      const status =
+        error instanceof Error && error.message.includes('not found')
+          ? 404
+          : 500
+      res.status(status).json(handleError(error))
+    }
+  }
+)
+
 app.post('/api/simulation/prepare-replay', async (req, res) => {
   try {
     const { experimentId } = req.body
