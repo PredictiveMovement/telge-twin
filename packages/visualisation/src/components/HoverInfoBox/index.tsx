@@ -100,20 +100,16 @@ const renderCompartment = (
       key={`compartment-${comp.fackNumber}`}
       className="rounded border border-white/10 bg-white/5 p-2"
     >
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-white">
-          Fack {comp.fackNumber}
-        </span>
-        <span className="text-slate-200">
-          {formatNumber(fillLiters, 0)}
-          {hasVolumeCap
-            ? ` / ${formatNumber(comp.capacityLiters ?? 0, 0)} L`
-            : ' L'}
-        </span>
+      <div className="text-xs font-medium text-white">
+        Fack {comp.fackNumber}
       </div>
       <div className="mt-1 space-y-1 text-[11px] text-slate-300">
         <div>
-          Volym: {hasVolumeCap ? `${formatNumber(volumePercent, 1)} %` : '—'}
+          Volym:{' '}
+          {formatNumber(fillLiters, 0)}
+          {hasVolumeCap
+            ? ` / ${formatNumber(comp.capacityLiters ?? 0, 0)} L (${formatNumber(volumePercent, 1)} %)`
+            : ' L'}
         </div>
         <div>
           Vikt:{' '}
@@ -223,7 +219,7 @@ const HoverInfoBox: React.FC<HoverInfoBoxProps> = ({
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
               Fackinformation
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               {compartments.map((comp) =>
                 renderCompartment(
                   comp,
