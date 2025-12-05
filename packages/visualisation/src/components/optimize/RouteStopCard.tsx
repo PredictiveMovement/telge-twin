@@ -36,8 +36,10 @@ interface RouteStopCardProps {
   onDeleteBreak?: (stopId: string) => void;
   onDeleteTipping?: (stopId: string) => void;
   onDeleteRegularStop?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
   startTime?: string;
   currentStops?: Stop[];
+  showVehicleBadge?: boolean;
 }
 
 const RouteStopCard = ({
@@ -52,8 +54,10 @@ const RouteStopCard = ({
   onDeleteBreak,
   onDeleteTipping,
   onDeleteRegularStop,
+  onParkStop,
   startTime,
-  currentStops = []
+  currentStops = [],
+  showVehicleBadge = false
 }: RouteStopCardProps) => {
   if (stop.type === 'break' || stop.type === 'lunch') {
     return (
@@ -62,9 +66,9 @@ const RouteStopCard = ({
         listType={listType}
         isDragging={isDragging}
         onDragStart={onDragStart}
-        onUpdateDuration={onUpdateDuration}
         onUpdateBreak={onUpdateBreak}
         onDeleteBreak={onDeleteBreak}
+        onParkStop={onParkStop}
         startTime={startTime}
         stopIndex={index}
       />
@@ -80,23 +84,28 @@ const RouteStopCard = ({
         onDragStart={onDragStart}
         onUpdateTipping={onUpdateTipping}
         onDeleteTipping={onDeleteTipping}
+        onParkStop={onParkStop}
         startTime={startTime}
         stopIndex={index}
       />
     );
   }
-  
-      return (
-        <RegularStopCard
-          stop={stop}
-          index={index}
-          listType={listType}
-          isDragging={isDragging}
-          onDragStart={onDragStart}
-          onDeleteRegularStop={onDeleteRegularStop}
-          currentStops={currentStops}
-        />
-      );
+
+  return (
+    <RegularStopCard
+      stop={stop}
+      index={index}
+      listType={listType}
+      isDragging={isDragging}
+      onDragStart={onDragStart}
+      onDeleteRegularStop={onDeleteRegularStop}
+      onParkStop={onParkStop}
+      currentStops={currentStops}
+      startTime={startTime}
+      stopIndex={index}
+      showVehicleBadge={showVehicleBadge}
+    />
+  );
 };
 
 export default RouteStopCard;

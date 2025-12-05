@@ -17,6 +17,7 @@ interface TippingStopCardProps {
   onDragStart?: (e: React.DragEvent, id: string) => void;
   onUpdateTipping?: (stopId: string, updates: { duration?: number, estimatedTime?: string, address?: string }) => void;
   onDeleteTipping?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
   startTime?: string;
   stopIndex?: number;
 }
@@ -28,6 +29,7 @@ const TippingStopCard = ({
   onDragStart,
   onUpdateTipping,
   onDeleteTipping,
+  onParkStop,
   startTime = "06:00",
   stopIndex = 0
 }: TippingStopCardProps) => {
@@ -119,6 +121,7 @@ const TippingStopCard = ({
           onClose={handleModalClose}
           onUpdateTipping={onUpdateTipping}
           onDeleteTipping={onDeleteTipping}
+          onParkStop={onParkStop}
         />
       )}
     </div>

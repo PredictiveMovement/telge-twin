@@ -77,6 +77,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
   const [currentProgress, setCurrentProgress] = useState([0])
   const [optimizedProgress, setOptimizedProgress] = useState([0])
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [mapZoom, setMapZoom] = useState(12)
 
   // Current map state (left)
   const [currentMapStyle, setCurrentMapStyle] = useState(
@@ -254,6 +255,12 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
       setCurrentProgress([avgProgress])
       setOptimizedProgress([avgProgress])
     }
+
+    toast(
+      newMode === 'synchronized'
+        ? 'Synkroniserad uppspelning'
+        : 'Individuell uppspelning'
+    )
   }
 
   const handleSpeedChange = (target: MapColumn, speed: number) => {
@@ -520,16 +527,10 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
     }
 
     const title = target === 'current' ? 'Nuvarande körtur' : 'VROOM Optimering'
-    const headerBackground =
-      target === 'current'
-        ? 'bg-muted/30'
-        : 'bg-gradient-to-r from-telge-rod/10 to-telge-rod/20'
 
     return (
       <div className="bg-card rounded-lg border overflow-hidden">
-        <div
-          className={`${headerBackground} px-4 py-3 border-b flex items-center justify-between`}
-        >
+        <div className="bg-background px-4 py-3 border-b rounded-t-lg flex items-center justify-center">
           <div className="flex items-center gap-3">
             <div
               className={`w-3 h-3 rounded-full flex-shrink-0 ${renderStatusColor(
@@ -538,21 +539,6 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
             ></div>
             <h3 className="text-lg font-medium text-foreground">{title}</h3>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 hover:bg-accent/50 rounded-full transition-colors"
-                onClick={handleViewInMap}
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Fullskärm</p>
-            </TooltipContent>
-          </Tooltip>
         </div>
 
         <div className="relative">
@@ -621,20 +607,26 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
             )}
           </div>
 
-          <div className="absolute bottom-32 right-4 hidden md:flex flex-col gap-3">
-            <SettingsMenu
-              {...settingsMenuProps}
-              triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
-              triggerVariant="ghost"
-              triggerSize="icon"
-              iconClassName="h-4 w-4"
-              triggerTooltip="Kartinställningar"
-              contentClassName="bg-white/95 backdrop-blur"
-            />
+          <div className="absolute top-[calc(35%+28px)] -translate-y-1/2 right-4 hidden md:flex flex-col gap-3">
+            {/* Fullscreen button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  className="bg-white/90 text-gray-800 hover:bg-white hover:text-secondary h-8 w-8 transition-colors"
+                  onClick={handleViewInMap}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Fullskärm</p>
+              </TooltipContent>
+            </Tooltip>
 
             <LayersMenu
               {...layersMenuProps}
-              triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+              triggerClassName="bg-white/90 text-gray-800 hover:bg-white hover:text-secondary h-8 w-8 transition-colors"
               triggerVariant="ghost"
               triggerSize="icon"
               iconClassName="h-4 w-4"
@@ -648,7 +640,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
+                    className="text-gray-800 hover:bg-gray-100 hover:text-secondary h-6 w-6 rounded-full transition-colors"
                     onClick={handleZoomIn}
                   >
                     <ZoomIn className="h-3 w-3" />
@@ -656,15 +648,15 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
+                    className="text-gray-800 hover:bg-gray-100 hover:text-secondary h-6 w-6 rounded-full transition-colors"
                     onClick={handleZoomOut}
                   >
                     <ZoomOut className="h-3 w-3" />
                   </Button>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Zooma</p>
+              <TooltipContent side="left">
+                <p>Zoom in/ut</p>
               </TooltipContent>
             </Tooltip>
 
@@ -674,13 +666,13 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                   <DropdownMenuTrigger asChild>
                     <Button
                       size="icon"
-                      className="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                      className="bg-white/90 text-gray-800 hover:bg-white hover:text-secondary h-8 w-8 transition-colors"
                     >
                       <Gauge className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
-                <TooltipContent>
+                <TooltipContent side="left">
                   <p>Hastighet ({playbackSpeed}x)</p>
                 </TooltipContent>
               </Tooltip>
@@ -698,38 +690,24 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <SettingsMenu
+              {...settingsMenuProps}
+              triggerClassName="bg-white/90 text-gray-800 hover:bg-white hover:text-secondary h-8 w-8 transition-colors"
+              triggerVariant="ghost"
+              triggerSize="icon"
+              iconClassName="h-4 w-4"
+              triggerTooltip="Kartinställningar"
+              contentClassName="bg-white/95 backdrop-blur"
+            />
           </div>
 
-          <div className="absolute bottom-2 left-2 right-2 bg-black/20 rounded-lg p-2">
-            <div className="flex items-start gap-3">
-              <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 hover:bg-white/20"
-                      onClick={toggleSyncMode}
-                    >
-                      {controlMode === 'synchronized' ? (
-                        <Link className="h-4 w-4 text-white" />
-                      ) : (
-                        <Unlink className="h-4 w-4 text-white" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      {controlMode === 'synchronized'
-                        ? 'Synkroniserad uppspelning'
-                        : 'Individuell uppspelning'}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-
+          <div className="absolute bottom-10 left-2 right-2 bg-black/20 rounded-lg p-2 pt-6">
+            <div className="flex items-end gap-3">
+              <div className="flex flex-col items-center gap-2 flex-shrink-0 self-center h-11">
                 <Button
                   size="icon"
-                  className="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                  className="bg-white/90 text-gray-800 hover:bg-white hover:text-secondary h-8 w-8 transition-colors"
                   onClick={() => togglePlayback(target)}
                   disabled={isDisabled}
                 >
@@ -741,7 +719,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                 </Button>
               </div>
 
-              <div className="flex-1 pt-8">
+              <div className="flex-1 self-end pt-2">
                 <div className="space-y-2 relative">
                   <div className="relative">
                     <Slider
@@ -758,8 +736,8 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                           progress <= 10
                             ? '0'
                             : progress >= 90
-                            ? 'auto'
-                            : `${progress}%`,
+                              ? 'auto'
+                              : `${progress}%`,
                         right: progress >= 90 ? '0' : 'auto',
                         transform:
                           progress > 10 && progress < 90
@@ -787,9 +765,37 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderMapCard('current')}
-          {renderMapCard('optimized')}
+        <div className="relative">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-4">
+            {renderMapCard('current')}
+            {renderMapCard('optimized')}
+          </div>
+
+          {/* Sync button centered between cards */}
+          <div className="hidden md:block absolute left-1/2 top-[28px] -translate-x-1/2 z-10">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  className="h-12 w-12 rounded-full bg-white hover:bg-white border-2 border shadow-lg transition-all group"
+                  onClick={toggleSyncMode}
+                >
+                  {controlMode === 'synchronized' ? (
+                    <Link className="h-5 w-5 text-telge-rod group-hover:text-secondary transition-colors" />
+                  ) : (
+                    <Unlink className="h-5 w-5 text-gray-600 group-hover:text-secondary transition-colors" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {controlMode === 'synchronized'
+                    ? 'Synkroniserad uppspelning'
+                    : 'Individuell uppspelning'}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-end hidden">

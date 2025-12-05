@@ -18,8 +18,10 @@ interface RouteStopsColumnProps {
   onDeleteBreak?: (stopId: string) => void;
   onDeleteTipping?: (stopId: string) => void;
   onDeleteRegularStop?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
   startTime?: string;
   currentStops?: Stop[];
+  innerListRef?: React.Ref<HTMLDivElement>;
 }
 
 const RouteStopsColumn = ({
@@ -37,25 +39,35 @@ const RouteStopsColumn = ({
   onDeleteBreak,
   onDeleteTipping,
   onDeleteRegularStop,
+  onParkStop,
   startTime,
-  currentStops = []
+  currentStops = [],
+  innerListRef
 }: RouteStopsColumnProps) => {
   const isEditable = listType === 'optimized';
   const filteredStops = stops; // Show all stops in both columns
 
+  // Calculate if there are multiple different vehicles in the list
+  const uniqueVehicles = new Set(
+    stops
+      .filter(stop => stop.vehicle)
+      .map(stop => stop.vehicle)
+  );
+  const hasMultipleVehicles = uniqueVehicles.size > 1;
+
   return (
-    <div className="space-y-2 h-full overflow-y-auto">
+    <div ref={innerListRef} className="space-y-2 pr-2">
       {filteredStops.map((stop, index) => (
-        <div key={stop.id} className="relative">
+        <div key={stop.id} className="relative" data-stop-card>
           {/* Drop zone indicator before each item (only for optimized column when dragging) */}
           {isEditable && draggedItem && dragOverIndex === index && (
-            <div 
-              className="w-full h-1 bg-accent rounded-full mb-2 shadow-lg animate-pulse" 
-              style={{ height: '4px' }} 
+            <div
+              className="w-full h-1 bg-secondary rounded-full mb-2 shadow-lg animate-pulse"
+              style={{ height: '4px' }}
             />
           )}
-          
-          <div 
+
+          <div
             onDragOver={isEditable && onDragOver ? (e) => onDragOver(e, index) : undefined}
             onDragLeave={isEditable ? onDragLeave : undefined}
             onDrop={isEditable && onDrop ? (e) => onDrop(e, index) : undefined}
@@ -73,8 +85,10 @@ const RouteStopsColumn = ({
               onDeleteBreak={onDeleteBreak}
               onDeleteTipping={onDeleteTipping}
               onDeleteRegularStop={onDeleteRegularStop}
+              onParkStop={onParkStop}
               startTime={startTime}
               currentStops={currentStops}
+              showVehicleBadge={hasMultipleVehicles}
             />
           </div>
         </div>
@@ -82,9 +96,9 @@ const RouteStopsColumn = ({
       
       {/* Drop zone indicator at the end (only for optimized column when dragging) */}
       {isEditable && draggedItem && dragOverIndex === filteredStops.length && (
-        <div 
-          className="w-full h-1 bg-accent rounded-full mt-2 shadow-lg animate-pulse" 
-          style={{ height: '4px' }} 
+        <div
+          className="w-full h-1 bg-secondary rounded-full mt-2 shadow-lg animate-pulse"
+          style={{ height: '4px' }}
         />
       )}
       

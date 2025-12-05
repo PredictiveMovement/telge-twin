@@ -86,7 +86,7 @@ export default function ExperimentsTab() {
     experiment.createdAt || experiment.startDate
 
   const handleOpenExperimentDetails = (experimentId: string) => {
-    navigate(`/experiment/${experimentId}`)
+    navigate(`/optimize/${experimentId}`)
   }
 
   const totalVehicles = experiments.reduce(

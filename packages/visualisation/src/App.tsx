@@ -4,6 +4,7 @@ import NotFound from './pages/NotFound'
 import Index from './pages/Index'
 import RoutesPage from './pages/RoutesPage'
 import ExperimentDetailPage from './pages/ExperimentDetailPage'
+import OptimizePage from './pages/OptimizePage'
 import OptimizationProcessingPage from './pages/OptimizationProcessingPage'
 import SaveOptimizationProjectPage from './pages/SaveOptimizationProjectPage'
 
@@ -18,6 +19,10 @@ function App() {
         <Route
           path="/experiment/:experimentId"
           element={<ExperimentDetailPage />}
+        />
+        <Route
+          path="/optimize/:experimentId"
+          element={<OptimizePage />}
         />
         <Route
           path="/optimize/processing"

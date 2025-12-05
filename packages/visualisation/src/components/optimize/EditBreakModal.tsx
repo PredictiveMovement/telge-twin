@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, Trash2, ParkingCircle } from 'lucide-react';
 
 interface Stop {
   id: string;
@@ -20,9 +20,10 @@ interface EditBreakModalProps {
   onClose: () => void;
   onUpdateBreak: (stopId: string, updates: { duration?: number, estimatedTime?: string, address?: string }) => void;
   onDeleteBreak?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
 }
 
-const EditBreakModal: React.FC<EditBreakModalProps> = ({ stop, isOpen, onClose, onUpdateBreak, onDeleteBreak }) => {
+const EditBreakModal: React.FC<EditBreakModalProps> = ({ stop, isOpen, onClose, onUpdateBreak, onDeleteBreak, onParkStop }) => {
   const generateTimeOptions = () => {
     const options = [];
     for (let hour = 6; hour <= 16; hour++) {
@@ -41,6 +42,8 @@ const EditBreakModal: React.FC<EditBreakModalProps> = ({ stop, isOpen, onClose, 
   const [duration, setDuration] = useState(initialDuration);
   const [estimatedTime, setEstimatedTime] = useState(initialEstimatedTime);
   const [address, setAddress] = useState(initialAddress);
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   // Reset state when modal opens or stop changes
   useEffect(() => {
@@ -48,12 +51,29 @@ const EditBreakModal: React.FC<EditBreakModalProps> = ({ stop, isOpen, onClose, 
       const currentDuration = stop.duration || (stop.type === 'lunch' ? 30 : 15);
       const currentEstimatedTime = stop.estimatedTime || '';
       const currentAddress = stop.address || '';
-      
+
       setDuration(currentDuration);
       setEstimatedTime(currentEstimatedTime);
       setAddress(currentAddress);
+      setIsDeleteConfirming(false);
     }
   }, [isOpen, stop.id, stop.duration, stop.estimatedTime, stop.address, stop.type]);
+
+  // Handle click outside to reset delete confirmation
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (deleteButtonRef.current && !deleteButtonRef.current.contains(event.target as Node)) {
+        setIsDeleteConfirming(false);
+      }
+    };
+
+    if (isDeleteConfirming) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isDeleteConfirming]);
 
   const isLunch = stop.type === 'lunch';
 
@@ -77,10 +97,15 @@ const EditBreakModal: React.FC<EditBreakModalProps> = ({ stop, isOpen, onClose, 
   };
 
   const handleDelete = () => {
-    if (onDeleteBreak) {
-      onDeleteBreak(stop.id);
+    if (!isDeleteConfirming) {
+      setIsDeleteConfirming(true);
+    } else {
+      if (onDeleteBreak) {
+        onDeleteBreak(stop.id);
+      }
+      setIsDeleteConfirming(false);
+      onClose();
     }
-    onClose();
   };
 
   const handleDurationChange = (change: number) => {
@@ -157,16 +182,32 @@ const EditBreakModal: React.FC<EditBreakModalProps> = ({ stop, isOpen, onClose, 
         </div>
 
         <DialogFooter className="flex flex-row items-center justify-between w-full sm:flex-row sm:justify-between">
-          {onDeleteBreak && (
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete}
-            >
-              Ta bort
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {onDeleteBreak && (
+              <Button
+                ref={deleteButtonRef}
+                variant="secondary-destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                {isDeleteConfirming ? 'Klicka igen för att ta bort' : 'Ta bort'}
+              </Button>
+            )}
+            {onParkStop && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  onParkStop(stop.id);
+                  onClose();
+                }}
+              >
+                <ParkingCircle className="h-4 w-4 mr-1" />
+                Parkera
+              </Button>
+            )}
+          </div>
           <Button onClick={handleSave} disabled={!hasChanges}>
-            Spara ändringar
+            Spara
           </Button>
         </DialogFooter>
       </DialogContent>

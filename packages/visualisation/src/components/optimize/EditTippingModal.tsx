@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, Trash2, ParkingCircle } from 'lucide-react';
 
 interface Stop {
   id: string;
@@ -20,9 +20,10 @@ interface EditTippingModalProps {
   onClose: () => void;
   onUpdateTipping: (stopId: string, updates: { duration?: number, estimatedTime?: string, address?: string }) => void;
   onDeleteTipping?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
 }
 
-const EditTippingModal: React.FC<EditTippingModalProps> = ({ stop, isOpen, onClose, onUpdateTipping, onDeleteTipping }) => {
+const EditTippingModal: React.FC<EditTippingModalProps> = ({ stop, isOpen, onClose, onUpdateTipping, onDeleteTipping, onParkStop }) => {
   const generateTimeOptions = () => {
     const options = [];
     for (let hour = 6; hour <= 16; hour++) {
@@ -37,6 +38,41 @@ const EditTippingModal: React.FC<EditTippingModalProps> = ({ stop, isOpen, onClo
   const [duration, setDuration] = useState(stop.duration || 20);
   const [estimatedTime, setEstimatedTime] = useState(stop.estimatedTime || '');
   const [address, setAddress] = useState(stop.address || '');
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Reset delete confirmation when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsDeleteConfirming(false);
+    }
+  }, [isOpen]);
+
+  // Handle click outside to reset delete confirmation
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (deleteButtonRef.current && !deleteButtonRef.current.contains(event.target as Node)) {
+        setIsDeleteConfirming(false);
+      }
+    };
+
+    if (isDeleteConfirming) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isDeleteConfirming]);
+
+  // Check if any changes have been made
+  const currentDuration = stop.duration || 20;
+  const currentEstimatedTime = stop.estimatedTime || '';
+  const currentAddress = stop.address || '';
+
+  const hasChanges =
+    duration !== currentDuration ||
+    estimatedTime !== currentEstimatedTime ||
+    address !== currentAddress;
 
   const handleSave = () => {
     onUpdateTipping(stop.id, {
@@ -48,10 +84,15 @@ const EditTippingModal: React.FC<EditTippingModalProps> = ({ stop, isOpen, onClo
   };
 
   const handleDelete = () => {
-    if (onDeleteTipping) {
-      onDeleteTipping(stop.id);
+    if (!isDeleteConfirming) {
+      setIsDeleteConfirming(true);
+    } else {
+      if (onDeleteTipping) {
+        onDeleteTipping(stop.id);
+      }
+      setIsDeleteConfirming(false);
+      onClose();
     }
-    onClose();
   };
 
   const handleDurationChange = (change: number) => {
@@ -127,17 +168,33 @@ const EditTippingModal: React.FC<EditTippingModalProps> = ({ stop, isOpen, onClo
           </div>
         </div>
 
-        <DialogFooter className="flex items-center">
-          <Button 
-            variant="destructive" 
-            onClick={handleDelete}
-            disabled={!onDeleteTipping}
-            className="mr-auto"
-          >
-            Ta bort
-          </Button>
-          <Button onClick={handleSave}>
-            Spara ändringar
+        <DialogFooter className="flex flex-row items-center justify-between w-full sm:flex-row sm:justify-between">
+          <div className="flex gap-2">
+            {onDeleteTipping && (
+              <Button
+                ref={deleteButtonRef}
+                variant="secondary-destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                {isDeleteConfirming ? 'Klicka igen för att ta bort' : 'Ta bort'}
+              </Button>
+            )}
+            {onParkStop && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  onParkStop(stop.id);
+                  onClose();
+                }}
+              >
+                <ParkingCircle className="h-4 w-4 mr-1" />
+                Parkera
+              </Button>
+            )}
+          </div>
+          <Button onClick={handleSave} disabled={!hasChanges}>
+            Spara
           </Button>
         </DialogFooter>
       </DialogContent>

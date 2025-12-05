@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Trash2, ParkingCircle } from 'lucide-react';
 
 interface Stop {
   id: string;
@@ -20,6 +21,7 @@ interface EditRegularStopModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDeleteRegularStop?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
 }
 
 const EditRegularStopModal: React.FC<EditRegularStopModalProps> = ({
@@ -27,12 +29,44 @@ const EditRegularStopModal: React.FC<EditRegularStopModalProps> = ({
   isOpen,
   onClose,
   onDeleteRegularStop,
+  onParkStop,
 }) => {
-  const handleDelete = () => {
-    if (onDeleteRegularStop) {
-      onDeleteRegularStop(stop.id);
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Reset delete confirmation when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsDeleteConfirming(false);
     }
-    onClose();
+  }, [isOpen]);
+
+  // Handle click outside to reset delete confirmation
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (deleteButtonRef.current && !deleteButtonRef.current.contains(event.target as Node)) {
+        setIsDeleteConfirming(false);
+      }
+    };
+
+    if (isDeleteConfirming) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isDeleteConfirming]);
+
+  const handleDelete = () => {
+    if (!isDeleteConfirming) {
+      setIsDeleteConfirming(true);
+    } else {
+      if (onDeleteRegularStop) {
+        onDeleteRegularStop(stop.id);
+      }
+      setIsDeleteConfirming(false);
+      onClose();
+    }
   };
 
   return (
@@ -51,18 +85,34 @@ const EditRegularStopModal: React.FC<EditRegularStopModalProps> = ({
           </p>
         </div>
 
-        <DialogFooter className="flex gap-2 justify-end">
+        <DialogFooter className="flex flex-row items-center justify-between w-full sm:flex-row sm:justify-between">
+          <div className="flex gap-2">
+            {onDeleteRegularStop && (
+              <Button
+                ref={deleteButtonRef}
+                variant="secondary-destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                {isDeleteConfirming ? 'Klicka igen för att ta bort' : 'Ta bort'}
+              </Button>
+            )}
+            {onParkStop && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  onParkStop(stop.id);
+                  onClose();
+                }}
+              >
+                <ParkingCircle className="h-4 w-4 mr-1" />
+                Parkera
+              </Button>
+            )}
+          </div>
           <DialogClose asChild>
-            <Button variant="outline">Avbryt</Button>
+            <Button variant="outline">Stäng</Button>
           </DialogClose>
-          {onDeleteRegularStop && (
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete}
-            >
-              Ta bort stopp
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

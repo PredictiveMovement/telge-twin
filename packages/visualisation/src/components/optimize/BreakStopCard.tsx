@@ -18,6 +18,8 @@ interface BreakStopCardProps {
   onDragStart?: (e: React.DragEvent, id: string) => void;
   onUpdateBreak?: (stopId: string, updates: { duration?: number, estimatedTime?: string, address?: string }) => void;
   onDeleteBreak?: (stopId: string) => void;
+  onParkStop?: (stopId: string) => void;
+  startTime?: string;
   stopIndex?: number;
 }
 
@@ -28,6 +30,8 @@ const BreakStopCard = ({
   onDragStart,
   onUpdateBreak,
   onDeleteBreak,
+  onParkStop,
+  startTime = "06:00",
   stopIndex = 0
 }: BreakStopCardProps) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -112,6 +116,7 @@ const BreakStopCard = ({
           onClose={handleModalClose}
           onUpdateBreak={onUpdateBreak}
           onDeleteBreak={onDeleteBreak}
+          onParkStop={onParkStop}
         />
       )}
     </div>
