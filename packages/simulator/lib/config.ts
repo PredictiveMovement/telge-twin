@@ -13,9 +13,9 @@
  * Maximum number of bookings allowed in a single cluster before forcing subdivision
  * Used in: clustering.ts - splits large clusters to maintain performance
  * Impact: Prevents VROOM timeouts, ensures manageable route planning
- * Value reasoning: 300 chosen as balance between optimization quality and performance.
- * VROOM can handle up to ~500 shipments but performance degrades significantly above 300.
- * Testing showed 300 provides good optimization while keeping response times under 30s.
+ * Value reasoning: 500 allows VROOM to optimize entire truck routes without subdivision.
+ * With 2min timeout, VROOM can handle up to ~300 shipments effectively.
+ * Set to 500 to match MAX_VROOM_SHIPMENTS and avoid unnecessary geographic splits.
  */
 const MAX_CLUSTER_SIZE = 500
 
@@ -51,9 +51,10 @@ const FLEET_BUFFER_TIME_MS = 1000
  * Maximum timeout for VROOM API calls (milliseconds)
  * Used in: vroom.ts - prevents hanging requests
  * Impact: Must be high enough for complex route calculations
- * Recommended range: 20000-60000ms
+ * Recommended range: 20000-120000ms
+ * Updated to 120000ms (2 min) for large 249+ shipment optimizations
  */
-const VROOM_TIMEOUT_MS = 30000
+const VROOM_TIMEOUT_MS = 120000
 
 // ========================================================================
 // VROOM API LIMITS
@@ -72,8 +73,9 @@ const MAX_VROOM_JOBS = 200
  * Used in: vroom.ts - validates shipment count
  * Impact: Higher values slow down route optimization
  * Technical limit: ~500, Recommended: 200
+ * Updated to 500 to handle larger truck routes without fallback
  */
-const MAX_VROOM_SHIPMENTS = 200
+const MAX_VROOM_SHIPMENTS = 500
 
 /**
  * Maximum number of vehicles in a single VROOM request

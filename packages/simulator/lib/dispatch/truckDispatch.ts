@@ -474,7 +474,6 @@ export function mergeVroomChunkResults(
           booking,
         })
       })
-
   })
 
   return merged
