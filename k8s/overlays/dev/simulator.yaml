@@ -41,14 +41,14 @@ spec:
     spec:
       containers:
         - name: simulator
-          image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251205135244-545e2b6 # {"$imagepolicy": "flux-system:simulator-dev"}
+          image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251211150006-99740ec # {"$imagepolicy": "flux-system:simulator-dev"}
           imagePullPolicy: Always
           env:
             - name: ELASTICSEARCH_URL
               value: http://elasticsearch-master.elasticsearch-dev.svc.cluster.local:9200
       initContainers:
         - name: elastic-init
-          image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251205135244-545e2b6 # {"$imagepolicy": "flux-system:simulator-dev"}
+          image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251211150006-99740ec # {"$imagepolicy": "flux-system:simulator-dev"}
           imagePullPolicy: Always
           env:
             - name: ELASTICSEARCH_URL
