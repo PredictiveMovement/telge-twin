@@ -45,8 +45,7 @@ const RouteSearchTab: React.FC = () => {
   const resultsRef = useRef<HTMLDivElement>(null)
 
   const viewOptions = [
-    { value: "turid", label: "TurID" },
-    { value: "flottor", label: "Flottor" }
+    { value: "turid", label: "TurID" }
   ]
 
   // Get API call parameters based on selection (uses format() to avoid timezone issues)
