@@ -1,9 +1,15 @@
+import { Link } from "react-router-dom";
+
 export function SidebarHeader() {
   return (
-    <div className="flex items-center justify-center p-4">
-      <h1 className="font-prompt font-semibold text-sidebar-foreground text-base opacity-60">
-        Ruttger
-      </h1>
+    <div className="flex items-center justify-center px-2 py-4">
+      <Link to="/">
+        <img 
+          src="/ruttger_logo.svg" 
+          alt="Ruttger"
+          className="w-auto max-w-[65px] h-auto cursor-pointer hover:opacity-80 transition-opacity"
+        />
+      </Link>
     </div>
-  )
+  );
 }
