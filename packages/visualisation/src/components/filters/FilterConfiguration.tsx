@@ -1,4 +1,5 @@
 import React from 'react';
+import telgeSettings from '@/config/telge-settings.json';
 
 export interface FilterConfiguration {
   avftyper: Array<{ ID: string; BESKRIVNING: string }>;
@@ -9,6 +10,17 @@ export interface FilterConfiguration {
   vehicleTypes: Array<{ ID: string; BESKRIVNING: string }>;
   turids: Array<{ ID: string; BESKRIVNING: string }>;
 }
+
+// Get settings for translations lookup
+const settings = (telgeSettings as { settings?: any }).settings || {};
+const avfTypSettings = settings.avftyper || [];
+const tjTypSettings = settings.tjtyper || [];
+
+// Helper to find translation (case-insensitive)
+const findAvfTyp = (id: string) => 
+  avfTypSettings.find((a: any) => a.ID.toLowerCase() === id.toLowerCase());
+const findTjTyp = (id: string) => 
+  tjTypSettings.find((t: any) => t.ID.toLowerCase() === id.toLowerCase());
 
 interface FilterConfigurationProviderProps {
   avfallstyper: string[];
@@ -30,18 +42,24 @@ const FilterConfigurationProvider: React.FC<FilterConfigurationProviderProps> = 
   children
 }) => {
   const configuration: FilterConfiguration = {
-    avftyper: (avfallstyper || []).map((type) => ({
-      ID: type,
-      BESKRIVNING: type
-    })),
+    avftyper: (avfallstyper || []).map((type) => {
+      const existing = findAvfTyp(type);
+      return {
+        ID: existing?.ID || type,
+        BESKRIVNING: existing?.BESKRIVNING || type
+      };
+    }),
     bilar: (vehicleOptions || []).map(vehicle => ({
       ID: vehicle.id,
       BESKRIVNING: vehicle.display
     })),
-    tjtyper: (tjanstetyper || []).map((type) => ({
-      ID: type,
-      BESKRIVNING: type
-    })),
+    tjtyper: (tjanstetyper || []).map((type) => {
+      const existing = findTjTyp(type);
+      return {
+        ID: existing?.ID || type,
+        BESKRIVNING: existing?.BESKRIVNING || type
+      };
+    }),
     veckodagar: (veckodagar || []).map((day, index) => ({
       ID: (index + 1).toString(),
       BESKRIVNING: day

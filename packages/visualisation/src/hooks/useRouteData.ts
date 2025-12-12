@@ -74,7 +74,7 @@ export const useRouteData = () => {
     return vehicles.sort((a, b) => a.display.localeCompare(b.display))
   }, [routeData])
 
-  // Get avfallstyper in lowercase - MEMOIZED
+  // Get avfallstyper - MEMOIZED
   const avfallstyper = useMemo((): string[] => {
     if (!routeData || routeData.length === 0) {
       return []
@@ -82,7 +82,7 @@ export const useRouteData = () => {
     const uniqueValues = [...new Set(routeData.map(item => item.Avftyp))]
       .filter(value => value && value !== '--')
       .map(v => String(v))
-    return uniqueValues.map(type => type.toLowerCase()).sort()
+    return uniqueValues.sort()
   }, [routeData])
 
   // Get tjanstetyper - MEMOIZED

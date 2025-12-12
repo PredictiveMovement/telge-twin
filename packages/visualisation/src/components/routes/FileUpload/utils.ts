@@ -28,6 +28,11 @@ export const extractInfoFromData = (data: RouteRecord[]) => {
   const avfallstyper = new Set<string>()
   const tjtyper = new Set<string>()
 
+  // Get settings for translations lookup
+  const settings = (telgeSettings as { settings?: any }).settings || {}
+  const avfTypSettings = settings.avftyper || []
+  const tjTypSettings = settings.tjtyper || []
+
   data.forEach((record) => {
     const vehicleId = record.Bil
     if (!vehicles.has(vehicleId)) {
@@ -43,17 +48,23 @@ export const extractInfoFromData = (data: RouteRecord[]) => {
 
   return {
     bilar: Array.from(vehicles.values()),
-    avftyper: Array.from(avfallstyper).map((typ) => ({
-      ID: typ,
-      BESKRIVNING: typ,
-      VOLYMVIKT: 100,
-    })),
-    tjtyper: Array.from(tjtyper).map((typ) => ({
-      ID: typ,
-      BESKRIVNING: typ,
-      VOLYM: 0,
-      FYLLNADSGRAD: 100,
-    })),
+    avftyper: Array.from(avfallstyper).map((typ) => {
+      const existing = avfTypSettings.find((a: any) => a.ID === typ)
+      return {
+        ID: typ,
+        BESKRIVNING: existing?.BESKRIVNING || typ,
+        VOLYMVIKT: existing?.VOLYMVIKT || 100,
+      }
+    }),
+    tjtyper: Array.from(tjtyper).map((typ) => {
+      const existing = tjTypSettings.find((t: any) => t.ID === typ)
+      return {
+        ID: typ,
+        BESKRIVNING: existing?.BESKRIVNING || typ,
+        VOLYM: existing?.VOLYM || 0,
+        FYLLNADSGRAD: existing?.FYLLNADSGRAD || 100,
+      }
+    }),
   }
 }
 
