@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  Play,
-  Pause,
   Maximize2,
   List,
   Gauge,
@@ -16,8 +14,8 @@ import {
 import Map from '@/components/Map'
 import SettingsMenu from '@/components/SettingsMenu'
 import LayersMenu from '@/components/LayersMenu'
+import { MapPlaybackOverlay } from '@/components/map/MapPlaybackOverlay'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import {
   Tooltip,
   TooltipContent,
@@ -702,61 +700,15 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
             />
           </div>
 
-          <div className="absolute bottom-10 left-2 right-2 bg-black/20 rounded-lg p-2 pt-6">
-            <div className="flex items-end gap-3">
-              <div className="flex flex-col items-center gap-2 flex-shrink-0 self-center h-11">
-                <Button
-                  size="icon"
-                  className="bg-white/90 text-gray-800 hover:bg-white hover:text-secondary h-8 w-8 transition-colors"
-                  onClick={() => togglePlayback(target)}
-                  disabled={isDisabled}
-                >
-                  {isPlaying ? (
-                    <Pause className="h-3 w-3" fill="currentColor" />
-                  ) : (
-                    <Play className="h-3 w-3" fill="currentColor" />
-                  )}
-                </Button>
-              </div>
-
-              <div className="flex-1 self-end pt-2">
-                <div className="space-y-2 relative">
-                  <div className="relative">
-                    <Slider
-                      value={[progress]}
-                      max={100}
-                      step={1}
-                      disabled
-                      className="w-full [&_[data-slot=track]]:bg-telge-ljusgra [&_[data-slot=range]]:!bg-telge-telgerod [&_[data-slot=thumb]]:!border-telge-telgerod [&_[data-slot=thumb]]:!bg-telge-ljusgra"
-                    />
-                    <div
-                      className="absolute -top-8 bg-black/60 text-white px-2 py-1 rounded text-xs pointer-events-none transition-all duration-75 ease-linear"
-                      style={{
-                        left:
-                          progress <= 10
-                            ? '0'
-                            : progress >= 90
-                              ? 'auto'
-                              : `${progress}%`,
-                        right: progress >= 90 ? '0' : 'auto',
-                        transform:
-                          progress > 10 && progress < 90
-                            ? 'translateX(-50%)'
-                            : 'none',
-                      }}
-                    >
-                      {progressToTime(progress)}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-xs text-white">
-                    <span>{startTime}</span>
-                    <span>{endTime}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <MapPlaybackOverlay
+            progress={progress}
+            progressLabel={progressToTime(progress)}
+            startLabel={startTime}
+            endLabel={endTime}
+            isPlaying={isPlaying}
+            onTogglePlayback={() => togglePlayback(target)}
+            disabled={isDisabled}
+          />
         </div>
       </div>
     )

@@ -43,9 +43,9 @@ export const MapPlaybackOverlay: React.FC<MapPlaybackOverlayProps> = ({
   })()
 
   return (
-    <div className="absolute bottom-2 left-2 right-2 bg-black/20 rounded-lg p-2">
-      <div className="flex items-start gap-3">
-        <div className="flex flex-col items-center gap-2 flex-shrink-0">
+    <div className="absolute bottom-10 left-2 right-2 bg-black/20 rounded-lg p-2 pt-6">
+      <div className="flex items-end gap-3">
+        <div className="flex flex-col items-center gap-2 flex-shrink-0 self-center h-11">
           {extraControl}
 
           <Tooltip>
@@ -69,7 +69,7 @@ export const MapPlaybackOverlay: React.FC<MapPlaybackOverlayProps> = ({
           </Tooltip>
         </div>
 
-        <div className="flex-1 pt-8">
+        <div className="flex-1 self-end pt-2">
           <div className="space-y-2 relative">
             <div className="relative">
               <Slider
