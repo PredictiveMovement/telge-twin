@@ -35,7 +35,6 @@ interface OptimizeMapPanelProps {
   canRedo: boolean;
   onTogglePanel: () => void;
   onSave: () => void;
-  onSendToThor: () => void;
 }
 
 const OptimizeMapPanel = ({
@@ -58,7 +57,6 @@ const OptimizeMapPanel = ({
   canRedo,
   onTogglePanel,
   onSave,
-  onSendToThor
 }: OptimizeMapPanelProps) => {
   const vehicleOptions = useMemo(() => {
     const fallbackVehicles = ['401', '402', '403'];
@@ -123,14 +121,6 @@ const OptimizeMapPanel = ({
           
           {/* Docked Action Panel */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 flex justify-between gap-4">
-            <Button 
-              variant="outline"
-              size="lg"
-              onClick={onSendToThor}
-              className="flex-1"
-            >
-              Skicka till Thor
-            </Button>
             <Button 
               size="lg"
               onClick={onSave}

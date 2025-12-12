@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Route, Calendar, LayoutGrid, Leaf, MapPin } from 'lucide-react'
+import { Route, Calendar, Leaf, MapPin } from 'lucide-react'
 import type { ExperimentStatistics } from '@/api/simulator'
 
 interface OptimizeStatisticsProps {
@@ -27,32 +27,6 @@ const OptimizeStatistics = ({
       color: 'bg-telge-ljusgul',
     },
     {
-      title: 'Antal bokningar',
-      value: statistics ? formatNumber(statistics.bookingCount) : '-',
-      icon: Calendar,
-      color: 'bg-telge-telgegul',
-    },
-    {
-      title: 'Antal kluster',
-      value: statistics ? formatNumber(statistics.clusterCount) : '-',
-      icon: LayoutGrid,
-      color: 'bg-telge-ljusrod',
-    },
-    {
-      title: 'Körsträcka (optimerad)',
-      value: statistics
-        ? `${formatDecimal(statistics.totalDistanceKm)} km`
-        : '-',
-      icon: MapPin,
-      color: 'bg-telge-morkgul',
-    },
-    {
-      title: 'CO₂ (optimerad)',
-      value: statistics ? `${formatDecimal(statistics.totalCo2Kg)} kg` : '-',
-      icon: Leaf,
-      color: 'bg-telge-ljusgron',
-    },
-    {
       title: 'Körsträcka (original)',
       value: statistics?.baseline
         ? `${formatDecimal(statistics.baseline.totalDistanceKm)} km`
@@ -67,6 +41,26 @@ const OptimizeStatistics = ({
         : '-',
       icon: Leaf,
       color: 'bg-gray-200',
+    },
+    {
+      title: 'Antal bokningar',
+      value: statistics ? formatNumber(statistics.bookingCount) : '-',
+      icon: Calendar,
+      color: 'bg-telge-telgegul',
+    },
+    {
+      title: 'Körsträcka (optimerad)',
+      value: statistics
+        ? `${formatDecimal(statistics.totalDistanceKm)} km`
+        : '-',
+      icon: MapPin,
+      color: 'bg-telge-morkgul',
+    },
+    {
+      title: 'CO₂ (optimerad)',
+      value: statistics ? `${formatDecimal(statistics.totalCo2Kg)} kg` : '-',
+      icon: Leaf,
+      color: 'bg-telge-ljusgron',
     },
   ]
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Undo, Redo, Plus, ParkingCircle, History } from 'lucide-react';
+import { Undo, Redo, Plus, ParkingCircle } from 'lucide-react';
 import AddStopSheet from './AddStopSheet';
 import ParkingSheet from './ParkingSheet';
 import HistorySheet, { VersionSnapshot } from './HistorySheet';
@@ -98,21 +98,6 @@ const RouteStopsActions = ({
             </Button>
           </TooltipTrigger>
           <TooltipContent>Lägg till stopp</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 hover:bg-muted hover:text-muted-foreground"
-              onClick={() => setShowHistorySheet(prev => !prev)}
-              aria-label="Versionshistorik"
-            >
-              <History className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Versionshistorik</TooltipContent>
         </Tooltip>
 
         <Tooltip>

@@ -4,7 +4,6 @@ import { Map } from 'lucide-react';
 import { Stop } from '@/types/stops';
 
 interface OptimizeActionsProps {
-  onSendToThor?: () => void;
   onViewMap?: () => void;
   isMapLoading?: boolean;
   mapData?: {
@@ -14,7 +13,6 @@ interface OptimizeActionsProps {
 }
 
 const OptimizeActions: React.FC<OptimizeActionsProps> = ({
-  onSendToThor,
   onViewMap,
   isMapLoading = false,
   mapData
@@ -27,13 +25,6 @@ const OptimizeActions: React.FC<OptimizeActionsProps> = ({
 
   return (
     <div className="flex justify-end gap-4">
-      <Button 
-        variant="secondary" 
-        size="lg"
-        onClick={onSendToThor}
-      >
-        Skicka till Thor
-      </Button>
       <Button 
         onClick={handleMapClick}
         disabled={isMapLoading || !mapData}

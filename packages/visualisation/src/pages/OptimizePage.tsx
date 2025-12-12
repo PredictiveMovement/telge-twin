@@ -633,7 +633,6 @@ const OptimizePage = () => {
           savedProject={experiment ? { id: experiment.documentId, name: experiment.name || 'Experiment' } : undefined}
           hasChanges={routeStopsLogic.hasChangesFromOriginal}
           onSaveChanges={handleSaveRouteOrder}
-          onSendToThor={() => console.log('Send to Thor')}
           onViewMap={handleViewMap}
           isMapLoading={isMapLoading}
           mapData={mapData}
@@ -700,7 +699,6 @@ const OptimizePage = () => {
         )}
 
         <OptimizeActions
-          onSendToThor={() => console.log('Send to Thor')}
           onViewMap={handleViewMap}
           isMapLoading={isMapLoading}
           mapData={mapData}
