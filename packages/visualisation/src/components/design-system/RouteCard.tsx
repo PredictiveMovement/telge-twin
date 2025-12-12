@@ -2,6 +2,8 @@ import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Truck, Package, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { getVehicleLabel } from '@/lib/vehicleUtils'
+import { cn } from '@/lib/utils'
 
 type FackInfo = {
   number: number
@@ -43,11 +45,10 @@ export const RouteCard = ({
   const showFack = Array.isArray(fack) && fack.length > 0
 
   return (
-    <Card
-      className={`bg-white transition-colors duration-300 ${
-        isSelected ? 'ring-2 ring-telge-ljusgron' : ''
-      }`}
-    >
+    <Card className={cn(
+      "bg-white shadow-none transition-colors duration-300 ring-2",
+      isSelected ? "ring-secondary border-transparent" : "ring-transparent"
+    )}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">{title}</CardTitle>
       </CardHeader>
@@ -59,7 +60,7 @@ export const RouteCard = ({
             <Package className="h-4 w-4 text-muted-foreground" />
             <div className="flex flex-wrap gap-1">
               {wasteTypes.map((type, index) => (
-                <Badge key={index} variant="secondary" className="text-xs">
+                <Badge key={index} variant="wasteType" className="text-xs">
                   {type}
                 </Badge>
               ))}
@@ -67,18 +68,18 @@ export const RouteCard = ({
           </div>
         ) : null}
 
-        {/* Fordonsnummer */}
+        {/* Fordonsnummer med fordonstyp */}
         <div className="flex items-center gap-2">
           <Truck className="h-4 w-4 text-muted-foreground" />
           <div className="flex flex-wrap gap-1">
             {displayVehicles.map((vehicle, index) => (
-              <Badge
-                key={index}
-                variant="secondary"
-                className="bg-accent-secondary text-accent-secondary-foreground text-xs"
+              <Badge 
+                key={index} 
+                variant="vehicle" 
+                className="text-xs"
                 title={vehicleDescription}
               >
-                {vehicle}
+                {getVehicleLabel(vehicle)}
               </Badge>
             ))}
           </div>
@@ -88,10 +89,7 @@ export const RouteCard = ({
         {frequency && (
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Badge
-              variant="secondary"
-              className="bg-telge-ljusrod text-telge-svart text-xs"
-            >
+            <Badge variant="secondary" className="bg-telge-ljusrod text-telge-svart text-xs">
               {frequency}
             </Badge>
           </div>

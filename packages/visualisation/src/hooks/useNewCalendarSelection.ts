@@ -57,7 +57,7 @@ const getAvailableWeeks = () => {
 
 export const useNewCalendarSelection = () => {
   const today = new Date()
-  const [mode, setMode] = useState<SelectionMode>('range')
+  const [mode, setMode] = useState<SelectionMode>('individual')
   const [selectedDates, setSelectedDates] = useState<Date[]>([])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
   const [selectedWeeks, setSelectedWeeks] = useState<number[]>([])

@@ -49,41 +49,34 @@ const RouteSearchTab: React.FC = () => {
     { value: "flottor", label: "Flottor" }
   ]
 
-  // Get API call parameters based on selection
-  // Returns array of {from, to} objects for each API call needed
+  // Get API call parameters based on selection (uses format() to avoid timezone issues)
   const getApiCallParams = (): Array<{from: string, to: string}> => {
     if (mode === 'range' && dateRange?.from && dateRange?.to) {
-      // INTERVALL: Ett API-anrop med from och to
-      const fromStr = dateRange.from.toISOString().split('T')[0]
-      const toStr = dateRange.to.toISOString().split('T')[0]
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd')
+      const toStr = format(dateRange.to, 'yyyy-MM-dd')
       return [{ from: fromStr, to: toStr }]
     }
     
     if (mode === 'individual' && selectedDates.length > 0) {
-      // ENSKILDA DATUM: Ett API-anrop per datum där from === to
       return selectedDates.map(date => {
-        const dateStr = date.toISOString().split('T')[0]
+        const dateStr = format(date, 'yyyy-MM-dd')
         return { from: dateStr, to: dateStr }
       })
     }
     
     if (selectedWeeks.length > 0) {
-      // VECKOR: Om det är konsekutiva veckor i range-mode, ett anrop
-      // Annars ett anrop per datum i selectedDates
       if (mode === 'range' && selectedWeeks.length === 2) {
         const sortedWeeks = [...selectedWeeks].sort((a, b) => a - b)
         if (Math.abs(sortedWeeks[1] - sortedWeeks[0]) === 1) {
-          // Konsekutiva veckor - använd dateRange
           if (dateRange?.from && dateRange?.to) {
-            const fromStr = dateRange.from.toISOString().split('T')[0]
-            const toStr = dateRange.to.toISOString().split('T')[0]
+            const fromStr = format(dateRange.from, 'yyyy-MM-dd')
+            const toStr = format(dateRange.to, 'yyyy-MM-dd')
             return [{ from: fromStr, to: toStr }]
           }
         }
       }
-      // Icke-konsekutiva veckor eller individual mode - ett anrop per datum
       return selectedDates.map(date => {
-        const dateStr = date.toISOString().split('T')[0]
+        const dateStr = format(date, 'yyyy-MM-dd')
         return { from: dateStr, to: dateStr }
       })
     }
