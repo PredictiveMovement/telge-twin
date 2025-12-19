@@ -75,7 +75,7 @@ const MAX_VROOM_JOBS = 200
  * Technical limit: ~500, Recommended: 200
  * Updated to 500 to handle larger truck routes without fallback
  */
-const MAX_VROOM_SHIPMENTS = 200
+const MAX_VROOM_SHIPMENTS = 300
 
 /**
  * Maximum number of vehicles in a single VROOM request
