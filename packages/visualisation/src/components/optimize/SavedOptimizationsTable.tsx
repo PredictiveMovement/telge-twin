@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Trash2, Pencil, ArrowUpDown, ChevronUp, ChevronDown, Play } from 'lucide-react';
+import { Trash2, Pencil, ArrowUpDown, ChevronUp, ChevronDown, Play, Loader2 } from 'lucide-react';
 
 export interface SavedOptimization {
   id: string;
@@ -36,6 +36,7 @@ interface SavedOptimizationsTableProps {
   sortKey: 'name' | 'description' | 'createdAt';
   sortDir: 'asc' | 'desc';
   onRequestSort: (key: 'name' | 'description' | 'createdAt') => void;
+  loadingId?: string | null;
 }
 
 const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
@@ -46,6 +47,7 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
   sortKey,
   sortDir,
   onRequestSort,
+  loadingId,
 }) => {
   const getAriaSort = (key: 'name' | 'description' | 'createdAt') =>
     sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
@@ -116,8 +118,13 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
                     onClick={() => onOpen(opt)}
                     aria-label={`Starta ${opt.name}`}
                     title="Starta simulering"
+                    disabled={loadingId === opt.id}
                   >
-                    <Play size={14} />
+                    {loadingId === opt.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Play size={14} />
+                    )}
                   </Button>
                   <Button
                     variant="ghost"

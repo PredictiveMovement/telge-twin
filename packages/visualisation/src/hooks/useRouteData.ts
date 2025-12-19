@@ -27,6 +27,8 @@ export interface RouteCardData {
   volym: number
   vikt: number
   tjanstetyp?: string
+  /** True om turordning saknas (alla Turordningsnr är 0 eller samma värde) */
+  missingTurordning?: boolean
 }
 
 export interface VehicleOption {

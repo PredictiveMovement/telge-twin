@@ -154,16 +154,21 @@ const RouteSearchTab: React.FC = () => {
       routeGroups.forEach((bookings, routeKey) => {
         // Use first booking as base data
         const baseBooking = bookings[0]
-        
+
         // Aggregate data from all bookings
         const allAvfallstyper = [...new Set(bookings.map(b => b.Avftyp).filter(Boolean))]
         const allTjanstetyper = [...new Set(bookings.map(b => b.Tjtyp).filter(Boolean))]
         const totalBookings = bookings.length
-        
+
         // Find vehicle description
         const vehicleOption = routeDataHook.vehicleOptions.find(v => v.id === baseBooking.Bil)
         const vehicleDescription = vehicleOption?.display || baseBooking.Bil || 'Okänt'
-        
+
+        // Check if turordning is missing (all values are 0 or all same value)
+        const turordningValues = bookings.map(b => b.Turordningsnr ?? 0)
+        const uniqueTurordning = new Set(turordningValues)
+        const missingTurordning = uniqueTurordning.size <= 1
+
         generatedRoutes.push({
           id: `route_${routeKey}_${index}`,
           name: baseBooking.Turid || `Route_${index}`,
@@ -176,9 +181,10 @@ const RouteSearchTab: React.FC = () => {
           hamtningar: totalBookings,
           volym: bookings.reduce((sum, b) => sum + (b.Volym || 0), 0),
           vikt: bookings.reduce((sum, b) => sum + (b.Vikt || 0), 0),
-          tjanstetyp: allTjanstetyper[0]
+          tjanstetyp: allTjanstetyper[0],
+          missingTurordning
         })
-        
+
         index++
       })
       
@@ -498,18 +504,19 @@ const RouteSearchTab: React.FC = () => {
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {viewMode === 'turid' && filteredResults.map(route => (
-                    <div 
-                      key={route.id} 
-                      onClick={() => handleSearchRouteSelect(route.id)} 
+                    <div
+                      key={route.id}
+                      onClick={() => handleSearchRouteSelect(route.id)}
                       className="cursor-pointer"
                     >
-                      <RouteCard 
-                        title={route.name} 
-                        vehicleNumber={route.fordon} 
-                        wasteTypes={[route.avfallstyp]} 
-                        frequency={route.frekvens} 
-                        bookingsCount={route.hamtningar} 
-                        isSelected={selectedSearchRoutes.includes(route.id)} 
+                      <RouteCard
+                        title={route.name}
+                        vehicleNumber={route.fordon}
+                        wasteTypes={[route.avfallstyp]}
+                        frequency={route.frekvens}
+                        bookingsCount={route.hamtningar}
+                        isSelected={selectedSearchRoutes.includes(route.id)}
+                        missingTurordning={route.missingTurordning}
                       />
                     </div>
                   ))}

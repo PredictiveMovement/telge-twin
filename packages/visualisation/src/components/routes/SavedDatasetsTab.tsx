@@ -371,21 +371,23 @@ export default function SavedDatasetsTab() {
             </div>
           </div>
         ) : viewMode === 'table' ? (
-          <SavedOptimizationsTable 
-            optimizations={visibleOptimizations} 
-            onOpen={handleOpen} 
-            onDelete={handleRequestDelete} 
-            onEditName={handleOpenEdit} 
-            sortKey={sortKey} 
-            sortDir={sortDir} 
-            onRequestSort={handleRequestSort} 
+          <SavedOptimizationsTable
+            optimizations={visibleOptimizations}
+            onOpen={handleOpen}
+            onDelete={handleRequestDelete}
+            onEditName={handleOpenEdit}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onRequestSort={handleRequestSort}
+            loadingId={startingSimulation}
           />
         ) : (
-          <SavedOptimizationsGrid 
-            optimizations={visibleOptimizations} 
-            onOpen={handleOpen} 
-            onDelete={handleRequestDelete} 
-            onEditName={handleOpenEdit} 
+          <SavedOptimizationsGrid
+            optimizations={visibleOptimizations}
+            onOpen={handleOpen}
+            onDelete={handleRequestDelete}
+            onEditName={handleOpenEdit}
+            loadingId={startingSimulation}
           />
         )}
 

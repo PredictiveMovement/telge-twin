@@ -397,13 +397,16 @@ class Truck extends Vehicle {
       this.booking = null
     }
 
-    this.setStatus(this.instruction?.action || 'returning')
-    switch (this.status) {
+    // Keep 'planning' status until OSRM route is ready
+    // Wrap navigateTo in Promise.resolve since it may return a value directly when close to destination
+    const action = this.instruction?.action || 'returning'
+    switch (action) {
       case 'start':
-        return this.navigateTo(this.startPosition)
+        return Promise.resolve(this.navigateTo(this.startPosition)).then((result: any) => {
+          this.setStatus('start')
+          return result
+        })
       case 'pickup': {
-        this.status = 'toPickup'
-
         let pickupPosition = null
         if (this.booking?.pickup?.position) {
           pickupPosition = this.booking.pickup.position
@@ -421,13 +424,23 @@ class Truck extends Vehicle {
           )
         }
 
-        return this.navigateTo(pickupPosition)
+        return Promise.resolve(this.navigateTo(pickupPosition)).then((result: any) => {
+          this.setStatus('toPickup')
+          return result
+        })
       }
       case 'delivery':
-        return this.navigateTo(this.startPosition)
-      default:
-        if (!this.plan.length) this.status = 'returning'
-        return this.navigateTo(this.startPosition)
+        return Promise.resolve(this.navigateTo(this.startPosition)).then((result: any) => {
+          this.setStatus('delivery')
+          return result
+        })
+      default: {
+        const finalStatus = !this.plan.length ? 'returning' : action
+        return Promise.resolve(this.navigateTo(this.startPosition)).then((result: any) => {
+          this.setStatus(finalStatus)
+          return result
+        })
+      }
     }
   }
 
@@ -804,6 +817,8 @@ class Truck extends Vehicle {
       CLUSTERING_CONFIG.TRUCK_PLANNING_TIMEOUT_MS +
       Math.random() * CLUSTERING_CONFIG.TRUCK_PLANNING_RANDOM_DELAY_MS
     this._timeout = setTimeout(async () => {
+      this.setStatus('planning')
+
       if (this.fleet.settings.replayExperiment) {
         this.plan = await useReplayRoute(this, this.queue)
         // Ensure area partitions are saved for this truck in replay as well

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { StaticMap } from 'react-map-gl'
 import DeckGL from 'deck.gl'
 import { Button } from '@/components/ui/button'
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { Maximize2, Minimize2, Loader2 } from 'lucide-react'
 import { Car, Booking } from '@/types/map'
 import SettingsMenu from './SettingsMenu'
 import LayersMenu from './LayersMenu'
@@ -695,6 +695,11 @@ const Map: React.FC<MapProps> = ({
     showArcLayer,
   ])
 
+  // Check if any vehicle is planning (for global loading indicator)
+  const hasVehiclePlanning = useMemo(() => {
+    return cars.some((c) => c.status === 'planning')
+  }, [cars])
+
   // Keep refs in sync without re-creating the controller during animation
   useEffect(() => {
     currentViewStateRef.current = mapState
@@ -961,6 +966,27 @@ const Map: React.FC<MapProps> = ({
             format="time"
             position="top-right"
           />
+        )}
+
+        {/* Global planning indicator */}
+        {hasVehiclePlanning && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: showVirtualTime ? '180px' : '20px',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'rgba(0, 0, 0, 0.7)',
+              padding: '8px 12px',
+              borderRadius: '8px',
+            }}
+          >
+            <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+            <span className="text-sm text-white">Beräknar rutter...</span>
+          </div>
         )}
 
         {(isSimulationRunning || onPlayTime) && (

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Truck, Package, Calendar } from 'lucide-react'
+import { Truck, Package, Calendar, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { getVehicleLabel } from '@/lib/vehicleUtils'
 import { cn } from '@/lib/utils'
@@ -26,6 +26,9 @@ interface RouteCardProps {
   /** Extra info för TurID-kort */
   vehicleDescription?: string
   fack?: FackInfo[] // visar fack-spec om detta finns
+
+  /** Varning om turordning saknas i originaldata */
+  missingTurordning?: boolean
 }
 
 export const RouteCard = ({
@@ -40,6 +43,7 @@ export const RouteCard = ({
   isSelected = false,
   vehicleDescription,
   fack,
+  missingTurordning,
 }: RouteCardProps) => {
   const displayVehicles = vehicleNumbers || [vehicleNumber]
   const showFack = Array.isArray(fack) && fack.length > 0
@@ -50,7 +54,17 @@ export const RouteCard = ({
       isSelected ? "ring-secondary border-transparent" : "ring-transparent"
     )}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">{title}</CardTitle>
+        <div className="flex items-start justify-between">
+          <CardTitle className="text-lg">{title}</CardTitle>
+          {missingTurordning && (
+            <div
+              className="text-amber-500"
+              title="Turordning saknas i originaldata. Statistikjämförelse (original vs optimerad) blir ej tillgänglig."
+            >
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4">

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Trash2, Pencil, Play } from 'lucide-react';
+import { Calendar, Trash2, Pencil, Play, Loader2 } from 'lucide-react';
 
 export interface SavedOptimization {
   id: string;
@@ -18,6 +18,7 @@ interface SavedOptimizationsGridProps {
   onOpen: (optimization: SavedOptimization) => void;
   onDelete: (id: string) => void;
   onEditName: (optimization: SavedOptimization) => void;
+  loadingId?: string | null;
 }
 
 const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
@@ -25,6 +26,7 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
   onOpen,
   onDelete,
   onEditName,
+  loadingId,
 }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -59,8 +61,13 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
                 onClick={() => onOpen(opt)}
                 aria-label={`Starta ${opt.name}`}
                 title="Starta simulering"
+                disabled={loadingId === opt.id}
               >
-                <Play size={14} />
+                {loadingId === opt.id ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Play size={14} />
+                )}
               </Button>
               <Button
                 variant="ghost"

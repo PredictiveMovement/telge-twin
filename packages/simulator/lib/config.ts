@@ -54,7 +54,7 @@ const FLEET_BUFFER_TIME_MS = 1000
  * Recommended range: 20000-120000ms
  * Updated to 120000ms (2 min) for large 249+ shipment optimizations
  */
-const VROOM_TIMEOUT_MS = 120000
+const VROOM_TIMEOUT_MS = 240000
 
 // ========================================================================
 // VROOM API LIMITS
@@ -75,7 +75,7 @@ const MAX_VROOM_JOBS = 200
  * Technical limit: ~500, Recommended: 200
  * Updated to 500 to handle larger truck routes without fallback
  */
-const MAX_VROOM_SHIPMENTS = 500
+const MAX_VROOM_SHIPMENTS = 200
 
 /**
  * Maximum number of vehicles in a single VROOM request
