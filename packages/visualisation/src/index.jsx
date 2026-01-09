@@ -1,5 +1,5 @@
 import React from 'react'
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 import { SocketIOProvider } from './context/socketIOProvider'
@@ -29,7 +29,10 @@ const darkTheme = createTheme({
   },
 })
 
-ReactDOM.render(
+const container = document.getElementById('root')
+const root = createRoot(container)
+
+root.render(
   <SocketIOProvider
     url={import.meta.env.VITE_SIMULATOR_URL || 'http://localhost:4000'}
     opts={{ withCredentials: true }}
@@ -37,6 +40,5 @@ ReactDOM.render(
     <ThemeProvider theme={darkTheme}>
       <App />
     </ThemeProvider>
-  </SocketIOProvider>,
-  document.getElementById('root')
+  </SocketIOProvider>
 )

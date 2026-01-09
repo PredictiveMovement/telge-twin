@@ -11,3 +11,5 @@ data/parameteres.json
 !.cache/pelias/
 .env
 *.zip
+dist/
+coverage/

@@ -1,266 +1,185 @@
 # Simulator and Visualization Integration
 
-This document explains how the simulator and visualization packages communicate with each other, what data is exchanged, and how the data is processed.
+This document describes how `packages/simulator` and `packages/visualisation` communicate, what events flow in each direction, and how experiments, sessions and data rendering work in the current codebase.
 
 ## Overview
 
-The simulator and visualization packages use a real-time communication mechanism via Socket.IO. The simulator acts as a Socket.IO server that emits events with simulation data, while the visualization acts as a client that listens for these events and updates its UI accordingly.
-
-## Communication Flow
+- Real-time over Socket.IO
+- Backend: `packages/simulator/web/index.ts` (Express + Socket.IO); routes and socket handlers in `packages/simulator/web/routes.ts`
+- Frontend: `packages/visualisation` (React/Vite) connects via a Socket.IO client in hooks under `src/hooks`
 
 ```
-┌─────────────┐                        ┌──────────────┐
-│             │        Socket.IO        │              │
-│  Simulator  │ ◄──────────────────────┤ Visualization │
-│             │ ──────────────────────► │              │
-└─────────────┘                        └──────────────┘
-    (Server)                               (Client)
+Simulator (server)  ⇄  Visualization (client)
 ```
 
-1. The simulator runs an HTTP server with Socket.IO enabled.
-2. The visualization connects to this server via WebSockets.
-3. The simulator emits events containing simulation data.
-4. The visualization listens for these events and updates the UI accordingly.
-5. The visualization can also emit events to control the simulator (e.g., reset, change parameters).
+## Two modes: Global simulation vs Session replay
 
-## Server-Side (Simulator)
+- Global simulation ("live")
 
-The simulator package sets up a Socket.IO server in `packages/simulator/web/index.js`:
+  - Started via socket `startSimulation` from the UI (e.g., from Saved Datasets)
+  - Persists an experiment document in Elasticsearch (index `experiments`) with id and metadata
+  - Visualisation listens via `joinMap` and receives global events
 
-```javascript
-const server = require("http").createServer(ok)
-const io = require("socket.io")(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
-})
+- Session replay / sequential session (comparison)
+  - Started via `startSessionReplay` (VROOM replay) or `startSequentialSession` (original data replay)
+  - Does NOT persist a new experiment document. Sequential sessions are also marked `isReplay: true` to skip metadata writes
+  - Events are scoped to a session room with `sessionId` and payload wrapper
 
-server.listen(port)
-routes.register(io)
-```
+## Server-side (key files)
 
-When a client connects, the server sets up event listeners and starts emitting data in `packages/simulator/web/routes.js`:
+- `packages/simulator/web/index.ts`
 
-```javascript
-io.on("connection", function (socket) {
-  start(socket, io)
-  // ...
-  socket.emit("parameters", socket.data.experiment.parameters)
-  socket.emit("init")
-  // ...
-})
-```
+  - REST API for experiments/datasets and helper endpoints (e.g., `prepare-replay`, `prepare-sequential`)
+  - GET `/api/experiments` returns only optimized experiments: either explicitly `experimentType === 'vroom'` or those with VROOM truck plans (via `vehicleCount > 0`)
+  - GET `/api/experiments/:experimentId` returns one experiment by id
 
-## Data Types and Emitters
+- `packages/simulator/web/routes.ts`
 
-The simulator includes various data emitters that send different types of simulation data:
+  - Socket handlers
+  - `startSimulation`: creates a new global experiment and emits `simulationStarted`
+  - `startSessionReplay`: creates a non-persistent session experiment and emits `sessionStarted`
+  - `startSequentialSession`: creates a non-persistent session experiment and emits `sessionStarted`
 
-### Cars Data
+- `packages/simulator/web/controllers/ExperimentController.ts`
 
-```javascript
-// From packages/simulator/web/routes/cars.js
-experiment.cars.pipe(map(cleanCars)).subscribe((car) => {
-  socket.emit("cars", [car])
-})
+  - `createGlobalExperiment(...)`: creates and persists experiment metadata
+  - `createSessionExperiment(...)`: creates a session-scoped experiment; used by replay and sequential
+  - We set `isReplay: true` for sequential sessions to avoid saving a new ES experiment document
 
-experiment.carUpdates.pipe(/* ... */).subscribe((cars) => {
-  if (!cars.length) return
-  socket.volatile.emit("cars", cars)
-})
-```
+- `packages/simulator/index.ts`
+  - Engine that wires regions, streams and statistics
+  - If `isReplay` is true, experiment metadata is not saved to Elasticsearch
 
-Car data includes:
+## Events and payloads
 
-- Position (longitude, latitude)
-- ID
-- Destination
-- Speed
-- Bearing
-- Status
-- Fleet information
-- Cargo information
-- CO2 emissions
-- Distance traveled
-- Vehicle type
-- And more
+- Global (no session):
 
-### Bookings Data
+  - `simulationStatus`, `simulationStarted`, `simulationStopped`
+  - `cars`, `bookings`, `parameters`, `time`
+  - Payloads are raw objects/arrays
 
-Booking data represents pickup and delivery tasks:
+- Session (replay/sequential):
+  - `sessionStarted`, `sessionStopped`, `sessionError`
+  - `cars`, `bookings`, `virtualTime` are sent as `{ sessionId, payload }`
+  - Frontend components (e.g., `SimulationView`) unwrap and filter by `sessionId`
 
-```javascript
-// From packages/simulator/web/routes/bookings.js
-experiment.bookingUpdates.pipe(/* ... */).subscribe((bookings) => {
-  if (!bookings.length) return
-  socket.volatile.emit("bookings", bookings)
-})
-```
+## Client-side (key files)
 
-Booking data includes:
+- `packages/visualisation/src/hooks/useMapSocket.ts`
 
-- Pickup location
-- Destination location
-- Status
-- ID
-- Fleet assignment
-- Timestamps
+  - Socket connection for the map and helpers to emit control events
 
-### Municipalities Data
+- `packages/visualisation/src/pages/MapPage.tsx`
 
-Geographic data for municipalities:
+  - Subscribes to global events; shows the live map when a global experiment is running
+  - Fetches `experiment` by `experimentId` and passes `areaPartitions` to `Map`
 
-```javascript
-// From packages/simulator/web/routes/municipalities.js
-experiment.municipalities.subscribe((municipality) => {
-  socket.emit("municipalities", municipality)
-})
-```
+- `packages/visualisation/src/components/common/SimulationView.tsx`
 
-### Other Data Types
+  - Starts session replay/sequential via REST prepare endpoints and then socket start events
+  - Listens to session-scoped events with `{ sessionId, payload }`
 
-- **Time data**: Virtual simulation time
-- **Log messages**: Important events and notifications
-- **Parameters**: Simulation configuration parameters
+- `packages/visualisation/src/components/Map.tsx`
+  - Renders vehicles, bookings, destinations, optional arcs and polygons
+  - Supports toggling layers via `SettingsMenu`
+  - Renders area partitions as polygons when `areaPartitions` prop is provided
 
-## Client-Side (Visualization)
+## Area partitions
 
-The visualization connects to the simulator's Socket.IO server in `packages/visualisation/src/index.jsx`:
+- Backend may store area partitions on the experiment document (`experiments.areaPartitions`)
+- Frontend passes `experiment.areaPartitions` to `Map`:
+  - Experiment comparison view passes directly via `SimulationView`
+  - Live map (`MapPage`) fetches the current experiment and forwards partitions to `Map`
+  - Layer toggle "Area partitioner (kluster)" controls visibility
 
-```javascript
-<SocketIOProvider
-  url={import.meta.env.VITE_SIMULATOR_URL || "http://localhost:4000"}
-  opts={{ withCredentials: true }}
->
-  <App />
-</SocketIOProvider>
-```
+## Control flow (client → server)
 
-The visualization sets up event listeners using a custom `useSocket` hook:
+- Global:
 
-```javascript
-// From packages/visualisation/src/App.jsx
-const [cars, setCars] = React.useState([])
-useSocket("cars", (newCars) => {
-  setReset(false)
-  setCars((cars) => [
-    ...cars.filter((car) => !newCars.some((nc) => nc.id === car.id)),
-    ...newCars,
-  ])
-})
+  - `startSimulation` (dataset-based global run)
+  - `stopSimulation`
+  - `joinMap` / `leaveMap`
 
-const [bookings, setBookings] = React.useState([])
-useSocket("bookings", (newBookings) => {
-  // Process and store bookings data
-})
-```
+- Session:
+  - Prepare via REST: `/api/simulation/prepare-replay` or `/api/simulation/prepare-sequential`
+  - Start via socket: `startSessionReplay` or `startSequentialSession`
+  - Time controls: `sessionPlay` / `sessionPause` / `sessionSpeed` / `sessionReset`
 
-## Data Processing and Transformation
+## Performance
 
-Both packages perform data transformations:
-
-1. **Simulator to Socket.IO**: The simulator transforms internal data models into a serializable format suitable for Socket.IO transmission.
-
-2. **Socket.IO to Visualization**: The visualization processes the received data to match the format required by the UI components.
-
-For example, car data is transformed using the `cleanCars` function:
-
-```javascript
-// From packages/simulator/web/routes/cars.js
-const cleanCars = ({
-  position: { lon, lat },
-  id,
-  altitude,
-  destination,
-  speed,
-  /* ... */
-}) => ({
-  id,
-  destination: (destination && [destination.lon, destination.lat]) || null,
-  position: [lon, lat, altitude || 0],
-  /* ... */
-})
-```
-
-## Control Flow (Visualization to Simulator)
-
-The visualization can control the simulator by emitting events:
-
-```javascript
-// From packages/visualisation/src/App.jsx
-const restartSimulation = () => {
-  setShowEditExperimentModal(false)
-  socket.emit("experimentParameters", experimentParameters)
-}
-
-const resetSimulation = () => {
-  socket.emit("reset")
-}
-```
-
-Control events include:
-
-- `reset`: Restart the simulation
-- `experimentParameters`: Update simulation parameters
-- `speed`: Control the simulation speed
-- `pause` / `play`: Control simulation playback
-
-## Buffering and Performance Optimizations
-
-To handle high-frequency data updates efficiently, the simulator implements buffering and filtering:
-
-```javascript
-// From packages/simulator/web/routes/cars.js
-experiment.carUpdates
-  .pipe(
-    windowTime(100), // Group updates in 100ms windows
-    mergeMap((win) =>
-      win.pipe(
-        groupBy((car) => car.id), // Group by car ID
-        mergeMap((cars) => cars.pipe(last())) // Take only the latest update
-      )
-    ),
-    /* Additional filtering */
-    bufferTime(100, null, 100) // Buffer updates for 100ms
-  )
-  .subscribe((cars) => {
-    if (!cars.length) return
-    socket.volatile.emit("cars", cars) // Use volatile for better performance
-  })
-```
-
-Key optimizations:
-
-- `windowTime` and `bufferTime` to reduce update frequency
-- `volatile` emit for non-critical updates (allows dropping packets)
-- Filtering to send only necessary data
-- Client-side state merging to handle updates efficiently
-
-## Reactive Programming with RxJS
-
-The simulator uses RxJS to handle asynchronous data streams:
-
-1. Observable streams are created for simulation entities (cars, bookings, etc.)
-2. Operators like `map`, `filter`, and `bufferTime` process and transform the data
-3. Subscribers emit the processed data via Socket.IO
-
-This reactive approach allows for efficient handling of complex, real-time data flows.
+- RxJS on the server: streams per entity type (cars, bookings, time)
+- Throttling and buffering (e.g., volatile emits, throttleTime) to reduce network load
+- Client merges/upserts incoming lists by id
 
 ## Configuration
 
-The server URL is configurable via environment variables:
+- Simulator: `PORT`, `ELASTICSEARCH_URL`
+- Visualization: `VITE_SIMULATOR_URL`, `VITE_MAPBOX_ACCESS_TOKEN`
 
-- **Simulator**: Uses `process.env.PORT` (defaults to 4000)
-- **Visualization**: Uses `import.meta.env.VITE_SIMULATOR_URL` (defaults to 'http://localhost:4000')
+## Experiments listing
 
-## Summary
+- Server returns only optimized experiments to the UI (VROOM runs)
+- Sequential/session replays do not create new experiment documents
 
-The integration between the simulator and visualization packages is built on:
+This reflects the current code paths and event shapes in the repository.
 
-1. **Socket.IO**: For real-time, bidirectional communication
-2. **RxJS**: For processing reactive data streams on the server
-3. **React Hooks**: For handling WebSocket events on the client
-4. **Data Transformation**: For converting between internal and transmission formats
+## Cluster transitions (last→first) and debug layers
 
-This architecture allows for efficient, real-time visualization of the simulation data with optimized network usage and responsive UI updates.
+This section explains how the system computes and renders transitions from the last pickup in one cluster (area partition) to the first pickup in the next cluster, and how to use the debug layers in the map to inspect them.
+
+### Backend responsibilities
+
+- Clustering and persistence
+
+  - File: `packages/simulator/lib/clustering.ts`
+  - Produces area partitions per `truckId` and persists them to the `experiments` document in Elasticsearch under `areaPartitions`.
+  - Merge behavior: when saving, the code now removes existing partitions only for the `truckId`s being written, then appends the new ones, so partitions from other trucks remain intact.
+
+- VROOM planning across clusters
+
+  - File: `packages/simulator/lib/dispatch/truckDispatch.ts`
+  - Each cluster is optimized with VROOM. The start for cluster N+1 is dynamically set to the last pickup location of cluster N (`currentStart`).
+  - When large clusters are subdivided, an explicit `idToBooking` mapping is carried through and used when merging results to reliably map VROOM steps back to bookings.
+
+- Partition save trigger per truck
+  - File: `packages/simulator/lib/vehicles/truck.ts`
+  - After a truck obtains its plan (VROOM or replay), it calls `createSpatialChunks(...)` to persist that truck’s partitions, ensuring all vehicles’ partitions are saved.
+
+### Data available to the frontend
+
+- `experiments._doc[experimentId].areaPartitions`: polygons, centroids, names, and `truckId`s for all clusters.
+- `vroomPlan.routes`: per-vehicle routes with ordered `steps` (including `type: 'pickup'`). The frontend uses these steps to determine actual last/first points inside partitions.
+
+### Frontend rendering of transitions
+
+- File: `packages/visualisation/src/components/Map.tsx`
+- The map exposes debug toggles through `SettingsMenu` (see `packages/visualisation/src/components/SettingsMenu/*`):
+
+  - Enable Debug mode
+  - Show cluster centroids
+  - Show cluster order
+  - Show transitions (last→first)
+
+- When "Show transitions (last→first)" is enabled:
+
+  1. For each route in `vroomPlan.routes`, the code filters steps to `type: 'pickup'`.
+  2. Each pickup coordinate is mapped to a partition using point-in-polygon (with bounding-box fallback).
+  3. For every visited partition in the route, the first and last pickup coordinates are captured.
+  4. For each consecutive pair of visited partitions `(Pi, Pi+1)`, a segment is drawn from `last(Pi)` to `first(Pi+1)`.
+  5. Endpoint markers are rendered: red for the end of the current partition and green for the start of the next.
+
+- Additional debug layers:
+  - Centroids and labels (`K#order • count • types`) with zoom-aware sizing and dark backgrounds for readability.
+  - Cluster order path per vehicle for a quick macro overview (greedy nearest-neighbor through centroids; for analysis only, not the exact VROOM path).
+  - Area partitions are drawn with reduced opacity in debug mode to improve contrast with overlays.
+
+### Usage tips
+
+- Start a VROOM-optimized simulation or open an experiment so that both `areaPartitions` and `vroomPlan.routes` are available.
+- In the Layers menu, enable Debug mode and toggle on "Show transitions (last→first)". Optionally enable centroids and cluster order for additional context.
+- Transitions are computed for all vehicles, not just the active one.
+
+### Troubleshooting
+
+- Missing transitions: ensure `vroomPlan.routes` is fetched on the frontend (see `packages/visualisation/src/pages/MapPage.tsx`) and that pickup steps exist.
+- Partitions missing: verify the `experiments` document contains `areaPartitions` for all trucks. Because the backend merges by `truckId`, both vehicles need to trigger `createSpatialChunks(...)` after planning to persist their partitions.

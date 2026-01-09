@@ -1,0 +1,56 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simulator-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  tls:
+    - hosts:
+        - dev.telge.iteam.pub
+      secretName: telge-dev-tls
+  rules:
+    - host: dev.telge.iteam.pub
+      http:
+        paths:
+          - path: /socket\.io(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: simulator
+                port:
+                  number: 4000
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: simulator
+                port:
+                  number: 4000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulator
+spec:
+  template:
+    spec:
+      containers:
+        - name: simulator
+          image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251219130325-9cab1fb # {"$imagepolicy": "flux-system:simulator-dev"}
+          imagePullPolicy: Always
+          env:
+            - name: ELASTICSEARCH_URL
+              value: http://elasticsearch-master.elasticsearch-dev.svc.cluster.local:9200
+      initContainers:
+        - name: elastic-init
+          image: ghcr.io/predictivemovement/telge-twin-simulator:dev-20251219130325-9cab1fb # {"$imagepolicy": "flux-system:simulator-dev"}
+          imagePullPolicy: Always
+          env:
+            - name: ELASTICSEARCH_URL
+              value: http://elasticsearch-master.elasticsearch-dev.svc.cluster.local:9200
+          command: ["node", "dist/preboot.js"]

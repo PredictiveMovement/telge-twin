@@ -1,220 +1,216 @@
-# VROOM Vehicle Routing System
+# VROOM — truck-level route optimization (as implemented)
 
-## Overview
+## Architecture
 
-VROOM (Vehicle Routing Open-source Optimization Machine) is used within the system to optimize the routing of vehicles for pickup and delivery operations. The system employs VROOM at multiple levels to efficiently assign bookings to vehicles and determine optimal routes.
+VROOM operates as part of the digital twin's distributed architecture:
 
-## Integration Points
+- Full-stack TypeScript
+- Backend: `packages/simulator` orchestrates VROOM
+- External VROOM service + OSRM
+- Frontend: `packages/visualisation` renders results
 
-VROOM planning is performed at multiple points in the system:
+The system processes real route data from Telge Återvinning and provides both simulation and real-time optimization capabilities.
 
-1. **Fleet-level Routing** - The `Fleet` class uses VROOM to dispatch bookings to vehicles
-2. **Individual Vehicle Routing** - Trucks use VROOM to plan optimal routes for assigned bookings
-3. **Booking Clustering** - VROOM optimizes routes for clustered bookings
+## Integration points
 
-## VROOM Planning Process
+VROOM planning is performed at the truck level in the system:
 
-### 1. Fleet Dispatcher (High-Level Planning)
+1. **Individual Vehicle Routing** - Trucks use VROOM to plan optimal routes for assigned bookings
+2. **Booking Clustering** - VROOM optimizes routes for clustered bookings within individual trucks
+3. **Cluster Ordering** - VROOM solves TSP problems to determine optimal order between clusters
 
-When bookings come into the system, the `Fleet` class collects them for a short period (1 second), then processes them in batches:
+## Planning flow
+
+### Fleet dispatch (simple assignment)
+
+When bookings come into the system, the `Fleet` class collects them for a short period (1 second), then assigns them to trucks using round-robin dispatch:
 
 ```javascript
-// From fleet.js
-startDispatcher() {
+// From fleet.ts - startVroomDispatcher()
+startVroomDispatcher() {
   this.dispatchedBookings = this.unhandledBookings.pipe(
-    bufferTime(1000),
+    bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
     filter((bookings) => bookings.length > 0),
-    clusterByPostalCode(200, 5), // cluster bookings if we have more than what Vroom can handle
     withLatestFrom(this.cars.pipe(toArray())),
-    convertToVroomCompatibleFormat(),
-    planWithVroom(),     // First VROOM planning occurs here
-    convertBackToBookings(),
-    filter(({ booking }) => !booking.assigned),
-    mergeMap(({ car, booking }) => {
-      return car.handleBooking(booking)
+
+    mergeMap(([bookings, cars]) => {
+      const unassignedBookings = bookings.filter(booking => !booking.assigned)
+      return this.handleBookingBatch(unassignedBookings, cars) // Round-robin dispatch
     })
   )
   return this.dispatchedBookings
 }
 ```
 
-This high-level planning assigns bookings to specific vehicles based on optimized routing calculations from VROOM.
+The dispatcher assigns bookings round‑robin to available vehicles.
 
-### 2. Vehicle-Level Routing (Detailed Planning)
+### Truck-level (VROOM details)
 
-Once bookings are assigned to vehicles, each vehicle (truck) plans its route using VROOM again:
+Once bookings are assigned to trucks, each truck plans its route using a sophisticated multi-level VROOM approach:
 
 ```javascript
-// From truck.js
-async handleBooking(booking) {
-  // Add booking to vehicle's queue
-  this.queue.push(booking)
-  booking.assign(this)
-  booking.queued(this)
+// From truckDispatch.ts
+export async function findBestRouteToPickupBookings(
+  experimentId: string,
+  truck: any,
+  bookings: any[]
+): Promise<Instruction[] | undefined> {
+  try {
+    // 1. Create spatial clusters from truck's bookings
+    const chunks = createSpatialChunks(
+      bookings,
+      CLUSTERING_CONFIG.MAX_CLUSTER_SIZE,
+      experimentId
+    )
 
-  clearTimeout(this._timeout)
-  this._timeout = setTimeout(async () => {
-    if (this.queue.length > 100) {
-      // For large queues, cluster bookings first
-      const clusters = (
-        await clusterPositions(this.queue, Math.ceil(this.queue.length / 70))
-      ).sort(
-        (a, b) =>
-          this.position.distanceTo(a.center) -
-          this.position.distanceTo(b.center)
-      )
+    // 2. Determine optimal order between clusters using VROOM TSP
+    const orderedChunks = await orderChunksWithVroom(chunks, truckStart)
 
-      this.plan = [
-        { action: 'start' },
-        ...(await firstValueFrom(
-          from(clusters).pipe(
-            mergeMap(
-              async (cluster) =>
-                await findBestRouteToPickupBookings(this, cluster.items, [  // Second VROOM planning
-                  'pickup',
-                ]),
-              1
-            ),
-            mergeAll(),
-            toArray()
-          )
-        )),
-        { action: 'delivery' },
-        { action: 'end' },
-      ]
-    } else {
-      // For smaller queues, plan direct route
-      this.plan = await findBestRouteToPickupBookings(this, this.queue)  // Second VROOM planning
+    // 3. Optimize each cluster separately with VROOM
+    const chunkResults = []
+    for (const chunk of orderedChunks) {
+      const vehicles = [truckToVehicle(truck, 0)]
+      const shipments = chunk.bookings.map(bookingToShipment)
+      const result = await plan({ shipments, vehicles }) // VROOM planning
+      chunkResults.push({ result, chunk })
     }
-    if (!this.instruction) await this.pickNextInstructionFromPlan()
-  }, 2000)
 
-  return booking
+    return mergeVroomChunkResults(chunkResults, instructions)
+  } catch (e) {
+    error(`findBestRouteToPickupBookings failed for truck ${truck.id}:`, e)
+  }
 }
 ```
 
-The `findBestRouteToPickupBookings` function uses VROOM to plan the detailed route:
+`findBestRouteToPickupBookings` använder VROOM i två faser:
+
+1. **Cluster Ordering (TSP)**: Determines optimal order to visit clusters
+2. **Intra-Cluster Optimization**: Optimizes route within each cluster
+
+## Klustring och VROOM tillsammans
+
+The system integrates clustering with vehicle routing at the truck level to optimize performance and route quality:
+
+### Truck-Level Clustering
+
+Each truck with assigned bookings applies spatial clustering:
 
 ```javascript
-// From truckDispatch.js
-const findBestRouteToPickupBookings = async (
-  truck,
+// 1. Spatial clustering of truck's bookings
+const chunks = createSpatialChunks(
   bookings,
-  instructions = ["pickup", "delivery", "start"]
-) => {
-  const vehicles = [truckToVehicle(truck, 0)]
-  const shipments = bookings.map(bookingToShipment)
+  CLUSTERING_CONFIG.MAX_CLUSTER_SIZE,
+  experimentId
+)
+```
 
-  const result = await plan({ shipments, vehicles }) // VROOM planning
+**How it works:**
 
-  // Process VROOM results
-  return result.routes[0]?.steps
-    .filter(({ type }) => instructions.includes(type))
-    .map(({ id, type, arrival, departure }) => {
-      const booking = bookings[id]
-      const instruction = {
-        action: type,
-        arrival,
-        departure,
-        booking,
-      }
-      return instruction
-    })
+1. **Spatial Clustering**: Bookings are grouped using DBSCAN algorithm by geographical proximity
+2. **Size Management**: Large clusters may be split using a simple geographic split by latitude during optimization to stay within VROOM limits
+3. **Cluster Ordering**: VROOM TSP determines optimal order to visit cluster centroids
+4. **Intra-Cluster Routing**: Each cluster is individually optimized using VROOM
+
+### Cluster ordering (TSP)
+
+The `orderChunksWithVroom` function solves a TSP problem to determine optimal cluster order:
+
+```javascript
+async function orderChunksWithVroom(chunks, truckStart) {
+  if (chunks.length <= 1) return chunks
+
+  // Create TSP problem where each cluster centroid is a job
+  const jobs = chunks.map((c, i) => ({
+    id: i + 1,
+    location: [
+      calculateCenter(c.bookings).lng,
+      calculateCenter(c.bookings).lat,
+    ],
+    service: 0,
+  }))
+
+  const vehicles = [
+    {
+      id: 0,
+      start: truckStart,
+      end: truckStart,
+      capacity: [9999],
+      time_window: [0, 24 * 3600],
+    },
+  ]
+
+  try {
+    const tsp = await plan({ jobs, vehicles })
+    const orderIds = tsp.routes[0].steps
+      .filter((s) => s.type === "job")
+      .map((s) => s.job - 1) // 0-based
+
+    return orderIds.map((idx) => chunks[idx])
+  } catch (e) {
+    return chunks
+  }
 }
 ```
 
-## Clustering and Vehicle Integration
+**How it works:**
 
-The system integrates clustering with vehicle routing at multiple levels to optimize performance and route quality:
+1. **TSP Problem Creation**: Each cluster centroid becomes a job location
+2. **VROOM TSP Solution**: VROOM determines optimal order to visit all cluster centroids
+3. **Cluster Reordering**: Clusters are reordered according to the TSP solution
+4. **Route Assembly**: The truck visits clusters in the optimal order
 
-### Fleet-Level Clustering
+Two-stage approach:
 
-At the fleet level, postal code clustering is used to reduce the complexity of routing problems before they reach VROOM:
+1. **Spatial clustering** groups nearby bookings to reduce problem complexity
+2. **TSP optimization** determines the best order to visit cluster groups
+3. **Intra-cluster optimization** finds the best route within each cluster
 
-```javascript
-clusterByPostalCode(200, 5) // cluster bookings if we have more than 200
-```
-
-**How it works with vehicles:**
-
-1. **Pre-Processing**: Before sending data to VROOM, bookings are grouped by postal code prefixes
-2. **Representative Bookings**: Each cluster is represented by a single booking with the rest attached as `groupedBookings`
-3. **Reduced Problem Size**: Instead of planning routes for all bookings individually, VROOM only plans routes for the representative bookings, keeping the problem size below VROOM's limits
-4. **Vehicle Assignment**: VROOM assigns representative bookings to vehicles based on optimal routing
-5. **Expansion**: When a vehicle handles a booking with `groupedBookings`, it actually handles all bookings in that cluster
-
-This approach effectively reduces a potentially large routing problem (thousands of bookings) into a manageable size (hundreds of representative bookings).
-
-### Vehicle-Level Clustering
-
-Once bookings are assigned to specific vehicles, a second level of clustering may occur:
-
-```javascript
-// For large queues, cluster bookings first
-if (this.queue.length > 100) {
-  const clusters = await clusterPositions(
-    this.queue,
-    Math.ceil(this.queue.length / 70)
-  )
-  // ...
-}
-```
-
-**How this works:**
-
-1. **K-Means Clustering**: For vehicles with large queues (>100 bookings), the `clusterPositions` function uses K-means clustering to group nearby bookings
-2. **Proximity Sorting**: Clusters are sorted by proximity to the vehicle's current position
-3. **Incremental Planning**: Each cluster is planned separately using VROOM, creating a sequence of pickup instructions
-4. **Route Assembly**: The separate cluster routes are assembled into a complete vehicle route
-
-This two-level clustering approach means:
-
-1. Fleet-level clustering (by postal code) assigns bookings to approximate vehicles
-2. Vehicle-level clustering (by K-means) optimizes the exact route each vehicle will take
-
-## Data Conversion for VROOM
+## Data conversion to VROOM
 
 The system converts internal data structures to VROOM-compatible formats:
 
-1. **Bookings to Jobs/Shipments:**
+1. **Bookings to Shipments (for intra-cluster optimization):**
 
    ```javascript
-   bookingToJob({ pickup, groupedBookings }, i) {
-     return {
-       id: i,
-       location: [pickup.position.lon, pickup.position.lat],
-       pickup: [groupedBookings?.length || 1],
-     }
-   }
-
    bookingToShipment({ id, pickup, destination, groupedBookings }, i) {
      return {
        id: i,
        amount: [groupedBookings?.length || 1],
        pickup: {
-         id: i,
-         time_windows: [...],
+         id: i * 2,
+         time_windows: [[pickupStart, pickupEnd]],
          location: [pickup.position.lon, pickup.position.lat],
        },
        delivery: {
-         id: i,
+         id: i * 2 + 1,
          location: [destination.position.lon, destination.position.lat],
-         time_windows: [...],
+         time_windows: [[deliveryStart, deliveryEnd]],
        },
        service: 30,
      }
    }
    ```
 
-2. **Vehicles to VROOM Vehicles:**
+2. **Cluster Centroids to Jobs (for TSP ordering):**
+
+   ```javascript
+   // Created inline in orderChunksWithVroom
+   const jobs = chunks.map((c, i) => ({
+     id: i + 1,
+     location: [
+       calculateCenter(c.bookings).lng,
+       calculateCenter(c.bookings).lat,
+     ],
+     service: 0,
+   }))
+   ```
+
+3. **Trucks to VROOM Vehicles:**
    ```javascript
    truckToVehicle({ position, parcelCapacity, destination, cargo }, i) {
      return {
        id: i,
-       time_window: [
-         moment('05:00:00', 'hh:mm:ss').unix(),
-         moment('15:00:00', 'hh:mm:ss').unix(),
-       ],
+       time_window: [workStart, workEnd],
        capacity: [parcelCapacity - cargo.length],
        start: [position.lon, position.lat],
        end: destination
@@ -224,103 +220,169 @@ The system converts internal data structures to VROOM-compatible formats:
    }
    ```
 
-## Complete Workflow: From Bookings to Vehicle Routes
+## Komplett flöde
 
 The complete workflow integrates clustering and vehicle routing as follows:
 
-1. **Booking Collection**:
+1. **Booking Collection & Assignment**:
 
    - Bookings arrive in the system and are collected for 1 second intervals
-   - Similar bookings are grouped by postal code if total exceeds 200
+   - Fleet uses round-robin dispatch to assign bookings to trucks
 
-2. **Fleet-Level Assignment**:
+2. **Truck-Level Route Planning**:
 
-   - Postal code clustering reduces the problem size
-   - Bookings (or booking clusters) are converted to VROOM-compatible format
-   - VROOM assigns bookings to vehicles based on optimal routing
-   - Assignments are converted back to the internal format
+   - Each truck receives its assigned bookings
+   - Truck applies spatial clustering to group nearby bookings
+   - VROOM TSP determines optimal order between clusters
+   - VROOM optimizes route within each cluster separately
+   - Results are merged into a complete route plan
 
-3. **Vehicle-Level Routing**:
+3. **Execution**:
+   - Trucks follow their optimized instruction sequence
+   - Route includes optimal order of clusters and optimal paths within clusters
 
-   - Each vehicle receives its assigned bookings
-   - Vehicles with >100 bookings apply K-means clustering
-   - VROOM plans the optimal route through booking locations
-   - Route is converted to a sequence of pickup/delivery instructions
+Balans mellan beräkningskostnad och kvalitet:
 
-4. **Execution**:
-   - Vehicles follow their instruction sequence
-   - When a vehicle reaches a booking with `groupedBookings`, it handles all bookings in the cluster
-   - For large clusters, the vehicle may need to make multiple stops within the same general area
+- **Spatial clustering** quickly groups bookings by geographical area
+- **TSP optimization** ensures optimal order between geographical areas
+- **Intra-cluster optimization** ensures best possible route through each area
+- **Independent truck processing** allows parallel optimization
 
-This multi-level approach balances computational efficiency with routing quality:
+## VROOM API-integration
 
-- **Postal code clustering** quickly groups bookings by geographical area
-- **Vehicle assignment** determines which vehicle handles which areas
-- **K-means clustering** fine-tunes the exact route within each area
-- **VROOM optimization** ensures the best possible route through the selected points
+The system interacts with VROOM through a RESTful API with sophisticated caching and error handling:
 
-## VROOM API Integration
+```typescript
+async function plan({ jobs = [], shipments = [], vehicles }, retryCount = 0) {
+  // Validation against configured limits
+  if (jobs?.length > CLUSTERING_CONFIG.MAX_VROOM_JOBS)
+    throw new Error(`Too many jobs to plan: ${jobs.length}`)
+  if (shipments?.length > CLUSTERING_CONFIG.MAX_VROOM_SHIPMENTS)
+    throw new Error(`Too many shipments to plan: ${shipments.length}`)
+  if (vehicles.length > CLUSTERING_CONFIG.MAX_VROOM_VEHICLES)
+    throw new Error(`Too many vehicles to plan: ${vehicles.length}`)
 
-The system interacts with VROOM through a RESTful API:
+  // Cache lookup for performance optimization
+  const normalizedInput = createCacheKey({ jobs, shipments, vehicles })
+  const cached = await getFromCache(normalizedInput)
+  if (cached) return cached
 
-```javascript
-async plan({ jobs, shipments, vehicles }) {
-  // Check limitations
-  if (jobs?.length > 800) throw new Error('Too many jobs to plan')
-  if (shipments?.length > 800) throw new Error('Too many shipments to plan')
-  if (vehicles.length > 200) throw new Error('Too many vehicles to plan')
-
-  // Check cache first
-  const result = await getFromCache({ jobs, shipments, vehicles })
-  if (result) return result
-
-  // Call VROOM API
-  return await queue(() =>
+  // VROOM API call with timeout protection
+  const vroomPromise = queue(() =>
     fetch(vroomUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         jobs,
         shipments,
         vehicles,
-        options: { plan: true },
+        options: {
+          plan: true,
+          polylines: true, // Include route geometry
+          overview: false, // Reduce response size
+        },
       }),
-    })
-    .then(res => res.json())
-    .then(json => {
-      // Cache results if planning took >10s
-      if (Date.now() - before > 10_000)
-        return updateCache({ jobs, shipments, vehicles }, json)
-      else return json
-    })
-    .catch((vroomError) => {
-      // Retry on error
-      return delay(2000).then(() =>
-        vroom.plan({ jobs, shipments, vehicles })
-      )
-    })
+    }).then((res) => res.json())
   )
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(
+      () => reject(new Error("VROOM timeout")),
+      CLUSTERING_CONFIG.VROOM_TIMEOUT_MS
+    )
+  )
+
+  const json = await Promise.race([vroomPromise, timeoutPromise])
+
+  // Cache successful results
+  await updateCache(normalizedInput, json)
+  return json
 }
 ```
 
-## Multi-Level VROOM Planning Summary
+### Nyckelfunktioner
 
-In summary, VROOM planning happens in multiple stages:
+- **Input Validation**: Ensures requests stay within VROOM's performance limits
+- **Intelligent Caching**: Avoids redundant calculations for identical route problems
+- **Timeout Protection**: Prevents hanging requests that could block the system
+- **Queue Management**: Controls concurrent VROOM requests to prevent overload
+- **Error Handling**: Graceful fallbacks and retry mechanisms
 
-1. **First Level (Fleet Dispatch)**:
+## Sammanfattning (två nivåer)
 
-   - Clusters bookings by postal code
-   - Uses VROOM to assign bookings to vehicles
-   - Provides an initial vehicle-booking assignment
+In summary, VROOM planning happens in two distinct phases at the truck level:
 
-2. **Second Level (Vehicle Route Planning)**:
+1. **Cluster Ordering (TSP)**:
 
-   - Each vehicle plans its own route with assigned bookings
-   - For larger queues (>100 bookings), clustering is applied before VROOM planning
-   - For smaller queues, VROOM plans directly
+   - Spatial clusters are created from truck's bookings
+   - Cluster centroids are converted to VROOM jobs
+   - VROOM solves TSP to determine optimal cluster visiting order
 
-3. **Recursive Planning (When Needed)**:
-   - If the VROOM API returns an error, the system retries after a short delay
-   - For large numbers of bookings, the system applies clustering to stay within VROOM's limits
+2. **Intra-Cluster Route Optimization**:
 
-This multi-level approach ensures efficient routing at both the fleet and individual vehicle levels, with appropriate optimizations for different scales of operations.
+   - Each cluster is processed separately
+   - Bookings within cluster are converted to VROOM shipments
+   - VROOM optimizes pickup/delivery route within the cluster
+
+3. **Result Integration**:
+   - Multiple cluster routes are merged into a single truck route
+   - Final route visits clusters in optimal order with optimal paths within each cluster
+
+This multi-level approach ensures efficient routing at the individual truck level, with appropriate optimizations for different scales of operations within each truck's assignment.
+
+## Användning i applikationen
+
+The VROOM system is integrated into the complete digital twin workflow:
+
+### 1. Data Input
+
+- Users upload Excel/CSV files containing real route data from Telge Återvinning
+- Data includes customer locations, waste types, service frequencies, and vehicle assignments
+- System processes and validates data through the web interface
+
+### 2. Simulation Setup
+
+- Configure fleet parameters: vehicle count, capacity, depot locations
+- Set experiment parameters: date ranges, optimization strategies
+- Choose between replay mode (using historical data) or optimization mode
+
+### 3. Real-Time Processing
+
+- Backend streams booking data to trucks using Socket.IO
+- Each truck independently processes its assignments through VROOM
+- Results are cached and stored in Elasticsearch for analysis
+
+### 4. Live Visualization
+
+- Frontend displays optimized routes on interactive Mapbox maps
+- Real-time updates show truck movements and booking progress
+- Performance metrics compare original vs optimized routes
+
+### 5. Results Analysis
+
+- Generate comparison reports showing efficiency improvements
+- Export optimized routes for use in real operations
+- Analyze clustering effectiveness and route optimization gains
+
+## Configuration and Tuning
+
+The VROOM system is highly configurable for different operational requirements:
+
+```typescript
+// From packages/simulator/lib/config.ts
+export const CLUSTERING_CONFIG = {
+  // VROOM API limits
+  MAX_VROOM_JOBS: 200, // Max jobs per request
+  MAX_VROOM_SHIPMENTS: 200, // Max shipments per request
+  MAX_VROOM_VEHICLES: 200, // Max vehicles per request
+
+  // Timing configuration
+  VROOM_TIMEOUT_MS: 30000, // Request timeout
+  TRUCK_PLANNING_TIMEOUT_MS: 2000, // Delay before planning
+
+  // Performance optimization
+  FLEET_BUFFER_TIME_MS: 1000, // Booking batching time
+}
+```
+
+The system is production-ready and optimized for Swedish waste collection operations, providing significant efficiency improvements over traditional route planning methods.

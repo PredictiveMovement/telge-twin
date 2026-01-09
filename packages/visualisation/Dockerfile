@@ -1,30 +1,29 @@
-FROM node:16-slim AS builder
+FROM node:20-slim AS builder
+RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
 
 WORKDIR /app
-COPY ./package-lock.json .
-COPY ./package.json .
-RUN npm ci
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/visualisation/package.json packages/visualisation/
 
-COPY public/ ./public
-COPY src/ ./src
-COPY .prettierrc .
-COPY vite.config.js .
-COPY yarn.lock .
-COPY index.html .
+RUN pnpm fetch
+RUN pnpm install --frozen-lockfile --ignore-scripts --filter ./packages/visualisation
+
+COPY packages/visualisation packages/visualisation
 
 ARG VITE_MAPBOX_ACCESS_TOKEN
 ARG VITE_SIMULATOR_URL
+ARG VITE_AZURE_AD_CLIENT_ID
+ARG VITE_AZURE_AD_TENANT_ID
+ARG VITE_AZURE_AD_REDIRECT_URI
+RUN VITE_MAPBOX_ACCESS_TOKEN="${VITE_MAPBOX_ACCESS_TOKEN}" \
+    VITE_SIMULATOR_URL="${VITE_SIMULATOR_URL}" \
+    VITE_AZURE_AD_CLIENT_ID="${VITE_AZURE_AD_CLIENT_ID}" \
+    VITE_AZURE_AD_TENANT_ID="${VITE_AZURE_AD_TENANT_ID}" \
+    VITE_AZURE_AD_REDIRECT_URI="${VITE_AZURE_AD_REDIRECT_URI}" \
+    pnpm --filter ./packages/visualisation run build
 
-ENV VITE_MAPBOX_ACCESS_TOKEN $VITE_MAPBOX_ACCESS_TOKEN
-ENV VITE_SIMULATOR_URL $VITE_SIMULATOR_URL
-
-RUN npm run build
-
-# production environment
-FROM nginx:1.16.0-alpine
-
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
-
+FROM nginx:1.27-alpine
+COPY packages/visualisation/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/packages/visualisation/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

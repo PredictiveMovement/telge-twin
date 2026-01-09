@@ -4,9 +4,12 @@
   "description": "## Background",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"npm:simulator\" \"npm:visualisation\"",
-    "simulator": "cd packages/simulator && npm run dev",
-    "visualisation": "cd packages/visualisation && npm run dev"
+    "start": "concurrently \"pnpm run simulator\" \"pnpm run visualisation\"",
+    "dev": "pnpm run simulator",
+    "simulator": "pnpm --filter @digital-twin/simulator dev",
+    "visualisation": "pnpm --filter visualisation dev",
+    "build": "pnpm --recursive run build --if-present",
+    "lint": "pnpm --recursive --if-present run lint"
   },
   "repository": {
     "type": "git",
@@ -28,7 +31,5 @@
     "lerna": "^6.6.2",
     "prettier": "^2.5.1"
   },
-  "workspaces": [
-    "packages/*"
-  ]
+  "packageManager": "pnpm@10.17.0"
 }

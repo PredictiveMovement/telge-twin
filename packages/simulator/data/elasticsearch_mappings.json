@@ -232,6 +232,349 @@
         },
         "weight": {
           "type": "float"
+        },
+        "originalData": {
+          "type": "object",
+          "properties": {
+            "originalTurid": {
+              "type": "keyword"
+            },
+            "originalKundnr": {
+              "type": "integer"
+            },
+            "originalHsnr": {
+              "type": "integer"
+            },
+            "originalTjnr": {
+              "type": "integer"
+            },
+            "originalAvftyp": {
+              "type": "keyword"
+            },
+            "originalTjtyp": {
+              "type": "keyword"
+            },
+            "originalFrekvens": {
+              "type": "keyword"
+            },
+            "originalDatum": {
+              "type": "keyword"
+            },
+            "originalBil": {
+              "type": "keyword"
+            },
+            "originalSchemalagd": {
+              "type": "integer"
+            },
+            "originalDec": {
+              "type": "keyword"
+            },
+            "originalTurordningsnr": {
+              "type": "integer"
+            },
+            "originalHsadress": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "originalNyckelkod": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "originalRouteRecord": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "route-datasets": {
+    "mappings": {
+      "properties": {
+        "datasetId": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "text"
+        },
+        "description": {
+          "type": "text"
+        },
+        "uploadTimestamp": {
+          "type": "date"
+        },
+        "originalFilename": {
+          "type": "keyword"
+        },
+        "filterCriteria": {
+          "type": "object",
+          "properties": {
+            "dateRange": {
+              "properties": {
+                "from": {
+                  "type": "date"
+                },
+                "to": {
+                  "type": "date"
+                }
+              }
+            },
+            "selectedBils": {
+              "type": "keyword"
+            },
+            "selectedAvftyper": {
+              "type": "keyword"
+            },
+            "selectedFrekvenser": {
+              "type": "keyword"
+            },
+            "selectedTjtyper": {
+              "type": "keyword"
+            }
+          }
+        },
+        "recordCount": {
+          "type": "integer"
+        },
+        "originalRecordCount": {
+          "type": "integer"
+        },
+        "routeData": {
+          "type": "object",
+          "enabled": false
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "associatedExperiments": {
+          "type": "keyword"
+        },
+        "fleetConfiguration": {
+          "type": "object",
+          "enabled": false
+        },
+        "originalSettings": {
+          "type": "object",
+          "enabled": false
+        },
+        "optimizationSettings": {
+          "properties": {
+            "workingHours": {
+              "properties": {
+                "start": {
+                  "type": "keyword"
+                },
+                "end": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "breaks": {
+              "type": "nested",
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "duration": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "desiredTime": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "extraBreaks": {
+              "type": "nested",
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "duration": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "desiredTime": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "vroom-truck-plans": {
+    "mappings": {
+      "properties": {
+        "planId": {
+          "type": "keyword"
+        },
+        "experiment": {
+          "type": "keyword"
+        },
+        "truckId": {
+          "type": "keyword"
+        },
+        "fleet": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "planType": {
+          "type": "keyword"
+        },
+        "completePlan": {
+          "type": "object",
+          "enabled": false
+        },
+        "bookingMetadata": {
+          "type": "object",
+          "enabled": false
+        },
+        "vroomResponse": {
+          "type": "object",
+          "enabled": false
+        },
+        "totalDistanceKm": {
+          "type": "float"
+        },
+        "totalCo2Kg": {
+          "type": "float"
+        },
+        "bookingCount": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "experiments": {
+    "mappings": {
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "createdAt": {
+          "type": "date"
+        },
+        "startDate": {
+          "type": "date"
+        },
+        "fixedRoute": {
+          "type": "integer"
+        },
+        "emitters": {
+          "type": "keyword"
+        },
+        "selectedDataFile": {
+          "type": "keyword"
+        },
+        "sourceDatasetId": {
+          "type": "keyword"
+        },
+        "datasetName": {
+          "type": "text"
+        },
+        "simulationStatus": {
+          "type": "keyword"
+        },
+        "routeDataSource": {
+          "type": "keyword"
+        },
+        "experimentType": {
+          "type": "keyword"
+        },
+        "fleets": {
+          "type": "object",
+          "enabled": false
+        },
+        "areaPartitions": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "center": {
+              "type": "geo_point"
+            },
+            "bounds": {
+              "type": "object",
+              "properties": {
+                "minLat": {
+                  "type": "float"
+                },
+                "minLng": {
+                  "type": "float"
+                },
+                "maxLat": {
+                  "type": "float"
+                },
+                "maxLng": {
+                  "type": "float"
+                }
+              }
+            },
+            "count": {
+              "type": "integer"
+            },
+            "recyclingTypes": {
+              "type": "keyword"
+            },
+            "polygon": {
+              "type": "geo_shape"
+            }
+          }
+        },
+        "areaPartitionsTimestamp": {
+          "type": "date"
+        },
+        "baselineStatistics": {
+          "type": "object",
+          "properties": {
+            "totalDistanceKm": {
+              "type": "float"
+            },
+            "totalCo2Kg": {
+              "type": "float"
+            },
+            "bookingCount": {
+              "type": "integer"
+            }
+          }
         }
       }
     }

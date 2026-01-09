@@ -1,0 +1,10 @@
+/// <reference types="jest" />
+
+declare module 'multer'
+declare module 'point-in-polygon'
+declare module 'node-fetch'
+declare module 'perlin-noise'
+declare module '../lib/municipality'
+declare module '../lib/pelias'
+declare module 'adm-zip'
+declare module 'csv-stream'

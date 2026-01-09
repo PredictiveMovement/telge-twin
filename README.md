@@ -4,12 +4,30 @@
 
 The digital twin has a number of external dependencies. At the time of writing all of these dependencies are hosted by Iteam so that anyone can run the digital twin locally without too much hassle.
 
-To run the digital twin locally, simply install the dependencies and then run the start command. All you need is Node.js v16.
+To run the digital twin locally you need Node.js (version 20 or later is recommended) and [pnpm](https://pnpm.io/). Install dependencies with install scripts disabled and then start the services:
 
 ```shell
-npm ci
-npm start
+pnpm install --lockfile-only --ignore-scripts
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm start
 ```
+
+> These commands keep `postinstall`/`preinstall` scripts disabled and use the checked-in `pnpm-lock.yaml` for repeatable installs.
+
+`pnpm start` launches both the simulator and the visualisation. Run them individually with `pnpm run simulator` or `pnpm run visualisation` if you only need one of them.
+
+### Local Development with Docker
+
+For a complete local development stack with Elasticsearch, Kibana, and the simulator backend:
+
+```shell
+cd packages/simulator
+cp .env.example .env
+cd ../..
+docker-compose --env-file packages/simulator/.env up
+```
+
+See [docs/local-elasticsearch-setup.md](docs/local-elasticsearch-setup.md) for details.
 
 ### Configuration
 
