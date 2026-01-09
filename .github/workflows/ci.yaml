@@ -26,15 +26,13 @@ jobs:
       - name: 🛎️ Checkout
         uses: actions/checkout@v3
 
-      - name: 🛠 Enable pnpm
+      - name: 🛠 Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          check-latest: true
-          cache: "pnpm"
 
       - name: 🔧 Activate pnpm
-        run: corepack prepare pnpm@10.17.0 --activate
+        run: corepack enable && corepack prepare pnpm@10.17.0 --activate
 
       - name: 🎫 Update patch version
         run: |
@@ -62,15 +60,13 @@ jobs:
       - name: 🛎️ Checkout
         uses: actions/checkout@v3
 
-      - name: 🛠 Enable pnpm
+      - name: 🛠 Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          check-latest: true
-          cache: "pnpm"
 
       - name: 🔧 Activate pnpm
-        run: corepack prepare pnpm@10.17.0 --activate
+        run: corepack enable && corepack prepare pnpm@10.17.0 --activate
 
       - id: imagename
         uses: ASzc/change-string-case-action@v2
@@ -125,14 +121,6 @@ jobs:
             VITE_AZURE_AD_REDIRECT_URI=${{ secrets.VITE_AZURE_AD_REDIRECT_URI }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-visualisation:${{ steps.package-version.outputs.current-version}}
-      - name: 🔧 Build and push SampleAdresses
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: packages/sampleAddresses/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ steps.imagename.outputs.lowercase  }}-sample:${{ steps.package-version.outputs.current-version}}
 
   dev:
     if: github.ref == 'refs/heads/dev'
