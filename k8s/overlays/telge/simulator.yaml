@@ -37,7 +37,8 @@ spec:
     spec:
       initContainers:
         - name: elastic-init
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.59
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.65 # {"$imagepolicy": "flux-system:simulator"}
+          imagePullPolicy: Always
           env:
             - name: ELASTICSEARCH_URL
               value: http://elasticsearch-master.elasticsearch.svc.cluster.local:9200
