@@ -29,6 +29,11 @@ const collectExperimentMetadata = async (experiment: any) => {
       experimentType: experiment.experimentType,
       initMapState: experiment.initMapState,
       baselineStatistics: experiment.baselineStatistics,
+      optimizationSettings: experiment.optimizationSettings,
+      // vroomTruckPlanIds will be populated after simulation completes
+      vroomTruckPlanIds: experiment.vroomTruckPlanIds || [],
+      name: experiment.name || experiment.datasetName,
+      description: experiment.description || null,
       fleets: experiment.fleets
         ? Object.keys(experiment.fleets).reduce((acc: any, key: string) => {
             const fleet = experiment.fleets[key]

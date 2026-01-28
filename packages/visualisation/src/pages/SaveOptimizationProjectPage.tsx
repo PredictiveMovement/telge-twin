@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SaveOptimizationForm from '@/components/optimize/SaveOptimizationForm'
 import { toast } from 'sonner'
-import { saveRouteDataset } from '@/api/simulator'
+import { saveRouteDataset, startSimulationFromDatasetRest } from '@/api/simulator'
 import {
   buildSingleFleetFromRouteData,
   type Settings,
@@ -138,13 +138,52 @@ const SaveOptimizationProjectPage = () => {
         },
       })
 
-      if ((res as any)?.success) {
+      const datasetId = (res as any)?.data?.datasetId || (res as any)?.datasetId
+      if ((res as any)?.success && datasetId) {
         toast.success(`Dataset sparat: ${normalized.name}`)
-        // Visa 3s loader och gå därefter till Sparade Filtreringar
-        navigate('/optimize/processing', {
-          state: { activeTab: 'datasets' },
-          replace: true,
-        })
+
+        // Determine start time from working hours
+        let startHour = 6
+        let startMinute = 0
+        const workingHoursStart = normalized.workingHours?.start
+        if (workingHoursStart) {
+          const parts = workingHoursStart.split(':')
+          if (parts.length >= 2) {
+            startHour = parseInt(parts[0], 10)
+            startMinute = parseInt(parts[1], 10)
+          }
+        }
+
+        // Determine date from filter criteria or default to today
+        let startDate = new Date()
+        if (navigationState?.filters?.dateRange?.from) {
+          startDate = new Date(navigationState.filters.dateRange.from)
+        }
+        startDate.setHours(startHour, startMinute, 0, 0)
+
+        // Start simulation via REST API
+        toast.info('Startar simulering...')
+        const simResult = await startSimulationFromDatasetRest(
+          datasetId,
+          normalized.name,
+          {
+            startDate: startDate.toISOString(),
+            experimentType: 'vroom',
+          }
+        )
+
+        if (simResult.success) {
+          toast.success('Simulering startad!')
+          // Navigate to saved optimizations where the loader will show progress
+          navigate('/routes?tab=optimizations', { replace: true })
+        } else {
+          toast.error(`Fel vid start av simulering: ${simResult.error || 'okänt fel'}`)
+          navigate('/routes?tab=optimizations', { replace: true })
+        }
+      } else if ((res as any)?.success) {
+        // Dataset saved but no datasetId returned
+        toast.success(`Dataset sparat: ${normalized.name}`)
+        navigate('/routes?tab=optimizations', { replace: true })
       } else {
         toast.error(`Fel vid sparning: ${(res as any)?.error || 'okänt fel'}`)
       }

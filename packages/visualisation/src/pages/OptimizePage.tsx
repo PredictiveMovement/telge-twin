@@ -367,12 +367,11 @@ const buildRouteStopsData = (
   })
 
   byVehicle.forEach((entry) => {
+    // Sort original stops by Thor order (Turordningsnr)
     entry.currentStops.sort(
       (a, b) => (a.originalPosition ?? 0) - (b.originalPosition ?? 0)
     )
-    entry.optimizedStops.sort(
-      (a, b) => (a.originalPosition ?? 0) - (b.originalPosition ?? 0)
-    )
+    // DON'T sort optimizedStops - they come from API in VROOM-optimized order
 
     if (!entry.optimizedStops.length) {
       entry.optimizedStops = entry.currentStops.map((stop) => ({ ...stop }))
@@ -576,7 +575,7 @@ const OptimizePage = () => {
       throw new Error('Inga bokningar att spara')
     }
 
-    // Call API to update the route order
+    // Call API to update the route order - this creates a new experiment version
     const result = await updateRouteOrder(
       experimentId,
       selectedVehicle,
@@ -587,8 +586,13 @@ const OptimizePage = () => {
       throw new Error(result.error || 'Kunde inte spara körturordning')
     }
 
-    // Mark as saved in the local state
-    routeStopsLogic.markAsSaved()
+    // Navigate to the new experiment version
+    if (result.data?.experimentId) {
+      navigate(`/optimize/${result.data.experimentId}`)
+    } else {
+      // Fallback: mark as saved in local state (shouldn't happen with new API)
+      routeStopsLogic.markAsSaved()
+    }
   }
 
   const handleRestoreVersion = (versionId: string) => {

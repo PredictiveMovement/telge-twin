@@ -1,15 +1,45 @@
 import { Router, Request, Response } from 'express'
 import { virtualTime } from '../lib/virtualTime'
 import { experimentController } from './controllers/ExperimentController'
+import { socketController } from './controllers/SocketController'
 
 const router = Router()
 
 router.post('/simulation/start', async (req: Request, res: Response) => {
   try {
-    const { parameters } = req.body
+    const { sourceDatasetId, datasetName, parameters } = req.body
 
-    const experiment = experimentController.createGlobalExperiment(parameters)
-    virtualTime.reset()
+    let experimentId: string
+    let isReplay = false
+
+    if (sourceDatasetId) {
+      // Start simulation from dataset
+      const result = await experimentController.startSimulationFromData(
+        { sourceDatasetId, datasetName },
+        parameters || {}
+      )
+      experimentId = result.experimentId
+      isReplay = result.isReplay
+
+      // Broadcast to all connected clients
+      socketController.broadcastSimulationStarted({
+        experimentId,
+        isReplay,
+        sourceDatasetId,
+        datasetName,
+      })
+    } else {
+      // Legacy: start without dataset
+      const experiment = experimentController.createGlobalExperiment(parameters)
+      virtualTime.reset()
+      experimentId = experiment.parameters.id
+
+      // Broadcast to all connected clients
+      socketController.broadcastSimulationStarted({
+        experimentId,
+        isReplay: false,
+      })
+    }
 
     Object.assign(module.exports, {
       globalExperiment: experimentController.currentGlobalExperiment,
@@ -20,7 +50,7 @@ router.post('/simulation/start', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        experimentId: experiment.parameters.id,
+        experimentId,
         running: true,
       },
     })

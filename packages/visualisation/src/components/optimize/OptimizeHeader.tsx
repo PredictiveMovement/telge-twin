@@ -21,6 +21,8 @@ interface OptimizeHeaderProps {
     id: string;
     name: string;
     description?: string;
+    version?: number;
+    parentExperimentId?: string;
   };
   hasChanges?: boolean;
   onSaveChanges?: () => Promise<void> | void;
@@ -183,12 +185,30 @@ const OptimizeHeader = ({
             <span className="sr-only">Tillbaka</span>
           </Button>
           <div className="min-w-0">
-            <h1 className="text-4xl font-normal break-words hyphens-auto">
-              {savedProject?.name || 'Optimera körtur'}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-4xl font-normal break-words hyphens-auto">
+                {savedProject?.name || 'Optimera körtur'}
+              </h1>
+              {savedProject?.version && (
+                <span className="text-sm px-2 py-1 rounded bg-primary/10 text-primary font-medium">
+                  v{savedProject.version}
+                </span>
+              )}
+            </div>
             {savedProject?.description && (
               <p className="text-muted-foreground mt-1">
                 {savedProject.description}
+              </p>
+            )}
+            {savedProject?.parentExperimentId && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Baserad på{' '}
+                <button
+                  onClick={() => navigate(`/optimize/${savedProject.parentExperimentId}`)}
+                  className="text-primary hover:underline"
+                >
+                  tidigare version
+                </button>
               </p>
             )}
           </div>

@@ -151,7 +151,7 @@ export class ExperimentController {
 
   createGlobalExperiment(directParams?: any) {
     const currentEmitters = emitters()
-    const experimentId = directParams?.id || safeId()
+    const experimentId = directParams?.id || directParams?.experimentId || safeId()
 
     const workdaySettings: any = directParams?.workdaySettings || null
     const startMinutes =
@@ -200,7 +200,7 @@ export class ExperimentController {
 
   createSessionExperiment(sessionId: string, directParams?: any) {
     const currentEmitters = emitters()
-    const experimentId = directParams?.id || safeId()
+    const experimentId = directParams?.id || directParams?.experimentId || safeId()
 
     const workdaySettings: any = directParams?.workdaySettings || null
     const startMinutes =
@@ -315,6 +315,9 @@ export class ExperimentController {
       ? datasetBreakSettingsRef
       : parameters?.breakSettings
 
+    // vroomTruckPlanIds will be populated when plans are saved during simulation
+    // (see truckDispatch.saveCompletePlanForReplay)
+
     this.globalExperiment = null
     const experiment = this.createGlobalExperiment({
       ...parameters,
@@ -330,6 +333,7 @@ export class ExperimentController {
         'Södertälje kommun': {
           settings: {
             experimentType,
+            experimentId: currentExperimentId,
             workday: workdaySettings || undefined,
             breaks: breakSettings || undefined,
             pickupsBeforeDelivery:
@@ -350,14 +354,41 @@ export class ExperimentController {
     virtualTime.reset()
 
     // Calculate and save baseline statistics from original route data
+    let baselineStatistics = null
     if (datasetData?.routeData && Array.isArray(datasetData.routeData)) {
       const baselineStats = calculateBaselineStatistics(datasetData.routeData)
-      experiment.parameters.baselineStatistics = {
+      baselineStatistics = {
         totalDistanceKm: baselineStats.totalDistanceKm,
         totalCo2Kg: baselineStats.totalCo2Kg,
         bookingCount: baselineStats.bookingCount,
       }
+      experiment.parameters.baselineStatistics = baselineStatistics
     }
+
+    // Explicitly save experiment to Elasticsearch so it's available immediately
+    // This is needed because the async save in index.ts may not complete before
+    // the API returns and the client navigates to the saved optimizations page
+    const experimentToSave = {
+      id: currentExperimentId,
+      createdAt: new Date().toISOString(),
+      startDate: parameters.startDate || new Date().toISOString(),
+      fixedRoute: parameters.fixedRoute || 100,
+      emitters: parameters.emitters || ['bookings', 'cars'],
+      sourceDatasetId: simData.sourceDatasetId || datasetId,
+      datasetName: simData.datasetName,
+      routeDataSource: 'elasticsearch',
+      simulationStatus: 'running',
+      experimentType,
+      initMapState: parameters.initMapState,
+      baselineStatistics,
+      optimizationSettings: datasetData?.optimizationSettings,
+      vroomTruckPlanIds: [],
+      name: simData.datasetName,
+      description: null,
+      fleets: experiment.parameters.fleets,
+    }
+
+    await elasticsearchService.saveExperiment(currentExperimentId, experimentToSave)
 
     return {
       success: true,
@@ -405,20 +436,33 @@ export class ExperimentController {
       isReplay: true,
     }
 
+    // Use experiment's optimizationSettings first (source of truth), then fall back to dataset
     const workdaySettings =
       this.buildWorkdaySettings(
+        experimentData?.optimizationSettings?.workingHours
+      ) ||
+      this.buildWorkdaySettings(
         datasetData?.optimizationSettings?.workingHours
-      ) || this.buildWorkdaySettings(experimentData?.settings?.workday)
+      ) ||
+      this.buildWorkdaySettings(experimentData?.settings?.workday)
     const breakSettings =
+      this.buildBreakSettings(
+        experimentData?.optimizationSettings?.breaks,
+        experimentData?.optimizationSettings?.extraBreaks
+      ) ||
       this.buildBreakSettings(
         datasetData?.optimizationSettings?.breaks,
         datasetData?.optimizationSettings?.extraBreaks
-      ) || experimentData?.settings?.breaks
+      ) ||
+      experimentData?.settings?.breaks
 
     const datasetFleetSettings =
       (datasetData?.originalSettings as Record<string, unknown>) ||
       (experimentData?.settings as Record<string, unknown>) ||
       {}
+
+    // For replay, use the experiment's vroomTruckPlanIds
+    const vroomTruckPlanIds = experimentData.vroomTruckPlanIds || []
 
     const sessionParams = {
       ...parameters,
@@ -430,11 +474,14 @@ export class ExperimentController {
       routeDataSource: 'elasticsearch',
       workdaySettings,
       breakSettings,
+      vroomTruckPlanIds: vroomTruckPlanIds,
       fleets: {
         'Södertälje kommun': {
           settings: {
             ...datasetFleetSettings,
             experimentType: 'replay',
+            replayExperimentId: experimentId,
+            vroomTruckPlanIds: vroomTruckPlanIds,
             workday: workdaySettings || undefined,
             breaks: breakSettings || undefined,
             pickupsBeforeDelivery:

@@ -16,7 +16,7 @@ Simulator (server)  ⇄  Visualization (client)
 
 - Global simulation ("live")
 
-  - Started via socket `startSimulation` from the UI (e.g., from Saved Datasets)
+  - Started via REST API `POST /api/simulation/start` (e.g., from SaveOptimizationProjectPage after saving a dataset). The server broadcasts `simulationStarted` to all connected clients.
   - Persists an experiment document in Elasticsearch (index `experiments`) with id and metadata
   - Visualisation listens via `joinMap` and receives global events
 
@@ -33,10 +33,14 @@ Simulator (server)  ⇄  Visualization (client)
   - GET `/api/experiments` returns only optimized experiments: either explicitly `experimentType === 'vroom'` or those with VROOM truck plans (via `vehicleCount > 0`)
   - GET `/api/experiments/:experimentId` returns one experiment by id
 
+- `packages/simulator/web/api.ts`
+
+  - REST API endpoints
+  - `POST /api/simulation/start`: Creates a global experiment from a dataset and broadcasts `simulationStarted` to all clients
+
 - `packages/simulator/web/routes.ts`
 
   - Socket handlers
-  - `startSimulation`: creates a new global experiment and emits `simulationStarted`
   - `startSessionReplay`: creates a non-persistent session experiment and emits `sessionStarted`
   - `startSequentialSession`: creates a non-persistent session experiment and emits `sessionStarted`
 
@@ -96,7 +100,7 @@ Simulator (server)  ⇄  Visualization (client)
 
 - Global:
 
-  - `startSimulation` (dataset-based global run)
+  - Simulation is started via REST `POST /api/simulation/start`, server broadcasts `simulationStarted`
   - `stopSimulation`
   - `joinMap` / `leaveMap`
 

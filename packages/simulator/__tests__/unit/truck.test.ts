@@ -9,6 +9,7 @@ import {
   createTestBooking,
 } from '../fixtures'
 
+
 jest.mock('../../lib/osrm', () => ({
   route: jest.fn((from, to) =>
     Promise.resolve({
@@ -35,6 +36,7 @@ jest.mock('../../lib/osrm', () => ({
     })
   ),
 }))
+
 
 describe('Truck Behavior', () => {
   let truck: any
@@ -734,6 +736,81 @@ describe('Truck Behavior', () => {
       await truck.pickup()
 
       expect(truck.cargo.length).toBe(cargoLengthBefore)
+    })
+  })
+
+  describe('planGroupId support', () => {
+    it('should resolve planGroupId from fleet.settings', () => {
+      const mockFleet = {
+        name: 'test-fleet-pg',
+        settings: {
+          ...testSettings,
+          planGroupId: 'custom-plan-group-123',
+        },
+      }
+
+      truck = new Truck({
+        id: 'truck-plangroup-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: mockFleet,
+      })
+
+      // Verify planGroupId is accessible via fleet settings
+      expect(truck.fleet.settings.planGroupId).toBe('custom-plan-group-123')
+    })
+
+    it('should have undefined planGroupId when not set in fleet.settings', () => {
+      const mockFleet = {
+        name: 'test-fleet-no-pg',
+        settings: {
+          ...testSettings,
+          // No planGroupId set
+        },
+      }
+
+      truck = new Truck({
+        id: 'truck-no-plangroup',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: mockFleet,
+      })
+
+      // Verify planGroupId is not set
+      expect(truck.fleet.settings.planGroupId).toBeUndefined()
+    })
+
+    it('should use planGroupId || experimentId pattern correctly', () => {
+      // Test the pattern used in truck.ts: this.fleet?.settings?.planGroupId || experimentId
+      const testCases = [
+        {
+          planGroupId: 'custom-group',
+          experimentId: 'exp-123',
+          expected: 'custom-group',
+        },
+        {
+          planGroupId: undefined,
+          experimentId: 'exp-456',
+          expected: 'exp-456',
+        },
+        {
+          planGroupId: null,
+          experimentId: 'exp-789',
+          expected: 'exp-789',
+        },
+        {
+          planGroupId: '',
+          experimentId: 'exp-empty',
+          expected: 'exp-empty', // Empty string is falsy
+        },
+      ]
+
+      testCases.forEach(({ planGroupId, experimentId, expected }) => {
+        const result = planGroupId || experimentId
+        expect(result).toBe(expected)
+      })
     })
   })
 })

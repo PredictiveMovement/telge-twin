@@ -455,17 +455,14 @@ class Fleet {
               (async () => {
                 try {
                   const searchQuery = {
-                    index: 'vroom-truck-plans',
+                    index: 'truck-plans',
                     body: {
                       query: {
                         bool: {
                           must: [
-                            {
-                              term: {
-                                experiment: replayExperimentId,
-                              },
-                            },
+                            { term: { experimentId: replayExperimentId } },
                             { term: { truckId: String(truck.id) } },
+                            { term: { planType: 'complete' } },
                           ],
                         },
                       },

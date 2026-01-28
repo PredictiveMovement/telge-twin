@@ -9,8 +9,10 @@ import {
   getOriginalBookings,
   getOriginalBookingsForExperiment,
   getVroomBookingsForExperiment,
+  getRouteDataset,
   Experiment,
   ExperimentStatistics,
+  RouteDataset,
 } from '@/api/simulator'
 import OptimizeHeader from '@/components/optimize/OptimizeHeader'
 import OptimizeMapComparison from '@/components/optimize/OptimizeMapComparison'
@@ -296,6 +298,7 @@ const ExperimentDetailPage = () => {
   const navigate = useNavigate()
 
   const [experiment, setExperiment] = useState<Experiment | null>(null)
+  const [dataset, setDataset] = useState<RouteDataset | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statistics, setStatistics] = useState<ExperimentStatistics | null>(
@@ -344,6 +347,14 @@ const ExperimentDetailPage = () => {
           throw new Error('Kunde inte hitta experimentet.')
         }
         setExperiment(expData)
+
+        // Fetch the source dataset to get current optimizationSettings
+        if (expData.sourceDatasetId) {
+          const datasetData = await getRouteDataset(expData.sourceDatasetId)
+          if (datasetData) {
+            setDataset(datasetData)
+          }
+        }
       } catch (err: any) {
         setError(err.message || 'Ett fel uppstod vid hämtning av data.')
       } finally {
@@ -494,7 +505,13 @@ const ExperimentDetailPage = () => {
     )
   }
 
-  const experimentWorkingHours = (experiment as any)?.optimizationSettings?.workingHours
+  // Use experiment's optimizationSettings (source of truth for this experiment)
+  const experimentWorkingHours = experiment?.optimizationSettings?.workingHours
+  const datasetWorkingHours = dataset?.optimizationSettings?.workingHours
+  const workingHours = experimentWorkingHours || datasetWorkingHours
+
+  // planGroupId - groups all truck plans for this experiment
+  const planGroupId = experiment.planGroupId
 
   const routeVehicles = Object.keys(routeStopsData)
 
@@ -513,19 +530,20 @@ const ExperimentDetailPage = () => {
 
   const savedProject = {
     id: experiment.id,
-    name: experiment.datasetName || `Experiment ${experiment.id}`,
-    description: experiment.routeDataSource
+    name: experiment.name || experiment.datasetName || dataset?.name || `Experiment ${experiment.id}`,
+    description: experiment.description || dataset?.description || (experiment.routeDataSource
       ? `Datakälla: ${experiment.routeDataSource}`
-      : 'Optimerad körtur',
+      : 'Optimerad körtur'),
     workingHours: {
-      start: experimentWorkingHours?.start || '06:00',
-      end: experimentWorkingHours?.end || '15:00',
+      start: workingHours?.start || '06:00',
+      end: workingHours?.end || '15:00',
     },
     vehicles: routeVehicles.length
       ? routeVehicles
       : Array.isArray((experiment as any)?.vehicles)
       ? ((experiment as any)?.vehicles as string[])
       : experiment.emitters || [],
+    planGroupId,
   }
 
   const handleSaveChanges = () => {

@@ -853,8 +853,10 @@ class Truck extends Vehicle {
           )
 
           if (this.plan) {
+            // Use planGroupId from fleet settings, fallback to experimentId
+            const planGroupId = this.fleet?.settings?.planGroupId || experimentId
             await saveCompletePlanForReplay(
-              experimentId,
+              planGroupId,
               this.id,
               this.fleet?.name || this.id,
               this.plan,
@@ -881,8 +883,10 @@ class Truck extends Vehicle {
             { action: 'end' },
           ]
 
+          // Use planGroupId from fleet settings, fallback to experimentId
+          const fallbackPlanGroupId = this.fleet?.settings?.planGroupId || experimentId
           await saveCompletePlanForReplay(
-            experimentId,
+            fallbackPlanGroupId,
             this.id,
             this.fleet?.name || this.id,
             this.plan,
