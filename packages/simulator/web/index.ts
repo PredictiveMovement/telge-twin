@@ -17,10 +17,7 @@ import { extractOriginalData } from '../lib/types/originalBookingData'
 const PORT = env.PORT || 4000
 const BODY_LIMIT = '50mb'
 
-// Ensure required Elasticsearch indices/mappings exist on boot.
-createIndices().catch((err: unknown) => {
-  console.error('Failed to ensure Elasticsearch indices on startup', err)
-})
+// Note: Elasticsearch indices are created in the startup IIFE at the bottom of this file
 
 // Common error handler
 const handleError = (
@@ -109,23 +106,17 @@ app.get('/', (_req, res) => {
 app.get('/api/experiments', async (req, res) => {
   try {
     const experimentHits = await elasticsearchService.getAllExperiments()
-    const experimentIds = experimentHits
-      .map((hit: any) => hit._source.id)
-      .filter(Boolean)
 
-    const vehicleCounts = await elasticsearchService.getVehicleCounts(
-      experimentIds
-    )
-
-    const experiments =
-      experimentHits?.map((hit: any) => ({
+    const experiments = experimentHits?.map((hit: any) => {
+      const vroomTruckPlanIds = hit._source.vroomTruckPlanIds || []
+      return {
         ...hit._source,
-        vehicleCount: vehicleCounts.get(hit._source.id) || 0,
+        vehicleCount: vroomTruckPlanIds.length,
         documentId: hit._id,
-      })) || []
+      }
+    }) || []
 
-    // Only include optimized (VROOM) experiments in the list.
-    // Heuristic: keep experiments explicitly marked as 'vroom' OR those that have VROOM truck plans (vehicleCount > 0)
+    // Only include optimized (VROOM) experiments
     const filtered = experiments.filter(
       (exp: any) =>
         exp.experimentType === 'vroom' || (exp.vehicleCount || 0) > 0
@@ -159,11 +150,13 @@ app.get('/api/experiments/:experimentId/statistics', async (req, res) => {
         )
     }
 
-    // Fetch statistics from vroom-truck-plans (calculated at optimization time)
+    // Get plan IDs from experiment
+    const vroomTruckPlanIds = experiment.vroomTruckPlanIds || []
+
+    // Fetch statistics from truck-plans (calculated at optimization time)
     // Also fetch baseline statistics from original route data
-    const [planStats, vehicleCounts, baselineStats] = await Promise.all([
-      elasticsearchService.getStatisticsForExperiment(experimentId),
-      elasticsearchService.getVehicleCounts([experimentId]),
+    const [planStats, baselineStats] = await Promise.all([
+      elasticsearchService.getStatisticsForPlans(vroomTruckPlanIds),
       elasticsearchService.getBaselineStatisticsForExperiment(experimentId),
     ])
 
@@ -177,7 +170,7 @@ app.get('/api/experiments/:experimentId/statistics', async (req, res) => {
         experimentId,
         totalDistanceKm: planStats.totalDistanceKm,
         totalCo2Kg: planStats.totalCo2Kg,
-        vehicleCount: vehicleCounts.get(experimentId) || 0,
+        vehicleCount: vroomTruckPlanIds.length,
         bookingCount: planStats.bookingCount,
         clusterCount,
         baseline: baselineStats
@@ -408,9 +401,11 @@ app.get('/api/datasets/:datasetId/bookings', async (req, res) => {
 app.get('/api/experiments/:experimentId/vroom-plan', async (req, res) => {
   try {
     const { experimentId } = req.params
-    const truckPlans = await elasticsearchService.getVroomPlansForExperiment(
-      experimentId
-    )
+
+    const experiment = await elasticsearchService.getExperiment(experimentId)
+    const vroomTruckPlanIds = experiment?.vroomTruckPlanIds || []
+
+    const truckPlans = await elasticsearchService.getVroomPlansByIds(vroomTruckPlanIds)
     if (!truckPlans?.length) {
       return res
         .status(404)
@@ -492,9 +487,11 @@ app.get(
 app.get('/api/experiments/:experimentId/vroom-bookings', async (req, res) => {
   try {
     const { experimentId } = req.params
-    const truckPlans = await elasticsearchService.getVroomPlansForExperiment(
-      experimentId
-    )
+
+    const experiment = await elasticsearchService.getExperiment(experimentId)
+    const vroomTruckPlanIds = experiment?.vroomTruckPlanIds || []
+
+    const truckPlans = await elasticsearchService.getVroomPlansByIds(vroomTruckPlanIds)
     if (!truckPlans?.length) {
       return res.json(successResponse([]))
     }
@@ -519,6 +516,66 @@ app.get('/api/experiments/:experimentId/vroom-bookings', async (req, res) => {
   }
 })
 
+// Create a copy of an experiment with updated settings
+// The copy shares the same truck-plans (via vroomTruckPlanIds array).
+// Plans are only copied when route order is modified (handled by route-order endpoint).
+app.post('/api/experiments/:experimentId/copy', async (req, res) => {
+  try {
+    const { experimentId } = req.params
+    const { name, description, optimizationSettings } = req.body
+
+    // Get the source experiment
+    const sourceExperiment = await elasticsearchService.getExperiment(experimentId)
+    if (!sourceExperiment) {
+      return res.status(404).json(handleError(null, 'Source experiment not found'))
+    }
+
+    // The new experiment shares the same vroomTruckPlanIds - no plans are copied
+    const vroomTruckPlanIds = sourceExperiment.vroomTruckPlanIds || []
+
+    // Create new experiment ID
+    const newExperimentId = safeId()
+
+    // Get workdayStart from new settings or source experiment
+    const workingHours = optimizationSettings?.workingHours ||
+                         sourceExperiment.optimizationSettings?.workingHours
+    const workdayStart = workingHours?.start || sourceExperiment.workdayStart || '06:00'
+
+    // Build the new experiment - shares truck-plans via vroomTruckPlanIds
+    const newExperiment = {
+      id: newExperimentId,
+      createdAt: new Date().toISOString(),
+      startDate: sourceExperiment.startDate,
+      workdayStart: workdayStart,
+      fixedRoute: sourceExperiment.fixedRoute,
+      emitters: sourceExperiment.emitters,
+      sourceDatasetId: sourceExperiment.sourceDatasetId,
+      datasetName: sourceExperiment.datasetName,
+      routeDataSource: sourceExperiment.routeDataSource,
+      simulationStatus: 'completed',
+      experimentType: sourceExperiment.experimentType,
+      initMapState: sourceExperiment.initMapState,
+      baselineStatistics: sourceExperiment.baselineStatistics,
+      fleets: sourceExperiment.fleets,
+      vroomTruckPlanIds: vroomTruckPlanIds,
+      name: name || sourceExperiment.name || sourceExperiment.datasetName,
+      description: description || sourceExperiment.description || null,
+      optimizationSettings: optimizationSettings || sourceExperiment.optimizationSettings,
+    }
+
+    // Save the new experiment
+    await elasticsearchService.saveExperiment(newExperimentId, newExperiment)
+
+    res.json(successResponse({
+      experimentId: newExperimentId,
+      experiment: newExperiment,
+    }))
+  } catch (error) {
+    res.status(500).json(handleError(error, 'Failed to create experiment'))
+  }
+})
+
+// Update route order - ALWAYS creates a new experiment version to preserve original
 app.put(
   '/api/experiments/:experimentId/trucks/:truckId/route-order',
   async (req, res) => {
@@ -532,13 +589,52 @@ app.put(
           .json(handleError(null, 'completePlan array is required'))
       }
 
-      await elasticsearchService.updateTruckPlanOrder(
-        experimentId,
-        truckId,
-        completePlan
+      // Get the source experiment
+      const sourceExperiment = await elasticsearchService.getExperiment(experimentId)
+      if (!sourceExperiment) {
+        return res.status(404).json(handleError(null, 'Experiment not found'))
+      }
+
+      // Get source plan IDs
+      const sourcePlanIds = sourceExperiment.vroomTruckPlanIds || []
+      if (!sourcePlanIds.length) {
+        return res.status(404).json(handleError(null, 'No truck plans found for experiment'))
+      }
+
+      // Create new experiment ID first
+      const newExperimentId = safeId()
+
+      // Copy all truck plans to new experiment and get new IDs
+      const newPlanIds = await elasticsearchService.copyTruckPlansToExperiment(
+        sourcePlanIds,
+        newExperimentId
       )
 
-      res.json(successResponse({ success: true }))
+      // Find which new plan ID corresponds to this truck
+      const newPlans = await elasticsearchService.getVroomPlansByIds(newPlanIds)
+      const truckPlan = newPlans.find((p: any) => p.truckId === truckId)
+      if (!truckPlan) {
+        return res.status(404).json(handleError(null, 'Truck plan not found'))
+      }
+
+      // Update the specific truck plan with new route order
+      await elasticsearchService.updateTruckPlan(truckPlan._id, completePlan)
+
+      // Create the new experiment with new plan IDs
+      const newExperiment = {
+        ...sourceExperiment,
+        id: newExperimentId,
+        createdAt: new Date().toISOString(),
+        vroomTruckPlanIds: newPlanIds,
+      }
+
+      await elasticsearchService.saveExperiment(newExperimentId, newExperiment)
+
+      res.json(successResponse({
+        success: true,
+        experimentId: newExperimentId,
+        experiment: newExperiment,
+      }))
     } catch (error) {
       const status =
         error instanceof Error && error.message.includes('not found')
@@ -623,8 +719,18 @@ const io = new Server(server, {
   },
 })
 
-server.listen(PORT, () => {
-  // Server started
-})
+// Start server after indices are created
+;(async () => {
+  try {
+    await createIndices()
+    console.log('Elasticsearch indices ready')
+  } catch (err) {
+    console.error('Failed to create Elasticsearch indices:', err)
+  }
 
-routes.register(io)
+  server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`)
+  })
+
+  routes.register(io)
+})()

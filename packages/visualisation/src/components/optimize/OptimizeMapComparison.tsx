@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
+import { toast } from '@/hooks/use-toast'
 import {
   Maximize2,
   List,
@@ -299,7 +299,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
       target === 'current' ? currentSimulation : optimizedSimulation
 
     if (target === 'current' && !sequentialDatasetId) {
-      toast('Saknar dataset för att starta sekventiell simulering')
+      toast.info('Saknar dataset för att starta sekventiell simulering')
       return false
     }
 
@@ -316,7 +316,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
         }
       } catch (err: any) {
         const message = err?.message || 'Kunde inte starta simuleringen'
-        toast(message)
+        toast.error(message)
         return false
       }
     } else if (!simulation.isTimeRunning) {

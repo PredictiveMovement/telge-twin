@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Minus, Trash2, Pen } from 'lucide-react';
+import TimeInput from './TimeInput';
 
 interface BreakConfig {
   id: string;
@@ -66,12 +66,12 @@ const BreakCard: React.FC<BreakCardProps> = ({
                     handleSaveBreakName(breakItem.id, e.currentTarget.value, isExtra);
                   }
                 }} 
-                className="text-sm font-medium bg-white border border-orange-300 h-8 min-w-[120px]" 
+                className="text-base font-medium bg-white border border-orange-300 h-8 min-w-[120px]" 
                 style={{color: '#CB4522'}} 
               />
             ) : (
               <span 
-                className="text-sm font-medium min-w-[120px] cursor-pointer hover:underline" 
+                className="text-base font-medium min-w-[120px] cursor-pointer hover:underline" 
                 onClick={() => handleEditBreak(breakItem.id)} 
                 style={{color: '#CB4522'}}
               >
@@ -80,10 +80,10 @@ const BreakCard: React.FC<BreakCardProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2 ml-4">
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white border border-gray-200 hover:bg-gray-50" onClick={() => handleEditBreak(breakItem.id)}>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white border border-gray-200 hover:bg-orange-100" onClick={() => handleEditBreak(breakItem.id)}>
               <Pen className="h-4 w-4" style={{color: '#222222'}} />
             </Button>
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white border border-gray-200 hover:bg-red-50" onClick={() => onDelete(breakItem.id, isExtra)}>
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white border border-gray-200 hover:bg-orange-100" onClick={() => onDelete(breakItem.id, isExtra)}>
               <Trash2 className="h-4 w-4 text-red-500" />
             </Button>
           </div>
@@ -93,24 +93,15 @@ const BreakCard: React.FC<BreakCardProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <label className="text-sm min-w-[120px]" style={{color: '#CB4522'}}>Önskat klockslag:</label>
-          <Select value={breakItem.desiredTime || ''} onValueChange={value => onUpdateTime(breakItem.id, value, isExtra)}>
-            <SelectTrigger 
-              className="text-sm bg-white border border-orange-300 h-8 w-24 focus:ring-2 focus:ring-offset-2"
-              style={{
-                '--tw-ring-color': '#FFC9AD',
-                borderColor: '#FFC9AD'
-              } as React.CSSProperties}
-            >
-              <SelectValue placeholder="--:--" />
-            </SelectTrigger>
-            <SelectContent className="bg-white z-50">
-              {timeOptions.map(time => (
-                <SelectItem key={time} value={time} className="text-sm">
-                  {time}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TimeInput
+            value={breakItem.desiredTime || ''}
+            onChange={value => onUpdateTime(breakItem.id, value, isExtra)}
+            className="text-sm"
+            style={{
+              '--tw-ring-color': '#FFC9AD',
+              borderColor: '#FFC9AD'
+            } as React.CSSProperties}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Button 

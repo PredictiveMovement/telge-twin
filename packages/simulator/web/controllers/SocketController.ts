@@ -309,6 +309,17 @@ export class SocketController {
     socket.removeAllListeners('speed')
     socket.removeAllListeners('reset')
   }
+
+  broadcastSimulationStarted(data: {
+    experimentId: string
+    isReplay: boolean
+    sourceDatasetId?: string
+    datasetName?: string
+  }): void {
+    if (this.ioInstance) {
+      this.ioInstance.emit('simulationStarted', data)
+    }
+  }
 }
 
 export const socketController = new SocketController()

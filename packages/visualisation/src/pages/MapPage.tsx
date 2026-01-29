@@ -58,6 +58,10 @@ const MapPage = () => {
   const [layersMenuProps, setLayersMenuProps] =
     useState<LayersMenuProps | null>(null)
   const [mapControls, setMapControls] = useState<MapControls | null>(null)
+  const [workingHours, setWorkingHours] = useState<{ start: string; end: string }>({
+    start: '06:00',
+    end: '15:00',
+  })
 
   const speedOptions = useMemo(
     () => [1, 10, 20, 30, 60, 120, 300, 600, 900],
@@ -180,7 +184,7 @@ const MapPage = () => {
     handleBookings,
   ])
 
-  // Fetch area partitions whenever we have a running simulation tied to an experiment
+  // Fetch area partitions and working hours whenever we have a running simulation tied to an experiment
   useEffect(() => {
     let cancelled = false
     let interval: number | undefined
@@ -190,6 +194,11 @@ const MapPage = () => {
           const exp = await getExperiment(status.experimentId)
           if (!cancelled) {
             setAreaPartitions(exp?.areaPartitions || [])
+            // Extract working hours from experiment
+            const wh = exp?.optimizationSettings?.workingHours
+            if (wh?.start && wh?.end) {
+              setWorkingHours({ start: wh.start, end: wh.end })
+            }
           }
         } catch (_err) {
           if (!cancelled) setAreaPartitions([])
@@ -257,6 +266,25 @@ const MapPage = () => {
 
   const displayError = socketError
 
+  // Helper to parse time string to minutes
+  const parseTimeToMinutes = useCallback((time: string) => {
+    const [hours, minutes] = time.split(':').map((val) => Number(val) || 0)
+    return hours * 60 + minutes
+  }, [])
+
+  const startMinutes = useMemo(
+    () => parseTimeToMinutes(workingHours.start),
+    [workingHours.start, parseTimeToMinutes]
+  )
+  const endMinutes = useMemo(
+    () => parseTimeToMinutes(workingHours.end),
+    [workingHours.end, parseTimeToMinutes]
+  )
+  const totalMinutes = useMemo(
+    () => Math.max(1, endMinutes - startMinutes),
+    [endMinutes, startMinutes]
+  )
+
   const minuteOfDay = useMemo(() => {
     if (!virtualTime) return null
     const date = new Date(virtualTime)
@@ -271,8 +299,10 @@ const MapPage = () => {
 
   const mapProgress = useMemo(() => {
     if (minuteOfDay === null) return 0
-    return Math.max(0, Math.min(100, (minuteOfDay / 1440) * 100))
-  }, [minuteOfDay])
+    // Calculate progress within working hours window
+    const progress = ((minuteOfDay - startMinutes) / totalMinutes) * 100
+    return Math.max(0, Math.min(100, Number.isFinite(progress) ? progress : 0))
+  }, [minuteOfDay, startMinutes, totalMinutes])
 
   const progressLabel = useMemo(() => {
     if (!virtualTime) return '--:--'
@@ -436,8 +466,8 @@ const MapPage = () => {
               <MapPlaybackOverlay
                 progress={mapProgress}
                 progressLabel={progressLabel}
-                startLabel="00:00"
-                endLabel="24:00"
+                startLabel={workingHours.start}
+                endLabel={workingHours.end}
                 isPlaying={status.timeRunning}
                 onTogglePlayback={handleTogglePlayback}
                 disabled={isPlaybackDisabled}

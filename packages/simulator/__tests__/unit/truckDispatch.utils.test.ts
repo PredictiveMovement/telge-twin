@@ -1,7 +1,25 @@
 const {
   simpleGeographicSplit,
   combineSubResults,
+  saveCompletePlanForReplay,
+  calculatePlanStatistics,
 } = require('../../lib/dispatch/truckDispatch')
+
+// Mock elastic module
+jest.mock('../../lib/elastic', () => ({
+  save: jest.fn().mockResolvedValue({}),
+  search: jest.fn(),
+}))
+
+// Mock ElasticsearchService
+jest.mock('../../web/services/ElasticsearchService', () => ({
+  elasticsearchService: {
+    addPlanIdToExperiment: jest.fn().mockResolvedValue(undefined),
+  },
+}))
+
+const { save } = require('../../lib/elastic')
+const { elasticsearchService } = require('../../web/services/ElasticsearchService')
 
 describe('truckDispatch utils', () => {
   describe('simpleGeographicSplit', () => {
@@ -64,6 +82,223 @@ describe('truckDispatch utils', () => {
       expect(combined.idToBooking[1]).toEqual({ id: 'B' })
       expect(combined.idToBooking[2]).toEqual({ id: 'C' })
       expect(combined.idToBooking[3]).toEqual({ id: 'D' })
+    })
+  })
+
+  describe('saveCompletePlanForReplay', () => {
+    beforeEach(() => {
+      jest.clearAllMocks()
+    })
+
+    it('returns undefined when createReplay is false', async () => {
+      const result = await saveCompletePlanForReplay(
+        'exp-123',
+        'truck-1',
+        'fleet-1',
+        [],
+        [],
+        false // createReplay = false
+      )
+
+      expect(result).toBeUndefined()
+      expect(save).not.toHaveBeenCalled()
+    })
+
+    it('generates deterministic planId from experimentId and truckId', async () => {
+      const completePlan = [
+        {
+          action: 'pickup',
+          arrival: 0,
+          departure: 100,
+          booking: {
+            bookingId: 'b1',
+            id: 'b1',
+            recyclingType: 'HUSHSORT',
+            pickup: { position: { lat: 59.0, lon: 18.0 }, postalcode: '12345' },
+            destination: { position: { lat: 59.1, lon: 18.1 } },
+          },
+        },
+      ]
+
+      const bookings = [
+        {
+          bookingId: 'b1',
+          id: 'b1',
+          recyclingType: 'HUSHSORT',
+          pickup: { position: { lat: 59.0, lon: 18.0 }, postalcode: '12345' },
+        },
+      ]
+
+      const result = await saveCompletePlanForReplay(
+        'experiment-abc',
+        'truck-xyz',
+        'fleet-1',
+        completePlan,
+        bookings,
+        true
+      )
+
+      // Should return deterministic planId
+      expect(result).toBe('experiment-abc-truck-xyz')
+
+      // Verify save was called with correct planId
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          planId: 'experiment-abc-truck-xyz',
+          experimentId: 'experiment-abc',
+          truckId: 'truck-xyz',
+        }),
+        'experiment-abc-truck-xyz',
+        'truck-plans'
+      )
+    })
+
+    it('calls addPlanIdToExperiment with the generated planId', async () => {
+      const completePlan: any[] = []
+      const bookings: any[] = []
+
+      await saveCompletePlanForReplay(
+        'exp-999',
+        'truck-5',
+        'fleet-A',
+        completePlan,
+        bookings,
+        true
+      )
+
+      expect(elasticsearchService.addPlanIdToExperiment).toHaveBeenCalledWith(
+        'exp-999',
+        'exp-999-truck-5'
+      )
+    })
+
+    it('saves plan statistics (distance, CO2, booking count)', async () => {
+      const completePlan = [
+        {
+          action: 'pickup',
+          arrival: 0,
+          departure: 100,
+          booking: {
+            bookingId: 'b1',
+            id: 'b1',
+            recyclingType: 'HUSHSORT',
+            pickup: { position: { lat: 59.0, lon: 18.0 } },
+            destination: { position: { lat: 59.1, lon: 18.1 } },
+          },
+        },
+        {
+          action: 'pickup',
+          arrival: 200,
+          departure: 300,
+          booking: {
+            bookingId: 'b2',
+            id: 'b2',
+            recyclingType: 'MATAVF',
+            pickup: { position: { lat: 59.05, lon: 18.05 } },
+            destination: { position: { lat: 59.15, lon: 18.15 } },
+          },
+        },
+      ]
+
+      await saveCompletePlanForReplay(
+        'exp-with-stats',
+        'truck-1',
+        'fleet-1',
+        completePlan,
+        [],
+        true
+      )
+
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          totalDistanceKm: expect.any(Number),
+          totalCo2Kg: expect.any(Number),
+          bookingCount: expect.any(Number),
+        }),
+        expect.any(String),
+        'truck-plans'
+      )
+    })
+
+    it('returns undefined on save error', async () => {
+      save.mockRejectedValueOnce(new Error('ES connection failed'))
+
+      const result = await saveCompletePlanForReplay(
+        'exp-fail',
+        'truck-fail',
+        'fleet-fail',
+        [],
+        [],
+        true
+      )
+
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('calculatePlanStatistics', () => {
+    it('calculates distance from pickup positions', () => {
+      const completePlan = [
+        {
+          action: 'pickup',
+          arrival: 0,
+          departure: 100,
+          booking: {
+            pickup: { position: { lat: 59.0, lon: 18.0 } },
+          },
+        },
+        {
+          action: 'pickup',
+          arrival: 200,
+          departure: 300,
+          booking: {
+            pickup: { position: { lat: 59.1, lon: 18.1 } },
+          },
+        },
+      ]
+
+      const stats = calculatePlanStatistics(completePlan)
+
+      expect(stats.bookingCount).toBe(2)
+      expect(stats.totalDistanceKm).toBeGreaterThan(0)
+      expect(stats.totalCo2Kg).toBeGreaterThan(0)
+    })
+
+    it('returns zero for empty plan', () => {
+      const stats = calculatePlanStatistics([])
+
+      expect(stats.totalDistanceKm).toBe(0)
+      expect(stats.totalCo2Kg).toBe(0)
+      expect(stats.bookingCount).toBe(0)
+    })
+
+    it('ignores non-pickup actions', () => {
+      const completePlan = [
+        {
+          action: 'start',
+          arrival: 0,
+          departure: 0,
+          booking: null,
+        },
+        {
+          action: 'pickup',
+          arrival: 100,
+          departure: 200,
+          booking: {
+            pickup: { position: { lat: 59.0, lon: 18.0 } },
+          },
+        },
+        {
+          action: 'delivery',
+          arrival: 300,
+          departure: 400,
+          booking: null,
+        },
+      ]
+
+      const stats = calculatePlanStatistics(completePlan)
+
+      expect(stats.bookingCount).toBe(1)
     })
   })
 })

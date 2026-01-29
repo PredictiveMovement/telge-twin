@@ -102,6 +102,16 @@ export interface Experiment {
   emitters?: string[]
   experimentType?: 'vroom' | 'sequential' | 'replay'
   areaPartitions?: AreaPartition[]
+  // Array of vroom-truck-plan IDs belonging to this experiment
+  vroomTruckPlanIds?: string[]
+  name?: string
+  description?: string
+  optimizationSettings?: OptimizationSettings
+  baselineStatistics?: {
+    totalDistanceKm: number
+    totalCo2Kg: number
+    bookingCount: number
+  }
 }
 
 export interface ExperimentStatistics {
@@ -164,29 +174,22 @@ export async function getRouteDatasets(): Promise<RouteDataset[]> {
 }
 
 /**
- * Updates a route dataset.
- * @param datasetId - The ID of the dataset to update.
- * @param updates - The fields to update.
- * @returns The response from the API.
+ * Gets a single route dataset by ID.
+ * @param datasetId - The ID of the dataset.
+ * @returns The route dataset or null if not found.
  */
 
-export async function updateRouteDataset(
-  datasetId: string,
-  updates: {
-    name?: string
-    description?: string
-    optimizationSettings?: OptimizationSettings
-  }
-): Promise<{ success: boolean; dataset?: RouteDataset; error?: string }> {
+export async function getRouteDataset(
+  datasetId: string
+): Promise<RouteDataset | null> {
   try {
-    const response = await simulatorApi.put(`/api/datasets/${datasetId}`, updates)
-    return response.data
-  } catch (_error) {
-    return {
-      success: false,
-      error:
-        _error instanceof Error ? _error.message : 'Unknown error occurred',
+    const response = await simulatorApi.get(`/api/datasets/${datasetId}`)
+    if (response.data?.success && response.data?.data) {
+      return response.data.data
     }
+    return null
+  } catch (_error) {
+    return null
   }
 }
 
@@ -287,6 +290,43 @@ export async function deleteExperiment(
   try {
     const response = await simulatorApi.delete(`/api/experiments/${documentId}`)
     return response.data
+  } catch (_error) {
+    return {
+      success: false,
+      error:
+        _error instanceof Error ? _error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+/**
+ * Creates a copy of an experiment with updated settings.
+ * @param experimentId - The ID of the experiment to copy.
+ * @param updates - The fields to update in the new experiment.
+ * @returns The new experiment.
+ */
+
+export async function copyExperiment(
+  experimentId: string,
+  updates: {
+    name?: string
+    description?: string
+    optimizationSettings?: OptimizationSettings
+  }
+): Promise<{ success: boolean; experimentId?: string; experiment?: Experiment; error?: string }> {
+  try {
+    const response = await simulatorApi.post(
+      `/api/experiments/${experimentId}/copy`,
+      updates
+    )
+    if (response.data?.success && response.data?.data) {
+      return {
+        success: true,
+        experimentId: response.data.data.experimentId,
+        experiment: response.data.data.experiment,
+      }
+    }
+    return { success: false, error: 'Copy failed' }
   } catch (_error) {
     return {
       success: false,
@@ -421,50 +461,6 @@ export async function prepareSequentialSession(datasetId: string): Promise<{
 }
 
 /**
- * Starts a simulation from a dataset.
- * @param socket - The socket.
- * @param datasetId - The ID of the dataset.
- * @param datasetName - The name of the dataset.
- * @param parameters - The parameters for the experiment.
- * @returns The experiment.
- */
-
-export function startSimulationFromDataset(
-  socket: Socket,
-  datasetId: string,
-  datasetName: string,
-  parameters: Record<string, unknown> = {}
-): Promise<void> {
-  return new Promise((resolve) => {
-    const defaultParameters = {
-      id: null,
-      startDate: new Date().toISOString(),
-      fixedRoute: 100,
-      emitters: ['bookings', 'cars'],
-      initMapState: {
-        latitude: 65.0964472642777,
-        longitude: 17.112050188704504,
-        zoom: 5,
-      },
-    }
-
-    socket.emit(
-      'startSimulation',
-      {
-        sourceDatasetId: datasetId,
-        datasetName,
-      },
-      {
-        ...defaultParameters,
-        ...parameters,
-        routeDataSource: 'elasticsearch',
-      }
-    )
-    socket.once('simulationStarted', () => resolve())
-  })
-}
-
-/**
  * Starts a session replay.
  * @param socket - The socket.
  * @param experimentId - The ID of the experiment.
@@ -565,6 +561,57 @@ export async function updateRouteOrder(
         error instanceof Error
           ? error.message
           : 'Failed to update route order',
+    }
+  }
+}
+
+/**
+ * Starts a simulation from a dataset via REST API.
+ * @param datasetId - The ID of the dataset.
+ * @param datasetName - The name of the dataset.
+ * @param parameters - The parameters for the experiment.
+ * @returns The result of starting the simulation.
+ */
+export async function startSimulationFromDatasetRest(
+  datasetId: string,
+  datasetName: string,
+  parameters: { startDate?: string; experimentType?: string } = {}
+): Promise<{ success: boolean; experimentId?: string; error?: string }> {
+  try {
+    const response = await simulatorApi.post('/api/simulation/start', {
+      sourceDatasetId: datasetId,
+      datasetName,
+      parameters: {
+        id: null,
+        startDate: parameters.startDate || new Date().toISOString(),
+        experimentType: parameters.experimentType || 'vroom',
+        fixedRoute: 100,
+        emitters: ['bookings', 'cars'],
+        routeDataSource: 'elasticsearch',
+        initMapState: {
+          latitude: 59.195,
+          longitude: 17.625,
+          zoom: 12,
+        },
+      },
+    })
+
+    if (response.data?.success) {
+      return {
+        success: true,
+        experimentId: response.data.data?.experimentId,
+      }
+    }
+
+    return {
+      success: false,
+      error: response.data?.error || 'Failed to start simulation',
+    }
+  } catch (_error) {
+    return {
+      success: false,
+      error:
+        _error instanceof Error ? _error.message : 'Failed to start simulation',
     }
   }
 }

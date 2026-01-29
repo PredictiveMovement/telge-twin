@@ -12,7 +12,7 @@ import { useRouteFilters } from '@/hooks/useRouteFilters'
 import { getTelgeRouteData } from '@/api/simulator'
 import { format, isSameDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { toast } from 'sonner'
+import { toast } from '@/hooks/use-toast'
 import { getSettingsForPreview, extractInfoFromData } from './FileUpload/utils'
 import type { Settings } from '@/utils/fleetGenerator'
 
@@ -191,8 +191,6 @@ const RouteSearchTab: React.FC = () => {
       setRawSearchResults(generatedRoutes)
       setSelectedSearchRoutes([])
       setHasSearched(true)
-      
-      toast.success(`${generatedRoutes.length} unika körturer från ${allData.length} bokningar`)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Kunde inte hämta data från API'
       toast.error(message)

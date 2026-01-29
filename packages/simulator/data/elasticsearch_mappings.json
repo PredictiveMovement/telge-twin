@@ -437,13 +437,13 @@
       }
     }
   },
-  "vroom-truck-plans": {
+  "truck-plans": {
     "mappings": {
       "properties": {
         "planId": {
           "type": "keyword"
         },
-        "experiment": {
+        "experimentId": {
           "type": "keyword"
         },
         "truckId": {
@@ -479,6 +479,36 @@
         "bookingCount": {
           "type": "integer"
         }
+      }
+    }
+  },
+  "cars": {
+    "mappings": {
+      "properties": {
+        "id": { "type": "keyword" },
+        "fleet": { "type": "keyword" },
+        "status": { "type": "keyword" },
+        "vehicleType": { "type": "keyword" },
+        "recyclingTypes": { "type": "keyword" },
+        "position": { "type": "geo_point" },
+        "destination": { "type": "geo_point" },
+        "distance": { "type": "float" },
+        "co2": { "type": "float" },
+        "cargo": { "type": "long" },
+        "delivered": { "type": "long" },
+        "queue": { "type": "long" },
+        "parcelCapacity": { "type": "long" },
+        "timestamp": { "type": "date" },
+        "compartments": {
+          "type": "nested",
+          "properties": {
+            "fackNumber": { "type": "long" },
+            "fillKg": { "type": "float" },
+            "fillLiters": { "type": "float" },
+            "allowedWasteTypes": { "type": "keyword" }
+          }
+        },
+        "experimentSettings": { "type": "object", "enabled": false }
       }
     }
   },
@@ -573,6 +603,81 @@
             },
             "bookingCount": {
               "type": "integer"
+            }
+          }
+        },
+        "parentExperimentId": {
+          "type": "keyword"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "vroomTruckPlanIds": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "description": {
+          "type": "text"
+        },
+        "optimizationSettings": {
+          "properties": {
+            "workingHours": {
+              "properties": {
+                "start": {
+                  "type": "keyword"
+                },
+                "end": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "breaks": {
+              "type": "nested",
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text"
+                },
+                "duration": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "desiredTime": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "extraBreaks": {
+              "type": "nested",
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text"
+                },
+                "duration": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "desiredTime": {
+                  "type": "keyword"
+                }
+              }
             }
           }
         }

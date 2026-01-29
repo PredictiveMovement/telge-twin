@@ -40,6 +40,7 @@ export class ElasticsearchService {
       index: 'experiments',
       id: experimentId,
       body: experimentBody,
+      refresh: 'wait_for',
     })
   }
 
@@ -77,47 +78,32 @@ export class ElasticsearchService {
     return searchResult?.body?.hits?.hits || []
   }
 
-  async getVehicleCounts(experimentIds: string[]) {
-    if (experimentIds.length === 0) return new Map()
+  /**
+   * Get vehicle counts for experiments based on their vroomTruckPlanIds arrays.
+   * Returns a Map of experimentId → vehicle count.
+   */
+  async getVehicleCountsForExperiments(
+    experiments: Array<{ id: string; vroomTruckPlanIds?: string[] }>
+  ): Promise<Map<string, number>> {
+    const vehicleCounts = new Map<string, number>()
 
-    const vehicleCountResult = await search({
-      index: 'vroom-truck-plans',
-      body: {
-        query: {
-          terms: { experiment: experimentIds },
-        },
-        aggs: {
-          vehicles_per_experiment: {
-            terms: { field: 'experiment', size: 1000 },
-            aggs: {
-              unique_vehicles: {
-                cardinality: { field: 'truckId' },
-              },
-            },
-          },
-        },
-        size: 0,
-      },
-    })
-
-    const vehicleCounts = new Map()
-    vehicleCountResult?.body?.aggregations?.vehicles_per_experiment?.buckets?.forEach(
-      (bucket: any) => {
-        vehicleCounts.set(bucket.key, bucket.unique_vehicles.value)
-      }
-    )
+    for (const exp of experiments) {
+      const planIds = exp.vroomTruckPlanIds || []
+      vehicleCounts.set(exp.id, planIds.length)
+    }
 
     return vehicleCounts
   }
 
   async deleteExperiment(documentId: string) {
-    // First get the experiment to find its ID for cleaning up related data
+    // First get the experiment to find its vroomTruckPlanIds for cleaning up related data
     const experimentResponse = await this.client.get({
       index: 'experiments',
       id: documentId,
     })
 
-    const experimentId = experimentResponse.body._source?.id
+    const vroomTruckPlanIds =
+      experimentResponse.body._source?.vroomTruckPlanIds || []
 
     // Delete the experiment document
     await this.client.delete({
@@ -125,16 +111,43 @@ export class ElasticsearchService {
       id: documentId,
     })
 
-    // Clean up related vroom-truck-plans if experimentId exists
-    if (experimentId) {
-      await this.client.deleteByQuery({
-        index: 'vroom-truck-plans',
+    // Clean up related truck-plans
+    // Only delete plans that are not referenced by other experiments
+    if (vroomTruckPlanIds.length > 0) {
+      // Find which planIds are still referenced by other experiments
+      const otherExperiments = await search({
+        index: 'experiments',
         body: {
           query: {
-            term: { experiment: experimentId },
+            terms: { vroomTruckPlanIds: vroomTruckPlanIds },
           },
+          _source: ['vroomTruckPlanIds'],
+          size: 100,
         },
       })
+
+      const stillReferencedIds = new Set<string>()
+      otherExperiments?.body?.hits?.hits?.forEach((hit: any) => {
+        ;(hit._source.vroomTruckPlanIds || []).forEach((id: string) =>
+          stillReferencedIds.add(id)
+        )
+      })
+
+      // Delete plans that are no longer referenced
+      const toDelete = vroomTruckPlanIds.filter(
+        (id: string) => !stillReferencedIds.has(id)
+      )
+
+      if (toDelete.length > 0) {
+        await this.client.deleteByQuery({
+          index: 'truck-plans',
+          body: {
+            query: {
+              terms: { _id: toDelete },
+            },
+          },
+        })
+      }
     }
 
     return { success: true }
@@ -193,49 +206,116 @@ export class ElasticsearchService {
     }
   }
 
-  async getVroomPlansForExperiment(experimentId: string) {
+  /**
+   * Get vroom truck plans by their IDs.
+   */
+  async getVroomPlansByIds(planIds: string[]) {
+    if (!planIds.length) return []
+
     const searchResult = await search({
-      index: 'vroom-truck-plans',
+      index: 'truck-plans',
       body: {
-        query: { term: { experiment: experimentId } },
-        size: 100,
+        query: { terms: { _id: planIds } },
+        size: planIds.length,
       },
     })
-    return searchResult?.body?.hits?.hits?.map((hit: any) => hit._source) || []
+    return (
+      searchResult?.body?.hits?.hits?.map((hit: any) => ({
+        ...hit._source,
+        _id: hit._id,
+      })) || []
+    )
   }
 
   /**
-   * Update the route order for a specific truck plan.
-   * Updates the completePlan array with the new order of stops.
+   * Copy truck plans to a new experiment and return the new plan IDs.
+   * Used when a copied experiment needs its own plans (e.g., when modifying route order).
    */
-  async updateTruckPlanOrder(
-    experimentId: string,
-    truckId: string,
-    completePlan: any[]
-  ) {
-    const searchResult = await search({
-      index: 'vroom-truck-plans',
-      body: {
-        query: {
-          bool: {
-            must: [
-              { term: { experiment: experimentId } },
-              { term: { truckId: truckId } },
-            ],
-          },
-        },
-      },
-    })
+  async copyTruckPlansToExperiment(
+    planIds: string[],
+    newExperimentId: string
+  ): Promise<string[]> {
+    const sourcePlans = await this.getVroomPlansByIds(planIds)
 
-    if (!searchResult?.body?.hits?.hits?.length) {
-      throw new Error('Truck plan not found')
+    if (!sourcePlans.length) {
+      throw new Error('No truck plans found to copy')
     }
 
-    const docId = searchResult.body.hits.hits[0]._id
+    const newPlanIds: string[] = []
+    const operations: any[] = []
 
+    for (const plan of sourcePlans) {
+      // Deterministic planId: newExperimentId-truckId
+      const newPlanId = `${newExperimentId}-${plan.truckId}`
+      newPlanIds.push(newPlanId)
+
+      // Remove _id from source plan and set new planId/experimentId
+      const { _id, ...planData } = plan
+      operations.push(
+        { index: { _index: 'truck-plans', _id: newPlanId } },
+        {
+          ...planData,
+          planId: newPlanId,
+          experimentId: newExperimentId,
+        }
+      )
+    }
+
+    await this.client.bulk({ body: operations, refresh: 'wait_for' })
+
+    return newPlanIds
+  }
+
+  /**
+   * Add a planId to an experiment's vroomTruckPlanIds array.
+   * Called when a truck plan is saved during simulation.
+   */
+  async addPlanIdToExperiment(
+    experimentId: string,
+    planId: string
+  ): Promise<void> {
+    try {
+      await this.client.update({
+        index: 'experiments',
+        id: experimentId,
+        body: {
+          script: {
+            source: `
+              if (ctx._source.vroomTruckPlanIds == null) {
+                ctx._source.vroomTruckPlanIds = [params.planId];
+              } else if (!ctx._source.vroomTruckPlanIds.contains(params.planId)) {
+                ctx._source.vroomTruckPlanIds.add(params.planId);
+              }
+            `,
+            params: { planId },
+          },
+        },
+        retry_on_conflict: 3,
+      })
+    } catch (err: any) {
+      // Check if experiment was deleted (e.g., cancelled by user)
+      if (err?.meta?.body?.error?.type === 'document_missing_exception') {
+        console.info(
+          `Experiment ${experimentId} was deleted (optimization cancelled) - skipping planId update`
+        )
+        return
+      }
+      // Experiment might not exist yet - that's OK
+      console.warn(
+        `Could not add planId ${planId} to experiment ${experimentId}:`,
+        err
+      )
+    }
+  }
+
+  /**
+   * Update the route order for a specific truck plan by its ID.
+   * Updates the completePlan array with the new order of stops.
+   */
+  async updateTruckPlan(planId: string, completePlan: any[]) {
     await this.client.update({
-      index: 'vroom-truck-plans',
-      id: docId,
+      index: 'truck-plans',
+      id: planId,
       body: {
         doc: {
           completePlan,
@@ -244,22 +324,30 @@ export class ElasticsearchService {
       },
     })
 
-    await this.client.indices.refresh({ index: 'vroom-truck-plans' })
+    await this.client.indices.refresh({ index: 'truck-plans' })
 
     return { success: true }
   }
 
   /**
-   * Aggregated statistics for a VROOM experiment from truck plans.
+   * Aggregated statistics for vroom truck plans by their IDs.
    * Sums up totalDistanceKm, totalCo2Kg, and bookingCount from all plans.
    */
-  async getStatisticsForExperiment(experimentId: string) {
+  async getStatisticsForPlans(planIds: string[]) {
+    if (!planIds.length) {
+      return {
+        totalDistanceKm: 0,
+        totalCo2Kg: 0,
+        bookingCount: 0,
+      }
+    }
+
     const result = await search({
-      index: 'vroom-truck-plans',
+      index: 'truck-plans',
       body: {
         size: 0,
         query: {
-          term: { experiment: experimentId },
+          terms: { _id: planIds },
         },
         aggs: {
           total_distance: { sum: { field: 'totalDistanceKm' } },

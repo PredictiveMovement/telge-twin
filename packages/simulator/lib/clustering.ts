@@ -572,7 +572,12 @@ async function saveAreaPartitionsToElastic(
         docs.length
       } partitions for trucks [${savingTruckIds.join(', ')}]`
     )
-  } catch (e) {
+  } catch (e: any) {
+    // Check if experiment was deleted (e.g., cancelled by user)
+    if (e?.meta?.body?.error?.type === 'document_missing_exception') {
+      info(`   ⚠️ Experiment ${experimentId} was deleted (optimization cancelled)`)
+      return
+    }
     error('Unexpected error saving area partitions (atomic update):', e)
   }
 }

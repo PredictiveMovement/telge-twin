@@ -7,6 +7,7 @@ const { createSpatialChunks, calculateCenter } = require('../clustering')
 const Position = require('../models/position')
 import Booking from '../models/booking'
 const { save, search } = require('../elastic')
+import { elasticsearchService } from '../../web/services/ElasticsearchService'
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'
 import { haversine } from '../distance'
@@ -486,10 +487,12 @@ export async function saveCompletePlanForReplay(
   completePlan: Instruction[],
   allBookings: any[],
   createReplay = true
-) {
-  if (!createReplay) return
+): Promise<string | undefined> {
+  if (!createReplay) return undefined
   try {
-    const planId = `${experimentId}-${truckId}-complete-${Date.now()}`
+    // Deterministic planId: experimentId-truckId
+    // This matches the vroomTruckPlanIds generated when experiment starts
+    const planId = `${experimentId}-${truckId}`
     const bookingMetadata = allBookings.map((b: any, i: number) => ({
       originalIndex: i,
       bookingId: b.bookingId,
@@ -534,7 +537,7 @@ export async function saveCompletePlanForReplay(
     await save(
       {
         planId,
-        experiment: experimentId,
+        experimentId,
         truckId,
         fleet: fleetName,
         completePlan: cleanPlan,
@@ -546,28 +549,49 @@ export async function saveCompletePlanForReplay(
         bookingCount: stats.bookingCount,
       },
       planId,
-      'vroom-truck-plans'
+      'truck-plans'
     )
+
+    // Add planId to experiment's vroomTruckPlanIds array
+    await elasticsearchService.addPlanIdToExperiment(experimentId, planId)
+
+    return planId
   } catch (e) {
     error(`Error saving complete plan: ${e}`)
+    return undefined
   }
 }
 
 export async function useReplayRoute(truck: any, bookings: any[]) {
   try {
+    // Get the specific planId to replay, or fall back to experimentId-based lookup
+    const replayPlanId = truck.fleet.settings.replayPlanId
+    const replayExperimentId = truck.fleet.settings.replayExperimentId || truck.fleet.settings.replayExperiment
+
+    let query: any
+    if (replayPlanId) {
+      // Direct lookup by planId
+      query = { term: { _id: replayPlanId } }
+    } else if (replayExperimentId) {
+      // Lookup by experimentId and truckId
+      query = {
+        bool: {
+          must: [
+            { term: { experimentId: replayExperimentId } },
+            { term: { truckId: truck.id } },
+            { term: { planType: 'complete' } },
+          ],
+        },
+      }
+    } else {
+      return []
+    }
+
     const res = await search({
-      index: 'vroom-truck-plans',
+      index: 'truck-plans',
       body: {
         size: 1,
-        query: {
-          bool: {
-            must: [
-              { match: { experiment: truck.fleet.settings.replayExperiment } },
-              { match: { truckId: truck.id } },
-              { match: { planType: 'complete' } },
-            ],
-          },
-        },
+        query,
         sort: [{ timestamp: { order: 'desc' } }],
       },
     })
