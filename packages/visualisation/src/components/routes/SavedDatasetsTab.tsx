@@ -25,6 +25,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { useMapSocket } from '@/hooks/useMapSocket';
 import { useOptimizationContext } from '@/contexts/OptimizationContext';
+import { isExperimentOptimizing, isExperimentComplete } from '@/utils/optimization';
 
 interface ExperimentWithDocId extends Experiment {
   documentId: string;
@@ -33,10 +34,9 @@ interface ExperimentWithDocId extends Experiment {
 export default function SavedDatasetsTab() {
   const navigate = useNavigate();
   const { socket } = useMapSocket();
-  const { completeOptimization } = useOptimizationContext();
+  const { runningOptimizations, completedOptimizations, markAsViewed } = useOptimizationContext();
   const [datasets, setDatasets] = useState<RouteDataset[]>([]);
   const [experiments, setExperiments] = useState<ExperimentWithDocId[]>([]);
-  const prevOptimizingRef = useRef<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
     const stored = localStorage.getItem('savedDatasetsView');
     return stored === 'grid' || stored === 'table' ? stored as 'table' | 'grid' : 'table';
@@ -112,15 +112,25 @@ export default function SavedDatasetsTab() {
       loadDatasets();
     };
 
+    const handlePlanSaved = (data: { sourceDatasetId?: string }) => {
+      // Only reload for other clients (not the one who started the optimization)
+      // The starting client handles completion via OptimizationContext
+      if (data.sourceDatasetId && !runningOptimizations.has(data.sourceDatasetId)) {
+        loadDatasets();
+      }
+    };
+
     // Request current simulation status when socket connects
     socket.emit('joinMap');
 
     socket.on('simulationStarted', handleSimulationStarted);
+    socket.on('planSaved', handlePlanSaved);
 
     return () => {
       socket.off('simulationStarted', handleSimulationStarted);
+      socket.off('planSaved', handlePlanSaved);
     };
-  }, [socket]);
+  }, [socket, runningOptimizations]);
 
   const loadDatasets = async () => {
     try {
@@ -220,7 +230,12 @@ export default function SavedDatasetsTab() {
     if (!experimentId) return;
 
     setNavigatingId(opt.id);
-    navigate(`/optimize/${experimentId}`);
+
+    // Pass experiment data via navigation state to avoid redundant API call
+    const experiment = experiments.find(e => e.documentId === experimentId);
+    navigate(`/optimize/${experimentId}`, {
+      state: { experiment }
+    });
   };
 
   const handleDelete = async (datasetId: string) => {
@@ -312,6 +327,25 @@ export default function SavedDatasetsTab() {
 
     latestExperimentByDataset.forEach((latestExp, datasetId) => {
       const dataset = datasets.find(d => d.datasetId === datasetId);
+
+      // Calculate expected vehicle count from dataset's fleetConfiguration
+      const expectedVehicleCount = dataset?.fleetConfiguration?.reduce(
+        (sum, fleet) => sum + (fleet.vehicles?.length || 0), 0
+      ) || 0;
+
+      // Skip experiments that are still optimizing, unless this client started it
+      const isOwnOptimization = runningOptimizations.has(datasetId);
+      if (isExperimentOptimizing(latestExp) && !isOwnOptimization) {
+        return; // Don't show to other clients until optimization is complete
+      }
+
+      // Check if all vehicles are complete
+      const isComplete = isExperimentComplete(latestExp, expectedVehicleCount);
+
+      // If not complete AND not our own optimization, don't show
+      if (!isComplete && !isOwnOptimization) {
+        return;
+      }
       const experimentCount = experimentCountByDataset.get(datasetId) || 1;
 
       // Build versions array from all experiments for this dataset
@@ -328,8 +362,7 @@ export default function SavedDatasetsTab() {
             timestamp: exp.createdAt || exp.startDate || '',
             label: exp.name || exp.datasetName || 'Version',
             vehicleCount: exp.vroomTruckPlanIds?.length || 0,
-            // Only show as optimizing if vroomTruckPlanIds exists and is empty
-            isOptimizing: Array.isArray(exp.vroomTruckPlanIds) && exp.vroomTruckPlanIds.length === 0,
+            isOptimizing: isExperimentOptimizing(exp),
             bookingCount: exp.baselineStatistics?.bookingCount,
             breakCount: enabledBreakCount > 0 ? enabledBreakCount : undefined,
           };
@@ -353,13 +386,13 @@ export default function SavedDatasetsTab() {
         isLatestVersion: true,
         versions,
         vehicleCount: latestExp.vroomTruckPlanIds?.length || 0,
-        // Only show as optimizing if vroomTruckPlanIds exists and is empty
-        isOptimizing: Array.isArray(latestExp.vroomTruckPlanIds) && latestExp.vroomTruckPlanIds.length === 0,
+        // Only show loading for the client that started the optimization
+        isOptimizing: runningOptimizations.has(datasetId),
       });
     });
 
     return result;
-  }, [datasets, experiments]);
+  }, [datasets, experiments, runningOptimizations]);
 
   // Find the currently optimizing optimization (if any)
   const currentOptimizationId = useMemo(() => {
@@ -385,33 +418,57 @@ export default function SavedDatasetsTab() {
     }
   };
 
-  // Poll every 3 seconds if there are optimizations still calculating
+  // Reload datasets when an optimization completes (detected by OptimizationContext)
+  // This runs in the background without blocking the UI
   useEffect(() => {
-    const hasOptimizing = optimizations.some(opt => opt.isOptimizing === true);
-    if (!hasOptimizing) return;
+    if (completedOptimizations.size === 0) return;
 
-    const interval = setInterval(() => {
-      loadDatasets();
-    }, 3000);
+    const completedIds = Array.from(completedOptimizations.keys());
 
-    return () => clearInterval(interval);
-  }, [optimizations]);
+    const loadWithRetry = async (retriesLeft: number, delay: number) => {
+      try {
+        const [datasetsData, experimentsData] = await Promise.all([
+          getRouteDatasets(),
+          getExperiments(),
+        ]);
 
-  // Detect when optimizations complete (go from isOptimizing=true to false)
-  useEffect(() => {
-    const currentOptimizing = new Set(
-      optimizations.filter(o => o.isOptimizing).map(o => o.id)
-    );
+        // Verifiera att alla slutförda experiment har färsk data
+        const allFresh = completedIds.every(datasetId => {
+          const dataset = datasetsData.find(d => d.datasetId === datasetId);
+          const expectedVehicleCount = dataset?.fleetConfiguration?.reduce(
+            (sum, fleet) => sum + (fleet.vehicles?.length || 0), 0
+          ) || 0;
 
-    // Check which optimizations were optimizing before but not anymore
-    prevOptimizingRef.current.forEach(id => {
-      if (!currentOptimizing.has(id)) {
-        completeOptimization(id);
+          const latestExp = (experimentsData as ExperimentWithDocId[])
+            .filter(e => e.sourceDatasetId === datasetId)
+            .sort((a, b) =>
+              new Date(b.createdAt || b.startDate || 0).getTime() -
+              new Date(a.createdAt || a.startDate || 0).getTime()
+            )[0];
+
+          return isExperimentComplete(latestExp, expectedVehicleCount);
+        });
+
+        if (!allFresh && retriesLeft > 0) {
+          // Data inte färsk ännu, försök igen efter delay
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return loadWithRetry(retriesLeft - 1, delay * 2);
+        }
+
+        // Uppdatera state med färsk data
+        setDatasets(datasetsData);
+        setExperiments(experimentsData as ExperimentWithDocId[]);
+
+        // Markera som visad först efter färsk data
+        completedIds.forEach(id => markAsViewed(id));
+      } catch {
+        // Silently fail for background refresh
       }
-    });
+    };
 
-    prevOptimizingRef.current = currentOptimizing;
-  }, [optimizations, completeOptimization]);
+    loadWithRetry(3, 500);
+  }, [completedOptimizations, markAsViewed]);
+
 
   const query = search.trim().toLowerCase();
   const filtered = optimizations.filter(o => {

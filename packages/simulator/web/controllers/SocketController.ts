@@ -320,6 +320,15 @@ export class SocketController {
       this.ioInstance.emit('simulationStarted', data)
     }
   }
+
+  /**
+   * Broadcast when a truck plan is saved (optimization progress/completion)
+   */
+  emitPlanSaved(experimentId: string, planId: string, sourceDatasetId?: string): void {
+    if (this.ioInstance) {
+      this.ioInstance.emit('planSaved', { experimentId, planId, sourceDatasetId })
+    }
+  }
 }
 
 export const socketController = new SocketController()

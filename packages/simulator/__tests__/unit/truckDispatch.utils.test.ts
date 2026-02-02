@@ -15,6 +15,14 @@ jest.mock('../../lib/elastic', () => ({
 jest.mock('../../web/services/ElasticsearchService', () => ({
   elasticsearchService: {
     addPlanIdToExperiment: jest.fn().mockResolvedValue(undefined),
+    getExperiment: jest.fn().mockResolvedValue({ sourceDatasetId: 'test-dataset' }),
+  },
+}))
+
+// Mock SocketController
+jest.mock('../../web/controllers/SocketController', () => ({
+  socketController: {
+    emitPlanSaved: jest.fn(),
   },
 }))
 

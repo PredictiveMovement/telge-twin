@@ -8,6 +8,7 @@ const Position = require('../models/position')
 import Booking from '../models/booking'
 const { save, search } = require('../elastic')
 import { elasticsearchService } from '../../web/services/ElasticsearchService'
+import { socketController } from '../../web/controllers/SocketController'
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'
 import { haversine } from '../distance'
@@ -554,6 +555,13 @@ export async function saveCompletePlanForReplay(
 
     // Add planId to experiment's vroomTruckPlanIds array
     await elasticsearchService.addPlanIdToExperiment(experimentId, planId)
+
+    // Look up the experiment to get sourceDatasetId for the socket event
+    const experiment = await elasticsearchService.getExperiment(experimentId)
+    const sourceDatasetId = experiment?.sourceDatasetId
+
+    // Notify connected clients that a plan was saved (for real-time UI updates)
+    socketController.emitPlanSaved(experimentId, planId, sourceDatasetId)
 
     return planId
   } catch (e) {

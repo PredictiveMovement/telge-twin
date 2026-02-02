@@ -13,11 +13,11 @@
  * Maximum number of bookings allowed in a single cluster before forcing subdivision
  * Used in: clustering.ts - splits large clusters to maintain performance
  * Impact: Prevents VROOM timeouts, ensures manageable route planning
- * Value reasoning: 500 allows VROOM to optimize entire truck routes without subdivision.
- * With 2min timeout, VROOM can handle up to ~300 shipments effectively.
- * Set to 500 to match MAX_VROOM_SHIPMENTS and avoid unnecessary geographic splits.
+ * Value reasoning: Must match MAX_VROOM_SHIPMENTS (300) to ensure all bookings
+ * are optimized by VROOM without triggering the "too many shipments" error.
+ * Larger clusters are split geographically via simpleGeographicSplit().
  */
-const MAX_CLUSTER_SIZE = 500
+const MAX_CLUSTER_SIZE = 300
 
 // ========================================================================
 // TIMING CONFIGURATION
@@ -73,7 +73,7 @@ const MAX_VROOM_JOBS = 200
  * Used in: vroom.ts - validates shipment count
  * Impact: Higher values slow down route optimization
  * Technical limit: ~500, Recommended: 200
- * Updated to 500 to handle larger truck routes without fallback
+ * Must match MAX_CLUSTER_SIZE to avoid fallback to sequential
  */
 const MAX_VROOM_SHIPMENTS = 300
 

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import { useMapSocket } from '@/hooks/useMapSocket';
 
 // Phase 1: Save phase (shown on save page)
 const SAVE_PHASE = 'Projektet sparas';
@@ -25,12 +26,15 @@ export interface RunningOptimization {
   phaseIndex: number;
   isSavePhase: boolean;
   isUpdate: boolean;
+  expectedVehicleCount: number;
+  savedPlanCount: number;
 }
 
 interface StartOptimizationOptions {
   onNavigate?: () => void;
   onComplete?: () => void;
   isUpdate?: boolean;
+  expectedVehicleCount?: number;
 }
 
 interface CompletionInfo {
@@ -73,6 +77,7 @@ export const useOptimizationContext = () => {
 };
 
 export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { socket } = useMapSocket();
   const [runningOptimizations, setRunningOptimizations] = useState<Map<string, RunningOptimization>>(new Map());
   const [completedOptimizations, setCompletedOptimizations] = useState<Map<string, CompletionInfo>>(new Map());
   const isUpdateRef = useRef<Map<string, boolean>>(new Map());
@@ -81,6 +86,7 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const onCompleteCallbacksRef = useRef<Map<string, () => void>>(new Map());
   const onNavigateCallbacksRef = useRef<Map<string, () => void>>(new Map());
   const hasNavigatedRef = useRef<Set<string>>(new Set());
+  const completingRef = useRef<Set<string>>(new Set()); // Track IDs being completed to prevent double-calls
   const completionAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize audio element
@@ -105,8 +111,10 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     isUpdateRef.current.set(id, options?.isUpdate ?? false);
     hasNavigatedRef.current.delete(id);
+    completingRef.current.delete(id); // Säkerställ rent tillstånd för re-runs
 
     const isUpdate = options?.isUpdate ?? false;
+    const expectedVehicleCount = options?.expectedVehicleCount ?? 1;
 
     // Start with save phase
     setRunningOptimizations(prev => {
@@ -119,6 +127,8 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         phaseIndex: 0,
         isSavePhase: true,
         isUpdate,
+        expectedVehicleCount,
+        savedPlanCount: 0,
       });
       return next;
     });
@@ -240,6 +250,7 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     onCompleteCallbacksRef.current.delete(id);
     onNavigateCallbacksRef.current.delete(id);
     hasNavigatedRef.current.delete(id);
+    completingRef.current.delete(id);
 
     setRunningOptimizations(prev => {
       const next = new Map(prev);
@@ -249,6 +260,12 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const completeOptimization = useCallback((id: string) => {
+    // Prevent multiple calls for the same ID (can happen due to async state updates)
+    if (completingRef.current.has(id)) {
+      return;
+    }
+    completingRef.current.add(id);
+
     // Stop animation
     const frameId = animationFramesRef.current.get(id);
     if (frameId) {
@@ -271,7 +288,7 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return next;
     });
 
-    // Cleanup refs
+    // Cleanup refs (note: completingRef is NOT cleared here - it prevents duplicate calls during async state updates)
     startTimesRef.current.delete(id);
     hasNavigatedRef.current.delete(id);
     isUpdateRef.current.delete(id);
@@ -293,6 +310,8 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       next.delete(id);
       return next;
     });
+    // Rensa completingRef här - naturlig slutpunkt för completion-cykeln
+    completingRef.current.delete(id);
   }, []);
 
   const isOptimizing = useCallback((id: string) => {
@@ -315,6 +334,47 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const getCompletionInfo = useCallback((id: string): CompletionInfo | null => {
     return completedOptimizations.get(id) ?? null;
   }, [completedOptimizations]);
+
+  // Listen for planSaved socket events to detect optimization completion
+  // This replaces polling with real-time notifications from the backend
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePlanSaved = (data: { experimentId: string; planId: string; sourceDatasetId?: string }) => {
+      // Find the running optimization that matches this sourceDatasetId
+      const datasetId = data.sourceDatasetId;
+      if (!datasetId) return;
+
+      const runningOpt = runningOptimizations.get(datasetId);
+      if (runningOpt && !runningOpt.isSavePhase) {
+        const newSavedCount = runningOpt.savedPlanCount + 1;
+
+        // Check if all expected vehicles have saved their plans
+        if (newSavedCount >= runningOpt.expectedVehicleCount) {
+          completeOptimization(datasetId);
+        } else {
+          // Update the saved plan count
+          setRunningOptimizations(prev => {
+            const next = new Map(prev);
+            const current = next.get(datasetId);
+            if (current) {
+              next.set(datasetId, {
+                ...current,
+                savedPlanCount: newSavedCount,
+              });
+            }
+            return next;
+          });
+        }
+      }
+    };
+
+    socket.on('planSaved', handlePlanSaved);
+
+    return () => {
+      socket.off('planSaved', handlePlanSaved);
+    };
+  }, [socket, runningOptimizations, completeOptimization]);
 
   // Cleanup on unmount
   useEffect(() => {

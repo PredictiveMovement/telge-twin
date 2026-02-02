@@ -3,7 +3,7 @@ const {
   useReplayRoute,
   saveCompletePlanForReplay,
 } = require('../dispatch/truckDispatch')
-const { warn } = require('../log')
+const { warn, error: logError } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
 import {
@@ -873,6 +873,14 @@ class Truck extends Vehicle {
             throw new Error('VROOM returned null plan')
           }
         } catch (error: any) {
+          // Log the VROOM failure so we can identify when fallback is used
+          logError(`VROOM planning failed for truck ${this.id}, using sequential fallback`, {
+            experimentId,
+            truckId: this.id,
+            error: error.message,
+            bookingCount: this.queue.length,
+          })
+
           this.plan = [
             { action: 'start' },
             ...this.queue.map((b: any) => ({

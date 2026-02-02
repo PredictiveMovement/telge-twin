@@ -60,11 +60,20 @@ export interface RouteDataset {
   optimizationSettings?: OptimizationSettings
 }
 
+export interface FleetConfigurationVehicle {
+  originalId: string
+  type: string
+  description?: string
+  parcelCapacity?: number
+  weight?: number
+  fackDetails?: unknown[]
+}
+
 export interface FleetConfiguration {
   name: string
   hubAddress: string
   recyclingTypes: string[]
-  vehicles: Record<string, number>
+  vehicles: FleetConfigurationVehicle[]
   compartmentConfiguration?: Record<string, unknown>[]
   swedishCategory: string
   vehicleIds: string[]

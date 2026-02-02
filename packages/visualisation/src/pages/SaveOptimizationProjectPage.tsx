@@ -142,6 +142,11 @@ const SaveOptimizationProjectPage = () => {
 
       const datasetId = (res as any)?.data?.datasetId || (res as any)?.datasetId
       if ((res as any)?.success && datasetId) {
+        // Calculate expected vehicle count from fleet configuration
+        const expectedVehicleCount = fleetConfiguration.reduce(
+          (sum, fleet) => sum + (fleet.vehicles?.length || 0), 0
+        )
+
         // Start optimization animation (shows phases and navigates after first phase)
         startOptimization(datasetId, normalized.name || 'Optimering', {
           onNavigate: () => {
@@ -150,6 +155,7 @@ const SaveOptimizationProjectPage = () => {
           onComplete: () => {
             // Optional: any cleanup after animation completes
           },
+          expectedVehicleCount,
         })
 
         // Determine start time from working hours
