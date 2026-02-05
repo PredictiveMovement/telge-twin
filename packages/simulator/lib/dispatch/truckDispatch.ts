@@ -162,8 +162,10 @@ export function combineSubResults(
 
   subResults.forEach((subResult) => {
     if (subResult?.routes?.[0]?.steps) {
+      const originalSteps = subResult.routes[0].steps
+
       // Adjust step IDs to avoid conflicts, and carry id→booking mapping
-      const adjustedSteps = subResult.routes[0].steps.map((step: any) => ({
+      const adjustedSteps = originalSteps.map((step: any) => ({
         ...step,
         id: step.id + stepIdOffset,
       }))
@@ -179,8 +181,11 @@ export function combineSubResults(
         )
       }
 
-      // Update offset for next sub-result
-      const maxStepId = Math.max(...adjustedSteps.map((s: any) => s.id), -1)
+      // Update offset for next sub-result (filter out undefined/NaN IDs from start/end steps)
+      const stepIds = adjustedSteps
+        .map((s: any) => s.id)
+        .filter((id: any) => typeof id === 'number' && !isNaN(id))
+      const maxStepId = stepIds.length > 0 ? Math.max(...stepIds) : -1
       stepIdOffset = maxStepId + 1
     }
 

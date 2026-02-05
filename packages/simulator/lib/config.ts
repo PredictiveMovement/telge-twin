@@ -207,10 +207,26 @@ const VOLUME_COMPRESSION_FACTOR = 0.25
 // ========================================================================
 
 /**
+ * Delivery strategy type
+ * - 'capacity_based': Deliver when compartment is full or cargo count reaches threshold
+ * - 'end_of_route': Only deliver after all pickups are completed
+ */
+type DeliveryStrategy = 'capacity_based' | 'end_of_route'
+
+/**
+ * Default delivery strategy for vehicles
+ * Used in: truck.ts - determines when to trigger delivery trips
+ * Impact: 'capacity_based' = multiple delivery trips during route,
+ *         'end_of_route' = single delivery at route completion
+ */
+const DEFAULT_DELIVERY_STRATEGY: DeliveryStrategy = 'end_of_route'
+
+/**
  * Number of pickups before forcing a delivery trip
  * Used in: truck.ts - controls cargo management strategy
  * Impact: Higher values = more efficient routes but longer customer wait times
  * Recommended range: 10-100 depending on truck capacity
+ * Only applies when using 'capacity_based' delivery strategy
  */
 const PICKUPS_BEFORE_DELIVERY = 150
 
@@ -263,6 +279,7 @@ export const CLUSTERING_CONFIG = {
 
   // Delivery configuration
   DELIVERY_STRATEGIES: {
+    DEFAULT_DELIVERY_STRATEGY,
     PICKUPS_BEFORE_DELIVERY,
   },
 

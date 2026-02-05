@@ -56,6 +56,14 @@ class Truck extends Vehicle {
     return fleetExperimentType === 'sequential'
   }
 
+  private getDeliveryStrategy(): 'capacity_based' | 'end_of_route' {
+    const fleetStrategy = this.fleet?.settings?.deliveryStrategy
+    if (fleetStrategy === 'capacity_based' || fleetStrategy === 'end_of_route') {
+      return fleetStrategy
+    }
+    return CLUSTERING_CONFIG.DELIVERY_STRATEGIES.DEFAULT_DELIVERY_STRATEGY || 'capacity_based'
+  }
+
   private createInstruction(
     action: Instruction['action'],
     booking: Instruction['booking'] = null,
@@ -458,6 +466,11 @@ class Truck extends Vehicle {
   }
 
   private async handlePostStop(): Promise<void> {
+    // Guard: Already parked, don't re-process
+    if (this.status === 'parked') {
+      return
+    }
+
     if (this.shiftEndedForDay) {
       if (this.finishingWorkday) {
         await this.finalizeEndOfWorkday()
@@ -484,12 +497,24 @@ class Truck extends Vehicle {
       const hasReachableQueue = this.queue.some(
         (queued: any) => queued?.status !== 'Unreachable'
       )
+
       const canMeasureDistance =
         this.position &&
         this.startPosition &&
         typeof this.position.distanceTo === 'function'
-      const atStart =
-        canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
+      const distanceToStart = canMeasureDistance ? this.position.distanceTo(this.startPosition) : -1
+      const atStart = canMeasureDistance && distanceToStart < 100
+
+      // end_of_route: If plan is empty but there are unpicked bookings, rebuild the plan
+      if (this.getDeliveryStrategy() === 'end_of_route') {
+        const unpickedBookings = this.queue.filter(
+          (q: any) => q?.status !== 'Unreachable' && !this.cargo.includes(q)
+        )
+        if (unpickedBookings.length > 0) {
+          this.plan = unpickedBookings.map((b: any) => this.createInstruction('pickup', b))
+          return this.pickNextInstructionFromPlan()
+        }
+      }
 
       if (!hasReachableQueue) {
         this.queue = this.queue.filter(
@@ -611,27 +636,30 @@ class Truck extends Vehicle {
     // Prevent base Vehicle.stopped() from re-triggering pickup on next stop
     this.booking = null
 
-    // Check if we need to deliver based on cargo count
-    const deliveryConfig = CLUSTERING_CONFIG.DELIVERY_STRATEGIES
-    const pickupsBeforeDelivery =
-      this.fleet?.settings?.pickupsBeforeDelivery ||
-      deliveryConfig.PICKUPS_BEFORE_DELIVERY
+    // Check if we need to deliver based on delivery strategy (capacity_based only)
+    // end_of_route is handled in handlePostStop() - truck waits until all bookings are picked up
+    if (this.getDeliveryStrategy() === 'capacity_based') {
+      const deliveryConfig = CLUSTERING_CONFIG.DELIVERY_STRATEGIES
+      const pickupsBeforeDelivery =
+        this.fleet?.settings?.pickupsBeforeDelivery ||
+        deliveryConfig.PICKUPS_BEFORE_DELIVERY
 
-    // Trigger delivery if capacity reached OR fallback to pickup-count strategy
-    if (
-      isAnyCompartmentFull(this.compartments) ||
-      this.cargo.length >= pickupsBeforeDelivery
-    ) {
-      // Only add delivery instruction if the next instruction isn't already a delivery
-      const nextInstruction = this.plan[0]
+      const shouldTriggerDelivery =
+        isAnyCompartmentFull(this.compartments) ||
+        this.cargo.length >= pickupsBeforeDelivery
 
-      if (!nextInstruction || nextInstruction.action !== 'delivery') {
-        this.plan.unshift({
-          action: 'delivery',
-          arrival: 0,
-          departure: 0,
-          booking: null,
-        })
+      if (shouldTriggerDelivery) {
+        // Only add delivery instruction if the next instruction isn't already a delivery
+        const nextInstruction = this.plan[0]
+
+        if (!nextInstruction || nextInstruction.action !== 'delivery') {
+          this.plan.unshift({
+            action: 'delivery',
+            arrival: 0,
+            departure: 0,
+            booking: null,
+          })
+        }
       }
     }
   }
@@ -661,14 +689,12 @@ class Truck extends Vehicle {
   async dropOff() {
     // If this is a delivery action (booking is null), deliver all cargo
     if (!this.booking) {
-      // Deliver all items in cargo
       const deliveredNow = [...this.cargo]
       deliveredNow.forEach((item: any) => {
         if (item.delivered) item.delivered(this.position)
-        // Decrement fills per assigned fack
         this.releaseLoadsForBooking(item)
       })
-      if (this.isSequentialExperiment()) {
+      if (this.isSequentialExperiment() || this.getDeliveryStrategy() === 'end_of_route') {
         const deliveredSet = new Set(deliveredNow)
         this.queue = this.queue.filter(
           (queued: any) => !deliveredSet.has(queued)
@@ -687,6 +713,17 @@ class Truck extends Vehicle {
             return this.pickNextInstructionFromPlan()
           }
         }
+        const distToStart = this.position?.distanceTo?.(this.startPosition) ?? Infinity
+
+        // If already at depot, park directly instead of navigating (avoids race condition)
+        if (distToStart < 100) {
+          this.position = this.startPosition
+          this.instruction = undefined
+          this.setStatus('parked')
+          this.emitMoved()
+          return
+        }
+
         this.setStatus('end')
         return this.navigateTo(this.startPosition)
       }
@@ -722,7 +759,7 @@ class Truck extends Vehicle {
       this.releaseLoadsForBooking(item)
     })
 
-    if (this.isSequentialExperiment()) {
+    if (this.isSequentialExperiment() || this.getDeliveryStrategy() === 'end_of_route') {
       const deliveredSet = new Set(deliveredNow)
       this.queue = this.queue.filter((queued: any) => !deliveredSet.has(queued))
     }
@@ -736,8 +773,8 @@ class Truck extends Vehicle {
       this.position &&
       this.startPosition &&
       typeof this.position.distanceTo === 'function'
-    const atStart =
-      canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
+    const distToStart = canMeasureDistance ? this.position.distanceTo(this.startPosition) : -1
+    const atStart = canMeasureDistance && distToStart < 100
 
     if (!atStart) {
       this.setStatus('returning')

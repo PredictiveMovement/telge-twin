@@ -340,6 +340,10 @@ export class ExperimentController {
               datasetData?.originalSettings?.pickupsBeforeDelivery ||
               parameters?.pickupsBeforeDelivery ||
               undefined,
+            deliveryStrategy:
+              datasetData?.originalSettings?.deliveryStrategy ||
+              parameters?.deliveryStrategy ||
+              undefined,
             tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
             avftyper: datasetData?.originalSettings?.avftyper || undefined,
             ...(experimentType === 'replay' && experimentId
@@ -488,6 +492,10 @@ export class ExperimentController {
               datasetData?.originalSettings?.pickupsBeforeDelivery ||
               parameters?.pickupsBeforeDelivery ||
               undefined,
+            deliveryStrategy:
+              datasetData?.originalSettings?.deliveryStrategy ||
+              parameters?.deliveryStrategy ||
+              undefined,
             tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
             avftyper: datasetData?.originalSettings?.avftyper || undefined,
             replayExperiment: experimentId,
@@ -543,6 +551,10 @@ export class ExperimentController {
             pickupsBeforeDelivery:
               datasetData?.originalSettings?.pickupsBeforeDelivery ||
               parameters?.pickupsBeforeDelivery ||
+              undefined,
+            deliveryStrategy:
+              datasetData?.originalSettings?.deliveryStrategy ||
+              parameters?.deliveryStrategy ||
               undefined,
             tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
             avftyper: datasetData?.originalSettings?.avftyper || undefined,

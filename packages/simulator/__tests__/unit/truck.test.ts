@@ -159,7 +159,7 @@ describe('Truck Behavior', () => {
           },
         ],
         virtualTime,
-        fleet: { settings: testSettings },
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'capacity_based' } },
       })
 
       truck.navigateTo = jest.fn((dest) => {
@@ -577,7 +577,7 @@ describe('Truck Behavior', () => {
           },
         ],
         virtualTime,
-        fleet: { settings: testSettings },
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'capacity_based' } },
       })
 
       truck.navigateTo = jest.fn(() => Promise.resolve())
@@ -826,6 +826,149 @@ describe('Truck Behavior', () => {
         const result = planGroupId || experimentId
         expect(result).toBe(expected)
       })
+    })
+  })
+
+  describe('Delivery Strategy', () => {
+    it('should default to end_of_route delivery strategy (from config)', () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: {} },
+      })
+
+      // Access private method via any cast
+      // Default is 'end_of_route' as set in config.ts
+      const strategy = (truck as any).getDeliveryStrategy()
+      expect(strategy).toBe('end_of_route')
+    })
+
+    it('should use fleet settings deliveryStrategy when set to end_of_route', () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { deliveryStrategy: 'end_of_route' } },
+      })
+
+      const strategy = (truck as any).getDeliveryStrategy()
+      expect(strategy).toBe('end_of_route')
+    })
+
+    it('should use fleet settings deliveryStrategy when set to capacity_based', () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { deliveryStrategy: 'capacity_based' } },
+      })
+
+      const strategy = (truck as any).getDeliveryStrategy()
+      expect(strategy).toBe('capacity_based')
+    })
+
+    it('should trigger delivery in end_of_route mode only when no pickups remain', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'end_of_route' } },
+      })
+
+      truck.navigateTo = jest.fn(() => Promise.resolve())
+
+      const booking1 = createTestBooking({ id: 'b1' })
+      const booking2 = createTestBooking({ id: 'b2' })
+      booking1.pickedUp = jest.fn()
+      booking2.pickedUp = jest.fn()
+
+      // First pickup with remaining pickups in plan
+      truck.booking = booking1
+      truck.plan = [{ action: 'pickup', booking: booking2 }]
+      await truck.pickup()
+
+      // Should NOT add delivery because there's still a pickup in plan
+      expect(truck.plan.some((inst: any) => inst.action === 'delivery')).toBe(false)
+      expect(truck.plan[0].action).toBe('pickup')
+    })
+
+    it('should trigger delivery in capacity_based mode when compartment is full', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        fackDetails: [
+          {
+            fackNumber: 1,
+            volym: 0.02, // 20 liters - small compartment
+            vikt: 5,
+            avfallstyper: [{ avftyp: 'HUSHSORT' }],
+          },
+        ],
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'capacity_based' } },
+      })
+
+      truck.navigateTo = jest.fn(() => Promise.resolve())
+
+      const booking = createTestBooking({
+        recyclingType: 'HUSHSORT',
+        originalRecord: { Tjtyp: 'KRL140' },
+      })
+      booking.pickedUp = jest.fn()
+
+      truck.booking = booking
+      truck.plan = [{ action: 'pickup', booking: createTestBooking({ id: 'b2' }) }]
+      await truck.pickup()
+
+      // Should add delivery even though there are remaining pickups (capacity triggered)
+      expect(truck.plan.some((inst: any) => inst.action === 'delivery')).toBe(true)
+    })
+
+    it('should NOT trigger delivery in end_of_route mode even when compartment is full', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        fackDetails: [
+          {
+            fackNumber: 1,
+            volym: 0.02, // 20 liters - small compartment that will be "full"
+            vikt: 5,
+            avfallstyper: [{ avftyp: 'HUSHSORT' }],
+          },
+        ],
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'end_of_route' } },
+      })
+
+      truck.navigateTo = jest.fn(() => Promise.resolve())
+
+      const booking1 = createTestBooking({
+        id: 'b1',
+        recyclingType: 'HUSHSORT',
+        originalRecord: { Tjtyp: 'KRL140' },
+      })
+      const booking2 = createTestBooking({
+        id: 'b2',
+        recyclingType: 'HUSHSORT',
+        originalRecord: { Tjtyp: 'KRL140' },
+      })
+      booking1.pickedUp = jest.fn()
+
+      truck.booking = booking1
+      truck.plan = [{ action: 'pickup', booking: booking2 }]
+      await truck.pickup()
+
+      // In end_of_route mode, should NOT add delivery even if compartment is full
+      // because there are still remaining pickups
+      const deliveryIndex = truck.plan.findIndex((inst: any) => inst.action === 'delivery')
+      expect(deliveryIndex).toBe(-1)
     })
   })
 })
