@@ -41,13 +41,18 @@ spec:
       containers:
         - name: simulator
           image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.65 # {"$imagepolicy": "flux-system:simulator"}
-          # resources:
-          #   requests:
-          #     cpu: "1"
-          #     memory: "1Gi"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "2Gi"
+            limits:
+              cpu: "3"
+              memory: "4Gi"
           ports:
             - containerPort: 4000
           env:
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=3584"
             - name: VROOM_URL
               value: http://vroom.vroom.svc.cluster.local:3000
             - name: ELASTICSEARCH_URL
