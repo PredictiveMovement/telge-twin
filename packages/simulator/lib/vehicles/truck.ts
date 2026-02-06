@@ -147,6 +147,23 @@ class Truck extends Vehicle {
     return hasCargo || anyFill
   }
 
+  /** Mark all non-unreachable, non-cargo queue items as unreachable. */
+  private async markRemainingAsUnreachable(): Promise<void> {
+    const cargoSet = new Set(this.cargo || [])
+    const pending = this.queue.filter(
+      (b: any) => b && b.status !== 'Unreachable' && !cargoSet.has(b)
+    )
+    await Promise.all(
+      pending.map(async (b: any) => {
+        if (typeof b.markUnreachable === 'function') {
+          await b.markUnreachable('plan-complete')
+        } else {
+          b.status = 'Unreachable'
+        }
+      })
+    )
+  }
+
   private initializeBreakSchedule() {
     const explicitBreaks = Array.isArray(this.fleet?.settings?.breaks)
       ? this.fleet.settings.breaks
@@ -195,18 +212,23 @@ class Truck extends Vehicle {
     this.shiftEndedForDay = true
     this.finishingWorkday = true
 
+    // Exclude bookings already picked up (in cargo) — they will be
+    // delivered at the depot by finalizeEndOfWorkday → dischargeAllCargo
+    const cargoSet = new Set(this.cargo || [])
+
     const pendingBookings = new Set<any>()
     ;(this.plan || []).forEach((instruction: Instruction) => {
       if (
         instruction?.booking &&
         instruction.action === 'pickup' &&
-        instruction.booking.status !== 'Unreachable'
+        instruction.booking.status !== 'Unreachable' &&
+        !cargoSet.has(instruction.booking)
       ) {
         pendingBookings.add(instruction.booking)
       }
     })
     this.queue.forEach((booking: any) => {
-      if (booking?.status !== 'Unreachable') {
+      if (booking?.status !== 'Unreachable' && !cargoSet.has(booking)) {
         pendingBookings.add(booking)
       }
     })
@@ -494,68 +516,32 @@ class Truck extends Vehicle {
     }
 
     if (this.plan.length === 0) {
-      const hasReachableQueue = this.queue.some(
-        (queued: any) => queued?.status !== 'Unreachable'
-      )
+      // If we still have cargo, insert a delivery stop and continue
+      if (this.cargo.length > 0) {
+        this.plan.unshift(this.createInstruction('delivery'))
+        return this.pickNextInstructionFromPlan()
+      }
+
+      // No cargo, no plan — mark remaining queue items as unreachable
+      await this.markRemainingAsUnreachable()
+      this.instruction = undefined
+      this.booking = null
 
       const canMeasureDistance =
         this.position &&
         this.startPosition &&
         typeof this.position.distanceTo === 'function'
-      const distanceToStart = canMeasureDistance ? this.position.distanceTo(this.startPosition) : -1
-      const atStart = canMeasureDistance && distanceToStart < 100
+      const atDepot = canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
 
-      // end_of_route: If plan is empty but there are unpicked bookings, rebuild the plan
-      if (this.getDeliveryStrategy() === 'end_of_route') {
-        const unpickedBookings = this.queue.filter(
-          (q: any) => q?.status !== 'Unreachable' && !this.cargo.includes(q)
-        )
-        if (unpickedBookings.length > 0) {
-          this.plan = unpickedBookings.map((b: any) => this.createInstruction('pickup', b))
-          return this.pickNextInstructionFromPlan()
-        }
-      }
-
-      if (!hasReachableQueue) {
-        this.queue = this.queue.filter(
-          (queued: any) => queued?.status !== 'Unreachable'
-        )
-        this.instruction = undefined
-        this.booking = null
-
-        if (!atStart) {
-          this.setStatus('returning')
-          await this.navigateTo(this.startPosition)
-          return
-        }
-
-        if (this.hasAnyLoad()) {
-          await this.dropOff()
-        }
-
-        this.position = this.startPosition
-        this.instruction = undefined
-        this.setStatus('parked')
-        this.emitMoved()
+      if (!atDepot) {
+        this.setStatus('returning')
+        await this.navigateTo(this.startPosition)
         return
       }
 
-      if (this.status === 'end' && atStart) {
-        if (this.hasAnyLoad()) {
-          await this.dropOff()
-          return
-        }
-
-        this.position = this.startPosition
-        this.instruction = undefined
-        this.setStatus('parked')
-        this.emitMoved()
-        return
-      }
-
-      this.setStatus('end')
-      await this.navigateTo(this.startPosition)
-      this.instruction = undefined
+      this.position = this.startPosition
+      this.setStatus('parked')
+      this.emitMoved()
       return
     } else {
       await this.pickNextInstructionFromPlan()
@@ -694,12 +680,10 @@ class Truck extends Vehicle {
         if (item.delivered) item.delivered(this.position)
         this.releaseLoadsForBooking(item)
       })
-      if (this.isSequentialExperiment() || this.getDeliveryStrategy() === 'end_of_route') {
-        const deliveredSet = new Set(deliveredNow)
-        this.queue = this.queue.filter(
-          (queued: any) => !deliveredSet.has(queued)
-        )
-      }
+      const deliveredSet = new Set(deliveredNow)
+      this.queue = this.queue.filter(
+        (queued: any) => !deliveredSet.has(queued)
+      )
       this.cargo = []
       this.emitCargo()
 
@@ -713,6 +697,10 @@ class Truck extends Vehicle {
             return this.pickNextInstructionFromPlan()
           }
         }
+
+        // Mark any remaining queue items (e.g. VROOM-excluded bookings) as unreachable
+        await this.markRemainingAsUnreachable()
+
         const distToStart = this.position?.distanceTo?.(this.startPosition) ?? Infinity
 
         // If already at depot, park directly instead of navigating (avoids race condition)
@@ -759,10 +747,8 @@ class Truck extends Vehicle {
       this.releaseLoadsForBooking(item)
     })
 
-    if (this.isSequentialExperiment() || this.getDeliveryStrategy() === 'end_of_route') {
-      const deliveredSet = new Set(deliveredNow)
-      this.queue = this.queue.filter((queued: any) => !deliveredSet.has(queued))
-    }
+    const deliveredSet = new Set(deliveredNow)
+    this.queue = this.queue.filter((queued: any) => !deliveredSet.has(queued))
 
     this.cargo = []
     this.emitCargo()

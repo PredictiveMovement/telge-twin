@@ -12,7 +12,7 @@ export const COLORS = {
   booking: {
     DELIVERED: [128, 128, 128],
     PICKED_UP: [255, 165, 0],
-    UNREACHABLE: [255, 140, 0],
+    UNREACHABLE: [220, 50, 50],
     paper: [0, 100, 0],
     plastic: [255, 255, 0],
     glass: [0, 0, 255],

@@ -404,16 +404,13 @@ describe('Truck Behavior', () => {
       expect(booking2.delivered).toHaveBeenCalled()
     })
 
-    it('should filter queue after delivery in sequential mode', async () => {
+    it('should filter delivered items from queue after delivery', async () => {
       truck = new Truck({
         id: 'truck-1',
         position: new Position(sodertaljeCoordinates.depot1),
         startPosition: new Position(sodertaljeCoordinates.depot1),
         virtualTime,
-        fleet: {
-          settings: { ...testSettings, experimentType: 'sequential' },
-          experimentType: 'sequential',
-        },
+        fleet: { settings: testSettings },
       })
 
       truck.navigateTo = jest.fn(() => Promise.resolve())
@@ -928,6 +925,125 @@ describe('Truck Behavior', () => {
 
       // Should add delivery even though there are remaining pickups (capacity triggered)
       expect(truck.plan.some((inst: any) => inst.action === 'delivery')).toBe(true)
+    })
+
+    it('should NOT rebuild plan from unpicked bookings in end_of_route mode', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.centrum1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'end_of_route' } },
+      })
+
+      truck.navigateTo = jest.fn((dest) => {
+        truck.position = dest
+        return Promise.resolve()
+      })
+
+      const booking1 = createTestBooking({ id: 'b1' })
+      const booking2 = createTestBooking({ id: 'b2' })
+
+      // Simulate: plan is empty, unpicked bookings in queue, cargo has one item
+      truck.queue = [booking1, booking2]
+      truck.cargo = [booking1]
+      truck.plan = []
+      booking1.delivered = jest.fn()
+
+      await truck.handlePostStop()
+
+      // Should NOT rebuild a plan with pickups from unpicked bookings
+      // Instead should insert a delivery instruction for remaining cargo
+      expect(truck.plan.some((inst: any) => inst.action === 'pickup')).toBe(false)
+    })
+
+    it('should mark remaining queue items as unreachable when plan completes with no cargo', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.centrum1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'end_of_route' } },
+      })
+
+      truck.navigateTo = jest.fn((dest) => {
+        truck.position = dest
+        return Promise.resolve()
+      })
+
+      const booking1 = createTestBooking({ id: 'b1' })
+      const booking2 = createTestBooking({ id: 'b2' })
+
+      truck.queue = [booking1, booking2]
+      truck.cargo = []
+      truck.plan = []
+
+      await truck.handlePostStop()
+
+      // Both bookings should be marked unreachable
+      expect(booking1.status).toBe('Unreachable')
+      expect(booking2.status).toBe('Unreachable')
+      expect(truck.status).toBe('returning')
+    })
+
+    it('should insert delivery and continue when plan is empty but cargo remains', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.centrum1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'end_of_route' } },
+      })
+
+      truck.navigateTo = jest.fn((dest) => {
+        truck.position = dest
+        return Promise.resolve()
+      })
+
+      const booking1 = createTestBooking({ id: 'b1' })
+      booking1.delivered = jest.fn()
+
+      truck.queue = [booking1]
+      truck.cargo = [booking1]
+      truck.plan = []
+
+      await truck.handlePostStop()
+
+      // Should have navigated to depot for delivery
+      expect(truck.navigateTo).toHaveBeenCalledWith(truck.startPosition)
+    })
+
+    it('should mark remaining queue items as unreachable after final delivery', async () => {
+      truck = new Truck({
+        id: 'truck-1',
+        position: new Position(sodertaljeCoordinates.depot1),
+        startPosition: new Position(sodertaljeCoordinates.depot1),
+        virtualTime,
+        fleet: { settings: { ...testSettings, deliveryStrategy: 'end_of_route' } },
+      })
+
+      truck.navigateTo = jest.fn((dest) => {
+        truck.position = dest
+        return Promise.resolve()
+      })
+
+      const delivered = createTestBooking({ id: 'delivered-1' })
+      delivered.delivered = jest.fn()
+      const leftover = createTestBooking({ id: 'leftover-1' })
+
+      // Simulate: cargo has one item to deliver, queue has both, plan is empty
+      truck.cargo = [delivered]
+      truck.queue = [delivered, leftover]
+      truck.plan = []
+      truck.booking = null
+
+      await truck.dropOff()
+
+      // delivered should be removed from queue, leftover should be marked unreachable
+      expect(truck.queue).not.toContain(delivered)
+      expect(truck.queue).toContain(leftover)
+      expect(leftover.status).toBe('Unreachable')
+      expect(truck.status).toBe('parked')
     })
 
     it('should NOT trigger delivery in end_of_route mode even when compartment is full', async () => {

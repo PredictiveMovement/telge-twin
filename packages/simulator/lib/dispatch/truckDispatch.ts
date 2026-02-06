@@ -1,9 +1,9 @@
 /* Truck-level optimisation with spatial clustering and VROOM */
 
 const { plan, truckToVehicle, bookingToShipment } = require('../vroom')
-const { error } = require('../log')
+const { error, info } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
-const { createSpatialChunks, calculateCenter } = require('../clustering')
+const { createSpatialChunks, calculateCenter, calculateBoundingBox } = require('../clustering')
 const Position = require('../models/position')
 import Booking from '../models/booking'
 const { save, search } = require('../elastic')
@@ -12,6 +12,35 @@ import { socketController } from '../../web/controllers/SocketController'
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'
 import { haversine } from '../distance'
+import { AreaPartition } from '../clustering'
+
+/**
+ * Find the chunk whose nearest booking is closest to the given orphan.
+ * Uses haversine distance to actual bookings (not chunk center) for
+ * better geographic locality — VROOM produces better routes this way.
+ */
+function findNearestChunk(booking: any, chunks: AreaPartition[]): AreaPartition | null {
+  if (!chunks.length) return null
+  const { lat, lng } = extractCoordinates(booking)
+  if (!lat || !lng) return null
+
+  let nearest: AreaPartition | null = null
+  let minDist = Infinity
+
+  for (const chunk of chunks) {
+    for (const cb of chunk.bookings) {
+      const coords = extractCoordinates(cb)
+      if (!coords.lat || !coords.lng) continue
+      const dist = haversine({ lat, lng }, { lat: coords.lat, lng: coords.lng })
+      if (dist < minDist) {
+        minDist = dist
+        nearest = chunk
+      }
+    }
+  }
+
+  return nearest
+}
 
 export interface Instruction {
   action: string
@@ -264,6 +293,46 @@ export async function findBestRouteToPickupBookings(
   try {
     /* -------- 1. Klustra ------------------------------------ */
     const chunks = createSpatialChunks(bookings, experimentId, truck.id)
+
+    // Ensure no bookings are lost by clustering — orphans must reach VROOM
+    const clusteredSet = new Set<any>()
+    chunks.forEach((chunk: AreaPartition) =>
+      chunk.bookings.forEach((b: any) => clusteredSet.add(b))
+    )
+    const orphaned = bookings.filter((b: any) => !clusteredSet.has(b))
+
+    if (orphaned.length > 0) {
+      info(
+        `🔧 Recovering ${orphaned.length} orphaned bookings dropped by DBSCAN clustering`
+      )
+      if (chunks.length === 0) {
+        // No clusters formed — create a single fallback chunk with all bookings
+        chunks.push({
+          id: `truck-${truck.id}-area-fallback`,
+          bookings: [...bookings],
+          center: calculateCenter(bookings),
+          boundingBox: calculateBoundingBox(bookings),
+          recyclingTypes: Array.from(
+            new Set(
+              bookings
+                .map((b: any) => b.recyclingType || b.Avftyp)
+                .filter(Boolean)
+            )
+          ),
+          polygon: [],
+          count: bookings.length,
+        })
+      } else {
+        for (const orphan of orphaned) {
+          const nearest = findNearestChunk(orphan, chunks)
+          if (nearest) {
+            nearest.bookings.push(orphan)
+            nearest.count = nearest.bookings.length
+          }
+        }
+      }
+    }
+
     if (!chunks.length) return []
 
     /* -------- 2. Kluster‑sekvens med VROOM‑TSP -------------- */

@@ -45,10 +45,15 @@ type ControlMode = 'synchronized' | 'individual'
 type MapColumn = 'current' | 'optimized'
 
 const speedOptions = [
-  { value: 0.5, label: '0.5x' },
   { value: 1, label: '1x' },
-  { value: 1.5, label: '1.5x' },
-  { value: 2, label: '2x' },
+  { value: 10, label: '10x' },
+  { value: 20, label: '20x' },
+  { value: 30, label: '30x' },
+  { value: 60, label: '60x' },
+  { value: 120, label: '120x' },
+  { value: 300, label: '300x' },
+  { value: 600, label: '600x' },
+  { value: 900, label: '900x' },
 ]
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -74,7 +79,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
   const [controlMode, setControlMode] = useState<ControlMode>('synchronized')
   const [currentProgress, setCurrentProgress] = useState([0])
   const [optimizedProgress, setOptimizedProgress] = useState([0])
-  const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [playbackSpeed, setPlaybackSpeed] = useState(60)
   const [mapZoom, setMapZoom] = useState(12)
 
   // Current map state (left)
@@ -263,13 +268,12 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
 
   const handleSpeedChange = (target: MapColumn, speed: number) => {
     setPlaybackSpeed(speed)
-    const sessionSpeed = Math.max(1, Math.round(speed * 60))
 
     if (isSynchronized || target === 'current') {
-      currentSimulation.setSpeed(sessionSpeed)
+      currentSimulation.setSpeed(speed)
     }
     if (isSynchronized || target === 'optimized') {
-      optimizedSimulation.setSpeed(sessionSpeed)
+      optimizedSimulation.setSpeed(speed)
     }
   }
 
