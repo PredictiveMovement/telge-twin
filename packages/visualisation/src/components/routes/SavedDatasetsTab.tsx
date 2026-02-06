@@ -334,7 +334,7 @@ export default function SavedDatasetsTab() {
       ) || 0;
 
       // Skip experiments that are still optimizing, unless this client started it
-      const isOwnOptimization = runningOptimizations.has(datasetId);
+      const isOwnOptimization = runningOptimizations.has(datasetId) || completedOptimizations.has(datasetId);
       if (isExperimentOptimizing(latestExp) && !isOwnOptimization) {
         return; // Don't show to other clients until optimization is complete
       }
@@ -392,7 +392,7 @@ export default function SavedDatasetsTab() {
     });
 
     return result;
-  }, [datasets, experiments, runningOptimizations]);
+  }, [datasets, experiments, runningOptimizations, completedOptimizations]);
 
   // Find the currently optimizing optimization (if any)
   const currentOptimizationId = useMemo(() => {

@@ -291,6 +291,7 @@ export class ElasticsearchService {
           },
         },
         retry_on_conflict: 3,
+        refresh: 'wait_for',
       })
     } catch (err: any) {
       // Check if experiment was deleted (e.g., cancelled by user)
