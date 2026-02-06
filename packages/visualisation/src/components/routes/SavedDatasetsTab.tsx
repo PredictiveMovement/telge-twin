@@ -20,6 +20,7 @@ import {
   getExperiments,
   copyExperiment,
   deleteExperiment,
+  invalidateCache,
   Experiment,
 } from '@/api/simulator';
 import { toast } from '@/hooks/use-toast';
@@ -112,7 +113,7 @@ export default function SavedDatasetsTab() {
       loadDatasets();
     };
 
-    const handlePlanSaved = (data: { sourceDatasetId?: string }) => {
+    const handleExperimentUpdated = (data: { sourceDatasetId?: string }) => {
       // Only reload for other clients (not the one who started the optimization)
       // The starting client handles completion via OptimizationContext
       if (data.sourceDatasetId && !runningOptimizations.has(data.sourceDatasetId)) {
@@ -124,15 +125,18 @@ export default function SavedDatasetsTab() {
     socket.emit('joinMap');
 
     socket.on('simulationStarted', handleSimulationStarted);
-    socket.on('planSaved', handlePlanSaved);
+    socket.on('experimentUpdated', handleExperimentUpdated);
 
     return () => {
       socket.off('simulationStarted', handleSimulationStarted);
-      socket.off('planSaved', handlePlanSaved);
+      socket.off('experimentUpdated', handleExperimentUpdated);
     };
   }, [socket, runningOptimizations]);
 
   const loadDatasets = async () => {
+    // Invalidate cache to ensure fresh data
+    invalidateCache('datasets');
+    invalidateCache('experiments');
     try {
       const [datasetsData, experimentsData] = await Promise.all([
         getRouteDatasets(),

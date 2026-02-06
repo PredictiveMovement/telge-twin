@@ -4,6 +4,7 @@ import { error, info } from './log'
 import { update as esUpdate } from './elastic'
 import { CLUSTERING_CONFIG } from './config'
 import { extractCoordinates } from './utils/coordinates'
+import { socketController } from '../web/controllers/SocketController'
 
 // Using Turf's distance function for consistency
 const haversineDistance = (
@@ -572,6 +573,9 @@ async function saveAreaPartitionsToElastic(
         docs.length
       } partitions for trucks [${savingTruckIds.join(', ')}]`
     )
+
+    // Push updated partitions to connected clients via Socket.IO
+    socketController.emitAreaPartitions(experimentId, docs)
   } catch (e: any) {
     // Check if experiment was deleted (e.g., cancelled by user)
     if (e?.meta?.body?.error?.type === 'document_missing_exception') {

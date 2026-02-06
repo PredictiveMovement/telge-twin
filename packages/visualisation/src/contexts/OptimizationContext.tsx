@@ -116,6 +116,11 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const isUpdate = options?.isUpdate ?? false;
     const expectedVehicleCount = options?.expectedVehicleCount ?? 1;
 
+    // Join dataset room for scoped planSaved events
+    if (socket) {
+      socket.emit('joinDatasetRoom', id);
+    }
+
     // Start with save phase
     setRunningOptimizations(prev => {
       const next = new Map(prev);
@@ -238,7 +243,7 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const frameId = requestAnimationFrame(animate);
     animationFramesRef.current.set(id, frameId);
-  }, [playCompletionSound]);
+  }, [socket, playCompletionSound]);
 
   const cancelOptimization = useCallback((id: string) => {
     const frameId = animationFramesRef.current.get(id);
@@ -265,6 +270,11 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
     completingRef.current.add(id);
+
+    // Leave dataset room
+    if (socket) {
+      socket.emit('leaveDatasetRoom', id);
+    }
 
     // Stop animation
     const frameId = animationFramesRef.current.get(id);
@@ -302,7 +312,7 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       callback();
       onCompleteCallbacksRef.current.delete(id);
     }
-  }, [playCompletionSound]);
+  }, [socket, playCompletionSound]);
 
   const markAsViewed = useCallback((id: string) => {
     setCompletedOptimizations(prev => {

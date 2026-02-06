@@ -13,6 +13,12 @@ function register(io: Server): void {
 
     socket.on('startSimulation', async (simData, parameters) => {
       try {
+        // Stoppa eventuell pågående simulering innan ny startas
+        const stopped = experimentController.stopGlobalExperiment()
+        if (stopped) {
+          sessionController.notifyGlobalWatchers(io, 'simulationStopped')
+        }
+
         const result = await experimentController.startSimulationFromData(
           simData,
           parameters
@@ -147,6 +153,18 @@ function register(io: Server): void {
 
         io.emit('init')
         io.emit('parameters', experiment.parameters)
+      }
+    })
+
+    socket.on('joinDatasetRoom', (datasetId: string) => {
+      if (datasetId) {
+        socket.join(`dataset:${datasetId}`)
+      }
+    })
+
+    socket.on('leaveDatasetRoom', (datasetId: string) => {
+      if (datasetId) {
+        socket.leave(`dataset:${datasetId}`)
       }
     })
 

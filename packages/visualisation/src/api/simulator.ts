@@ -8,6 +8,32 @@ const simulatorApi = axios.create({
   headers: SIMULATOR_CONFIG.requestConfig.headers,
 })
 
+// Simple TTL cache to avoid re-fetching on tab switches
+const cache = new Map<string, { data: any; expiry: number }>()
+const CACHE_TTL_MS = 30_000 // 30 seconds
+
+function getCached<T>(key: string): T | undefined {
+  const entry = cache.get(key)
+  if (entry && Date.now() < entry.expiry) return entry.data as T
+  cache.delete(key)
+  return undefined
+}
+
+function setCache(key: string, data: any): void {
+  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS })
+}
+
+/** Invalidate cache entries matching a prefix. */
+export function invalidateCache(prefix?: string): void {
+  if (!prefix) {
+    cache.clear()
+    return
+  }
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) cache.delete(key)
+  }
+}
+
 export interface OptimizationBreakSetting {
   id: string
   name: string
@@ -171,13 +197,19 @@ export async function saveRouteDataset(datasetData: {
  */
 
 export async function getRouteDatasets(): Promise<RouteDataset[]> {
+  const cacheKey = 'datasets'
+  const cached = getCached<RouteDataset[]>(cacheKey)
+  if (cached) return cached
+
   try {
     const response = await simulatorApi.get('/api/datasets')
     if (response.data?.success && response.data?.data) {
+      setCache(cacheKey, response.data.data)
       return response.data.data
     }
     return []
   } catch (_error) {
+    console.error('getRouteDatasets failed:', _error)
     return []
   }
 }
@@ -198,6 +230,7 @@ export async function getRouteDataset(
     }
     return null
   } catch (_error) {
+    console.error('getRouteDataset failed:', _error)
     return null
   }
 }
@@ -229,13 +262,19 @@ export async function deleteRouteDataset(
  */
 
 export async function getExperiments(): Promise<Experiment[]> {
+  const cacheKey = 'experiments'
+  const cached = getCached<Experiment[]>(cacheKey)
+  if (cached) return cached
+
   try {
     const response = await simulatorApi.get('/api/experiments')
     if (response.data?.success && response.data?.data) {
+      setCache(cacheKey, response.data.data)
       return response.data.data
     }
     return []
   } catch (_error) {
+    console.error('getExperiments failed:', _error)
     return []
   }
 }
@@ -283,6 +322,7 @@ export async function getExperiment(
     }
     return null
   } catch (_error) {
+    console.error('getExperiment failed:', _error)
     return null
   }
 }
@@ -363,6 +403,7 @@ export async function getVroomPlan(
     }
     return null
   } catch (_error) {
+    console.error('getVroomPlan failed:', _error)
     return null
   }
 }
@@ -383,6 +424,7 @@ export async function getExperimentStatistics(
     }
     return null
   } catch (_error) {
+    console.error('getExperimentStatistics failed:', _error)
     return null
   }
 }
@@ -405,6 +447,7 @@ export async function getOriginalBookings(
     }
     return null
   } catch (_error) {
+    console.error('getOriginalBookings failed:', _error)
     return null
   }
 }

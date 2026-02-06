@@ -1,4 +1,4 @@
-import { pipe, map, bufferTime, filter } from 'rxjs'
+import { merge, pipe, map, bufferTime, filter, tap } from 'rxjs'
 import type { Socket } from 'socket.io'
 
 const cleanBookings = () =>
@@ -46,23 +46,36 @@ const cleanBookings = () =>
     })
   )
 
-export function register(experiment: any, socket: Socket) {
-  return [
-    experiment.dispatchedBookings
-      .pipe(
-        cleanBookings(),
-        bufferTime(100),
-        filter((e: unknown[]) => e.length > 0)
-      )
-      .subscribe((bookings: unknown[]) => {
-        socket.emit('bookings', bookings)
-      }),
+/** Keep only the latest entry per booking id within a buffer window. */
+function deduplicateById(bookings: any[]): any[] {
+  const map = new Map<string, any>()
+  for (const b of bookings) {
+    if (b.id) map.set(b.id, b)
+    else map.set(Math.random().toString(), b)
+  }
+  return Array.from(map.values())
+}
 
-    experiment.bookingUpdates
+export function register(
+  experiment: any,
+  socket: Socket,
+  sessionId?: string,
+  onFirstEmission?: () => void,
+) {
+  let firstEmitted = false
+  return [
+    merge(experiment.dispatchedBookings, experiment.bookingUpdates)
       .pipe(
         cleanBookings(),
         bufferTime(100),
-        filter((e: unknown[]) => e.length > 0)
+        filter((e: unknown[]) => e.length > 0),
+        map(deduplicateById),
+        tap(() => {
+          if (!firstEmitted && onFirstEmission) {
+            firstEmitted = true
+            onFirstEmission()
+          }
+        }),
       )
       .subscribe((bookings: unknown[]) => {
         socket.emit('bookings', bookings)

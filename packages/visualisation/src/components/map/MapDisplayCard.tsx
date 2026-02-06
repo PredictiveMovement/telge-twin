@@ -10,6 +10,8 @@ interface MapDisplayCardProps {
   mapProps: React.ComponentProps<typeof Map>
   isConnected: boolean
   isRunning: boolean
+  isLoading?: boolean
+  loadingMessage?: string
   error?: string | null
   idleMessage?: string
   disconnectedMessage?: string
@@ -26,6 +28,8 @@ export const MapDisplayCard: React.FC<MapDisplayCardProps> = ({
   mapProps,
   isConnected,
   isRunning,
+  isLoading,
+  loadingMessage,
   error,
   idleMessage,
   disconnectedMessage,
@@ -68,6 +72,15 @@ export const MapDisplayCard: React.FC<MapDisplayCardProps> = ({
             <div className="absolute inset-x-4 bottom-4">
               <div className="bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-md text-sm shadow-lg">
                 {error}
+              </div>
+            </div>
+          )}
+
+          {isRunning && isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-black/70 text-white px-5 py-3 rounded-md text-sm flex items-center gap-3">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+                {loadingMessage ?? 'Laddar fordon...'}
               </div>
             </div>
           )}

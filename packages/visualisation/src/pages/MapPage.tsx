@@ -49,6 +49,7 @@ const MapPage = () => {
   const [cars, setCars] = useState<Car[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isMapActive, setIsMapActive] = useState(false)
+  const [vehiclesReady, setVehiclesReady] = useState(false)
   const [areaPartitions, setAreaPartitions] = useState<
     AreaPartition[] | undefined
   >(undefined)
@@ -97,6 +98,11 @@ const MapPage = () => {
         const backendTimeRunning = socketStatus.timeRunning ?? true
         const backendTimeSpeed = socketStatus.timeSpeed ?? 60
         setTimeState(backendTimeRunning, backendTimeSpeed)
+
+        // Late-joining client: if time is already running, dispatch is done
+        if (backendTimeRunning) {
+          setVehiclesReady(true)
+        }
       }
     },
     [setRunning, setTimeState]
@@ -107,15 +113,22 @@ const MapPage = () => {
       setRunning(true, data.experimentId)
       setCars([])
       setBookings([])
+      setVehiclesReady(false)
       setSocketTimeSpeed(status.timeSpeed)
     },
     [setRunning, status.timeSpeed, setSocketTimeSpeed]
   )
 
+  const handleSimulationReady = useCallback(() => {
+    setVehiclesReady(true)
+    setTimeState(true, status.timeSpeed)
+  }, [setTimeState, status.timeSpeed])
+
   const handleSimulationStopped = useCallback(() => {
     setRunning(false, null)
     setCars([])
     setBookings([])
+    setVehiclesReady(false)
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -123,6 +136,7 @@ const MapPage = () => {
 
   const handleSimulationFinished = useCallback(() => {
     setRunning(false, null)
+    setVehiclesReady(false)
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -160,6 +174,7 @@ const MapPage = () => {
 
     socket.on('simulationStatus', handleSimulationStatus)
     socket.on('simulationStarted', handleSimulationStarted)
+    socket.on('simulationReady', handleSimulationReady)
     socket.on('simulationStopped', handleSimulationStopped)
     socket.on('simulationFinished', handleSimulationFinished)
     socket.on('cars', handleCars)
@@ -168,6 +183,7 @@ const MapPage = () => {
     return () => {
       socket.off('simulationStatus', handleSimulationStatus)
       socket.off('simulationStarted', handleSimulationStarted)
+      socket.off('simulationReady', handleSimulationReady)
       socket.off('simulationStopped', handleSimulationStopped)
       socket.off('simulationFinished', handleSimulationFinished)
       socket.off('cars', handleCars)
@@ -178,23 +194,22 @@ const MapPage = () => {
     isMapActive,
     handleSimulationStatus,
     handleSimulationStarted,
+    handleSimulationReady,
     handleSimulationStopped,
     handleSimulationFinished,
     handleCars,
     handleBookings,
   ])
 
-  // Fetch area partitions and working hours whenever we have a running simulation tied to an experiment
+  // Fetch area partitions and working hours once when experiment starts
   useEffect(() => {
     let cancelled = false
-    let interval: number | undefined
     const fetchPartitions = async () => {
       if (status.running && status.experimentId) {
         try {
           const exp = await getExperiment(status.experimentId)
           if (!cancelled) {
             setAreaPartitions(exp?.areaPartitions || [])
-            // Extract working hours from experiment
             const wh = exp?.optimizationSettings?.workingHours
             if (wh?.start && wh?.end) {
               setWorkingHours({ start: wh.start, end: wh.end })
@@ -208,19 +223,33 @@ const MapPage = () => {
       }
     }
     fetchPartitions()
-    if (status.running && status.experimentId) {
-      interval = window.setInterval(fetchPartitions, 10000)
-    }
     return () => {
       cancelled = true
-      if (interval) window.clearInterval(interval)
     }
   }, [status.running, status.experimentId])
 
-  // Fetch VROOM consolidated plan for debug transitions
+  // Listen for real-time area partition updates via Socket.IO (replaces polling)
+  useEffect(() => {
+    if (!socket || !isMapActive) return
+
+    const handleAreaPartitions = (data: {
+      experimentId: string
+      partitions: AreaPartition[]
+    }) => {
+      if (data.experimentId === status.experimentId) {
+        setAreaPartitions(data.partitions || [])
+      }
+    }
+
+    socket.on('areaPartitions', handleAreaPartitions)
+    return () => {
+      socket.off('areaPartitions', handleAreaPartitions)
+    }
+  }, [socket, isMapActive, status.experimentId])
+
+  // Fetch VROOM plan once when experiment starts
   useEffect(() => {
     let cancelled = false
-    let interval: number | undefined
     const fetchVroom = async () => {
       if (status.running && status.experimentId) {
         try {
@@ -234,14 +263,30 @@ const MapPage = () => {
       }
     }
     fetchVroom()
-    if (status.running && status.experimentId) {
-      interval = window.setInterval(fetchVroom, 15000)
-    }
     return () => {
       cancelled = true
-      if (interval) window.clearInterval(interval)
     }
   }, [status.running, status.experimentId])
+
+  // Listen for experiment updates to refresh vroom plan (replaces polling)
+  useEffect(() => {
+    if (!socket || !isMapActive || !status.running || !status.experimentId)
+      return
+
+    const experimentId = status.experimentId
+    const handleExperimentUpdated = (data: { experimentId: string }) => {
+      if (data.experimentId === experimentId) {
+        getVroomPlan(experimentId)
+          .then((plan) => setVroomPlan(plan || undefined))
+          .catch(() => setVroomPlan(undefined))
+      }
+    }
+
+    socket.on('experimentUpdated', handleExperimentUpdated)
+    return () => {
+      socket.off('experimentUpdated', handleExperimentUpdated)
+    }
+  }, [socket, isMapActive, status.running, status.experimentId])
 
   const handlePlayTime = () => {
     setTimeState(true, status.timeSpeed)
@@ -373,6 +418,8 @@ const MapPage = () => {
             statusColorClass={statusColorClass}
             isConnected={isConnected}
             isRunning={status.running}
+            isLoading={status.running && !vehiclesReady}
+            loadingMessage="Laddar fordon och beräknar rutter..."
             error={displayError}
             idleMessage="Ingen aktiv simulering. Starta en simulering för att visa kartdata."
             disconnectedMessage="Ingen anslutning till servern"
@@ -463,15 +510,17 @@ const MapPage = () => {
               </>
             }
             overlay={
-              <MapPlaybackOverlay
-                progress={mapProgress}
-                progressLabel={progressLabel}
-                startLabel={workingHours.start}
-                endLabel={workingHours.end}
-                isPlaying={status.timeRunning}
-                onTogglePlayback={handleTogglePlayback}
-                disabled={isPlaybackDisabled}
-              />
+              vehiclesReady ? (
+                <MapPlaybackOverlay
+                  progress={mapProgress}
+                  progressLabel={progressLabel}
+                  startLabel={workingHours.start}
+                  endLabel={workingHours.end}
+                  isPlaying={status.timeRunning}
+                  onTogglePlayback={handleTogglePlayback}
+                  disabled={isPlaybackDisabled}
+                />
+              ) : null
             }
             mapClassName="w-full h-[75vh] max-h-screen min-h-[420px]"
             mapProps={{

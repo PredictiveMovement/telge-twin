@@ -168,7 +168,7 @@ export class ExperimentController {
 
     const globalVirtualTime = new VirtualTime(60, startHour, endHour)
     virtualTime.setGlobalVirtualTimeInstance(globalVirtualTime)
-    globalVirtualTime.play()
+    globalVirtualTime.pause()  // Startar pausad — spelas upp när dispatch är klar
 
     this.globalExperiment = engine.createExperiment({
       defaultEmitters: currentEmitters,
@@ -318,7 +318,6 @@ export class ExperimentController {
     // vroomTruckPlanIds will be populated when plans are saved during simulation
     // (see truckDispatch.saveCompletePlanForReplay)
 
-    this.globalExperiment = null
     const experiment = this.createGlobalExperiment({
       ...parameters,
       experimentId: currentExperimentId,

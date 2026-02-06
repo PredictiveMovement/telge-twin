@@ -81,9 +81,7 @@ export class SocketController {
       .pipe(throttleTime(1000))
       .subscribe((time: number) => {
         if (this.ioInstance) {
-          this.ioInstance
-            .to(sessionId!)
-            .emit('virtualTime', { sessionId, payload: time })
+          this.ioInstance.to(sessionId!).emit('time', time)
         }
       })
 
@@ -99,23 +97,13 @@ export class SocketController {
     const sessionBroadcastSocket = {
       emit: (event: string, data: any) => {
         if (this.ioInstance) {
-          if (event === 'virtualTime') {
-            this.ioInstance
-              .to(sessionId)
-              .emit('virtualTime', { sessionId, payload: data })
-          } else {
-            this.ioInstance
-              .to(sessionId)
-              .emit(event, { sessionId, payload: data })
-          }
+          this.ioInstance.to(sessionId).emit(event, data)
         }
       },
       volatile: {
         emit: (event: string, data: any) => {
           if (this.ioInstance) {
-            this.ioInstance
-              .to(sessionId)
-              .volatile.emit(event, { sessionId, payload: data })
+            this.ioInstance.to(sessionId).volatile.emit(event, data)
           }
         },
       },
@@ -162,7 +150,17 @@ export class SocketController {
 
     if (currentEmitters.includes('bookings')) {
       routes.push(
-        require('../routes/bookings').register(experiment, socket, sessionId)
+        require('../routes/bookings').register(experiment, socket, sessionId, () => {
+          // Första bokningar emitterade — spela tid om global simulering pausad
+          if (!sessionId && experiment.virtualTime && !experiment.virtualTime.isPlaying()) {
+            experiment.virtualTime.play()
+            if (this.ioInstance) {
+              this.ioInstance.emit('simulationReady', {
+                experimentId: experiment.parameters?.id,
+              })
+            }
+          }
+        })
       )
     }
     if (currentEmitters.includes('cars')) {
@@ -261,7 +259,7 @@ export class SocketController {
       socket.emit('simulationStatus', {
         running: experimentController.isGlobalRunning,
         experimentId: experiment.parameters.id,
-        timeRunning: true,
+        timeRunning: experiment.virtualTime?.isPlaying?.() ?? false,
         timeSpeed: experiment.virtualTime
           ? experiment.virtualTime.getTimeMultiplier()
           : 60,
@@ -322,11 +320,36 @@ export class SocketController {
   }
 
   /**
-   * Broadcast when a truck plan is saved (optimization progress/completion)
+   * Emit when a truck plan is saved (optimization progress/completion).
+   * `planSaved` is scoped to the dataset room so only clients watching that
+   * specific dataset receive it (prevents counter collision between users).
+   * A lightweight `experimentUpdated` is broadcast globally so list views can refresh.
    */
   emitPlanSaved(experimentId: string, planId: string, sourceDatasetId?: string): void {
+    if (this.ioInstance && sourceDatasetId) {
+      this.ioInstance.to(`dataset:${sourceDatasetId}`).emit('planSaved', {
+        experimentId, planId, sourceDatasetId,
+      })
+      // Global notification for list views (no counter-sensitive payload)
+      this.ioInstance.emit('experimentUpdated', { experimentId, sourceDatasetId })
+    }
+  }
+
+  /**
+   * Push area partitions update via Socket.IO to all connected global watchers.
+   */
+  emitAreaPartitions(experimentId: string, partitions: unknown[]): void {
     if (this.ioInstance) {
-      this.ioInstance.emit('planSaved', { experimentId, planId, sourceDatasetId })
+      this.ioInstance.emit('areaPartitions', { experimentId, partitions })
+    }
+  }
+
+  /**
+   * Push vroom plan update via Socket.IO to all connected global watchers.
+   */
+  emitVroomPlanUpdate(experimentId: string, vroomPlan: unknown): void {
+    if (this.ioInstance) {
+      this.ioInstance.emit('vroomPlanUpdate', { experimentId, vroomPlan })
     }
   }
 }
