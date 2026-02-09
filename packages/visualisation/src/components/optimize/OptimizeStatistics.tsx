@@ -7,16 +7,19 @@ interface OptimizeStatisticsProps {
   loading?: boolean
 }
 
-// Check if baseline data is missing/invalid (identical to optimized values indicates missing turordning)
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
 const isBaselineMissing = (statistics: ExperimentStatistics | null): boolean => {
-  if (!statistics?.baseline) return true
-  // If baseline equals optimized (within tolerance), turordning was likely missing
-  // Using relative tolerance for floating point comparison
-  const distanceDiff = Math.abs(statistics.baseline.totalDistanceKm - statistics.totalDistanceKm)
-  const co2Diff = Math.abs(statistics.baseline.totalCo2Kg - statistics.totalCo2Kg)
-  const distanceTolerance = Math.max(statistics.totalDistanceKm * 0.001, 0.1) // 0.1% or 0.1km
-  const co2Tolerance = Math.max(statistics.totalCo2Kg * 0.001, 0.01) // 0.1% or 0.01kg
-  return distanceDiff < distanceTolerance && co2Diff < co2Tolerance
+  const baseline = statistics?.baseline
+  if (!baseline) return true
+
+  return (
+    !isFiniteNumber(baseline.totalDistanceKm) ||
+    !isFiniteNumber(baseline.totalCo2Kg) ||
+    (baseline.bookingCount != null &&
+      (!isFiniteNumber(baseline.bookingCount) || baseline.bookingCount < 0))
+  )
 }
 
 const formatNumber = (value: number): string => {
@@ -98,7 +101,7 @@ const OptimizeStatistics = ({
               <div
                 key={index}
                 className="flex items-center gap-4"
-                title={isWarning ? 'Turordning saknas i originaldata' : undefined}
+                title={isWarning ? 'Originalstatistik saknas för detta experiment' : undefined}
               >
                 <div className={`p-3 rounded-lg ${stat.color}`}>
                   <IconComponent className={`h-6 w-6 ${isWarning ? 'text-amber-600' : 'text-black'}`} />

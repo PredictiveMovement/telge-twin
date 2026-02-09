@@ -201,6 +201,7 @@ describe('ElasticsearchService', () => {
           },
         },
         retry_on_conflict: 3,
+        refresh: 'wait_for',
       })
     })
 

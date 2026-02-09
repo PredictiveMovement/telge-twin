@@ -86,10 +86,9 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const onCompleteCallbacksRef = useRef<Map<string, () => void>>(new Map());
   const onNavigateCallbacksRef = useRef<Map<string, () => void>>(new Map());
   const hasNavigatedRef = useRef<Set<string>>(new Set());
-  const completingRef = useRef<Set<string>>(new Set()); // Track IDs being completed to prevent double-calls
+  const completingRef = useRef<Set<string>>(new Set());
   const completionAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize audio element
   useEffect(() => {
     completionAudioRef.current = new Audio(SUCCESS_SOUND_URL);
     completionAudioRef.current.volume = 0.5;
@@ -98,7 +97,7 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const playCompletionSound = useCallback(() => {
     if (completionAudioRef.current) {
       completionAudioRef.current.currentTime = 0;
-      completionAudioRef.current.play().catch(console.error);
+      completionAudioRef.current.play().catch(() => undefined);
     }
   }, []);
 
@@ -111,12 +110,15 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     isUpdateRef.current.set(id, options?.isUpdate ?? false);
     hasNavigatedRef.current.delete(id);
-    completingRef.current.delete(id); // Säkerställ rent tillstånd för re-runs
+    completingRef.current.delete(id);
 
     const isUpdate = options?.isUpdate ?? false;
     const expectedVehicleCount = options?.expectedVehicleCount ?? 1;
 
-    // Start with save phase
+    if (socket) {
+      socket.emit('joinDatasetRoom', id);
+    }
+
     setRunningOptimizations(prev => {
       const next = new Map(prev);
       next.set(id, {
@@ -238,9 +240,13 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const frameId = requestAnimationFrame(animate);
     animationFramesRef.current.set(id, frameId);
-  }, [playCompletionSound]);
+  }, [socket]);
 
   const cancelOptimization = useCallback((id: string) => {
+    if (socket) {
+      socket.emit('leaveDatasetRoom', id);
+    }
+
     const frameId = animationFramesRef.current.get(id);
     if (frameId) {
       cancelAnimationFrame(frameId);
@@ -257,26 +263,26 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       next.delete(id);
       return next;
     });
-  }, []);
+  }, [socket]);
 
   const completeOptimization = useCallback((id: string) => {
-    // Prevent multiple calls for the same ID (can happen due to async state updates)
     if (completingRef.current.has(id)) {
       return;
     }
     completingRef.current.add(id);
 
-    // Stop animation
+    if (socket) {
+      socket.emit('leaveDatasetRoom', id);
+    }
+
     const frameId = animationFramesRef.current.get(id);
     if (frameId) {
       cancelAnimationFrame(frameId);
       animationFramesRef.current.delete(id);
     }
 
-    // Get isUpdate flag before cleanup
     const isUpdate = isUpdateRef.current.get(id) ?? false;
 
-    // Move to completed
     setRunningOptimizations(prev => {
       const next = new Map(prev);
       next.delete(id);
@@ -288,21 +294,18 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return next;
     });
 
-    // Cleanup refs (note: completingRef is NOT cleared here - it prevents duplicate calls during async state updates)
     startTimesRef.current.delete(id);
     hasNavigatedRef.current.delete(id);
     isUpdateRef.current.delete(id);
 
-    // Play completion sound
     playCompletionSound();
 
-    // Call completion callback
     const callback = onCompleteCallbacksRef.current.get(id);
     if (callback) {
       callback();
       onCompleteCallbacksRef.current.delete(id);
     }
-  }, [playCompletionSound]);
+  }, [socket, playCompletionSound]);
 
   const markAsViewed = useCallback((id: string) => {
     setCompletedOptimizations(prev => {
@@ -310,7 +313,6 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       next.delete(id);
       return next;
     });
-    // Rensa completingRef här - naturlig slutpunkt för completion-cykeln
     completingRef.current.delete(id);
   }, []);
 
@@ -335,13 +337,10 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return completedOptimizations.get(id) ?? null;
   }, [completedOptimizations]);
 
-  // Listen for planSaved socket events to detect optimization completion
-  // This replaces polling with real-time notifications from the backend
   useEffect(() => {
     if (!socket) return;
 
     const handlePlanSaved = (data: { experimentId: string; planId: string; sourceDatasetId?: string }) => {
-      // Find the running optimization that matches this sourceDatasetId
       const datasetId = data.sourceDatasetId;
       if (!datasetId) return;
 
@@ -349,11 +348,9 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (runningOpt && !runningOpt.isSavePhase) {
         const newSavedCount = runningOpt.savedPlanCount + 1;
 
-        // Check if all expected vehicles have saved their plans
         if (newSavedCount >= runningOpt.expectedVehicleCount) {
           completeOptimization(datasetId);
         } else {
-          // Update the saved plan count
           setRunningOptimizations(prev => {
             const next = new Map(prev);
             const current = next.get(datasetId);
@@ -378,8 +375,9 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Cleanup on unmount
   useEffect(() => {
+    const animationFrames = animationFramesRef.current;
     return () => {
-      animationFramesRef.current.forEach(frameId => cancelAnimationFrame(frameId));
+      animationFrames.forEach(frameId => cancelAnimationFrame(frameId));
     };
   }, []);
 

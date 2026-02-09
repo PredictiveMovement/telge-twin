@@ -1,4 +1,4 @@
-import { pipe, map, bufferTime, filter } from 'rxjs'
+import { merge, pipe, map, bufferTime, filter } from 'rxjs'
 import type { Socket } from 'socket.io'
 
 const cleanBookings = () =>
@@ -46,23 +46,27 @@ const cleanBookings = () =>
     })
   )
 
+function deduplicateById(bookings: any[]): any[] {
+  const byId = new Map<string, any>()
+  let fallbackIndex = 0
+
+  for (const booking of bookings) {
+    const key =
+      booking?.id != null ? String(booking.id) : `missing-id-${fallbackIndex++}`
+    byId.set(key, booking)
+  }
+
+  return Array.from(byId.values())
+}
+
 export function register(experiment: any, socket: Socket) {
   return [
-    experiment.dispatchedBookings
+    merge(experiment.dispatchedBookings, experiment.bookingUpdates)
       .pipe(
         cleanBookings(),
         bufferTime(100),
-        filter((e: unknown[]) => e.length > 0)
-      )
-      .subscribe((bookings: unknown[]) => {
-        socket.emit('bookings', bookings)
-      }),
-
-    experiment.bookingUpdates
-      .pipe(
-        cleanBookings(),
-        bufferTime(100),
-        filter((e: unknown[]) => e.length > 0)
+        filter((e: unknown[]) => e.length > 0),
+        map(deduplicateById)
       )
       .subscribe((bookings: unknown[]) => {
         socket.emit('bookings', bookings)

@@ -168,7 +168,7 @@ export class ExperimentController {
 
     const globalVirtualTime = new VirtualTime(60, startHour, endHour)
     virtualTime.setGlobalVirtualTimeInstance(globalVirtualTime)
-    globalVirtualTime.play()
+    globalVirtualTime.pause()
 
     this.globalExperiment = engine.createExperiment({
       defaultEmitters: currentEmitters,
@@ -181,6 +181,10 @@ export class ExperimentController {
       this.globalExperiment.parameters.emitters = currentEmitters
     }
 
+    this.globalExperiment.parameters.dispatchReady = false
+    this.globalExperiment.parameters.expectedTruckPlanCount =
+      directParams?.expectedTruckPlanCount ?? 0
+    this.globalExperiment.parameters.savedTruckPlanIds = []
     this.globalExperiment.parameters.initMapState = this.getDefaultMapState()
 
     this.setupAutoStopOnEndOfDay(this.globalExperiment, () => {
@@ -289,6 +293,7 @@ export class ExperimentController {
 
     let datasetData: any = null
     let datasetWorkdaySettings: any = null
+    let expectedTruckPlanCount = 0
     let datasetBreakSettingsRef: Array<{
       id: string
       startMinutes: number
@@ -305,6 +310,26 @@ export class ExperimentController {
         datasetData?.optimizationSettings?.breaks,
         datasetData?.optimizationSettings?.extraBreaks
       )
+      const truckPlansFromFleetConfig = Array.isArray(
+        datasetData?.fleetConfiguration
+      )
+        ? datasetData.fleetConfiguration.reduce(
+            (sum: number, fleet: any) => sum + (fleet?.vehicles?.length || 0),
+            0
+          )
+        : 0
+      const truckPlansFromRouteData = Array.isArray(datasetData?.routeData)
+        ? new Set(
+            datasetData.routeData
+              .map((route: any) => route?.Bil)
+              .filter(
+                (vehicleId: unknown) =>
+                  typeof vehicleId === 'string' &&
+                  vehicleId.trim().length > 0
+              )
+          ).size
+        : 0
+      expectedTruckPlanCount = truckPlansFromFleetConfig || truckPlansFromRouteData
       fleetsConfig = datasetData?.fleetConfiguration || []
     }
 
@@ -318,7 +343,6 @@ export class ExperimentController {
     // vroomTruckPlanIds will be populated when plans are saved during simulation
     // (see truckDispatch.saveCompletePlanForReplay)
 
-    this.globalExperiment = null
     const experiment = this.createGlobalExperiment({
       ...parameters,
       experimentId: currentExperimentId,
@@ -329,6 +353,7 @@ export class ExperimentController {
       workdaySettings,
       breakSettings,
       optimizationSettings: datasetData?.optimizationSettings,
+      expectedTruckPlanCount,
       fleets: {
         'Södertälje kommun': {
           settings: {
@@ -386,6 +411,8 @@ export class ExperimentController {
       initMapState: parameters.initMapState,
       baselineStatistics,
       optimizationSettings: datasetData?.optimizationSettings,
+      dispatchReady: false,
+      expectedTruckPlanCount,
       vroomTruckPlanIds: [],
       name: simData.datasetName,
       description: null,
@@ -523,9 +550,26 @@ export class ExperimentController {
   async createSequentialSession(
     sessionId: string,
     datasetId: string,
-    parameters: any
+    parameters: any = {}
   ) {
     const datasetData = await elasticsearchService.getDataset(datasetId)
+    if (!datasetData) {
+      throw new Error('Dataset not found for sequential session')
+    }
+
+    const datasetOriginalSettings =
+      (datasetData?.originalSettings as Record<string, unknown>) || {}
+    const clientFleetSettings =
+      (parameters?.fleets?.['Södertälje kommun']?.settings as
+        | Record<string, unknown>
+        | undefined) || {}
+    const clientFleetConfiguration = parameters?.fleets?.['Södertälje kommun']
+      ?.fleets
+    const fleetConfiguration =
+      Array.isArray(clientFleetConfiguration) &&
+      clientFleetConfiguration.length > 0
+        ? clientFleetConfiguration
+        : datasetData?.fleetConfiguration || []
 
     const workdaySettings = this.buildWorkdaySettings(
       datasetData?.optimizationSettings?.workingHours
@@ -538,28 +582,35 @@ export class ExperimentController {
     const experiment = this.createSessionExperiment(sessionId, {
       ...parameters,
       sourceDatasetId: datasetId,
+      datasetName: datasetData?.name || parameters?.datasetName,
       experimentType: 'sequential',
       isReplay: true,
+      optimizationSettings:
+        datasetData?.optimizationSettings || parameters?.optimizationSettings,
       workdaySettings: workdaySettings || undefined,
       fleets: {
         'Södertälje kommun': {
           settings: {
-            ...parameters.fleets?.['Södertälje kommun']?.settings,
+            ...datasetOriginalSettings,
+            ...clientFleetSettings,
             experimentType: 'sequential',
+            optimizationSettings:
+              datasetData?.optimizationSettings ||
+              parameters?.optimizationSettings,
             workday: workdaySettings || undefined,
             breaks: breakSettings || undefined,
             pickupsBeforeDelivery:
-              datasetData?.originalSettings?.pickupsBeforeDelivery ||
-              parameters?.pickupsBeforeDelivery ||
+              parameters?.pickupsBeforeDelivery ??
+              (datasetOriginalSettings as any)?.pickupsBeforeDelivery ??
               undefined,
             deliveryStrategy:
-              datasetData?.originalSettings?.deliveryStrategy ||
-              parameters?.deliveryStrategy ||
+              parameters?.deliveryStrategy ??
+              (datasetOriginalSettings as any)?.deliveryStrategy ??
               undefined,
-            tjtyper: datasetData?.originalSettings?.tjtyper || undefined,
-            avftyper: datasetData?.originalSettings?.avftyper || undefined,
+            tjtyper: (datasetOriginalSettings as any)?.tjtyper || undefined,
+            avftyper: (datasetOriginalSettings as any)?.avftyper || undefined,
           },
-          fleets: parameters.fleets?.['Södertälje kommun']?.fleets || [],
+          fleets: fleetConfiguration,
         },
       },
     })

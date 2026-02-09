@@ -49,6 +49,7 @@ const MapPage = () => {
   const [cars, setCars] = useState<Car[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isMapActive, setIsMapActive] = useState(false)
+  const [vehiclesReady, setVehiclesReady] = useState(false)
   const [areaPartitions, setAreaPartitions] = useState<
     AreaPartition[] | undefined
   >(undefined)
@@ -87,16 +88,21 @@ const MapPage = () => {
   const handleSimulationStatus = useCallback(
     (socketStatus: {
       running: boolean
-      experimentId?: string
+      experimentId: string | null
+      dispatchReady: boolean
       timeRunning?: boolean
       timeSpeed?: number
     }) => {
       setRunning(socketStatus.running, socketStatus.experimentId)
 
       if (socketStatus.running) {
-        const backendTimeRunning = socketStatus.timeRunning ?? true
+        const backendTimeRunning = socketStatus.timeRunning ?? false
         const backendTimeSpeed = socketStatus.timeSpeed ?? 60
         setTimeState(backendTimeRunning, backendTimeSpeed)
+        setVehiclesReady(socketStatus.dispatchReady)
+      } else {
+        setVehiclesReady(false)
+        setTimeState(false, socketStatus.timeSpeed ?? 60)
       }
     },
     [setRunning, setTimeState]
@@ -107,15 +113,23 @@ const MapPage = () => {
       setRunning(true, data.experimentId)
       setCars([])
       setBookings([])
+      setAreaPartitions(undefined)
+      setVehiclesReady(false)
       setSocketTimeSpeed(status.timeSpeed)
     },
     [setRunning, status.timeSpeed, setSocketTimeSpeed]
   )
 
+  const handleSimulationReady = useCallback(() => {
+    setVehiclesReady(true)
+    setTimeState(true, status.timeSpeed)
+  }, [setTimeState, status.timeSpeed])
+
   const handleSimulationStopped = useCallback(() => {
     setRunning(false, null)
     setCars([])
     setBookings([])
+    setVehiclesReady(false)
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -123,6 +137,7 @@ const MapPage = () => {
 
   const handleSimulationFinished = useCallback(() => {
     setRunning(false, null)
+    setVehiclesReady(false)
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -160,6 +175,7 @@ const MapPage = () => {
 
     socket.on('simulationStatus', handleSimulationStatus)
     socket.on('simulationStarted', handleSimulationStarted)
+    socket.on('simulationReady', handleSimulationReady)
     socket.on('simulationStopped', handleSimulationStopped)
     socket.on('simulationFinished', handleSimulationFinished)
     socket.on('cars', handleCars)
@@ -168,6 +184,7 @@ const MapPage = () => {
     return () => {
       socket.off('simulationStatus', handleSimulationStatus)
       socket.off('simulationStarted', handleSimulationStarted)
+      socket.off('simulationReady', handleSimulationReady)
       socket.off('simulationStopped', handleSimulationStopped)
       socket.off('simulationFinished', handleSimulationFinished)
       socket.off('cars', handleCars)
@@ -178,49 +195,60 @@ const MapPage = () => {
     isMapActive,
     handleSimulationStatus,
     handleSimulationStarted,
+    handleSimulationReady,
     handleSimulationStopped,
     handleSimulationFinished,
     handleCars,
     handleBookings,
   ])
 
-  // Fetch area partitions and working hours whenever we have a running simulation tied to an experiment
   useEffect(() => {
     let cancelled = false
-    let interval: number | undefined
+    const sleep = (ms: number) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, ms)
+      })
+
     const fetchPartitions = async () => {
-      if (status.running && status.experimentId) {
-        try {
-          const exp = await getExperiment(status.experimentId)
-          if (!cancelled) {
-            setAreaPartitions(exp?.areaPartitions || [])
-            // Extract working hours from experiment
+      if (status.running && status.experimentId && vehiclesReady) {
+        const maxAttempts = 5
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const exp = await getExperiment(status.experimentId)
+            if (cancelled) return
+
+            const partitions = exp?.areaPartitions || []
             const wh = exp?.optimizationSettings?.workingHours
             if (wh?.start && wh?.end) {
               setWorkingHours({ start: wh.start, end: wh.end })
             }
+
+            if (partitions.length > 0 || attempt === maxAttempts) {
+              setAreaPartitions(partitions)
+              return
+            }
+
+            await sleep(300 * attempt)
+          } catch (_err) {
+            if (attempt === maxAttempts && !cancelled) {
+              setAreaPartitions([])
+            }
+            return
           }
-        } catch (_err) {
-          if (!cancelled) setAreaPartitions([])
         }
       } else {
         setAreaPartitions(undefined)
       }
     }
     fetchPartitions()
-    if (status.running && status.experimentId) {
-      interval = window.setInterval(fetchPartitions, 10000)
-    }
     return () => {
       cancelled = true
-      if (interval) window.clearInterval(interval)
     }
-  }, [status.running, status.experimentId])
+  }, [status.running, status.experimentId, vehiclesReady])
 
-  // Fetch VROOM consolidated plan for debug transitions
   useEffect(() => {
     let cancelled = false
-    let interval: number | undefined
     const fetchVroom = async () => {
       if (status.running && status.experimentId) {
         try {
@@ -234,16 +262,32 @@ const MapPage = () => {
       }
     }
     fetchVroom()
-    if (status.running && status.experimentId) {
-      interval = window.setInterval(fetchVroom, 15000)
-    }
     return () => {
       cancelled = true
-      if (interval) window.clearInterval(interval)
     }
   }, [status.running, status.experimentId])
 
+  useEffect(() => {
+    if (!socket || !isMapActive || !status.running || !status.experimentId)
+      return
+
+    const experimentId = status.experimentId
+    const handleExperimentUpdated = (data: { experimentId: string }) => {
+      if (data.experimentId === experimentId) {
+        getVroomPlan(experimentId)
+          .then((plan) => setVroomPlan(plan || undefined))
+          .catch(() => setVroomPlan(undefined))
+      }
+    }
+
+    socket.on('experimentUpdated', handleExperimentUpdated)
+    return () => {
+      socket.off('experimentUpdated', handleExperimentUpdated)
+    }
+  }, [socket, isMapActive, status.running, status.experimentId])
+
   const handlePlayTime = () => {
+    if (!vehiclesReady || !status.running) return
     setTimeState(true, status.timeSpeed)
     playTime()
   }
@@ -266,7 +310,6 @@ const MapPage = () => {
 
   const displayError = socketError
 
-  // Helper to parse time string to minutes
   const parseTimeToMinutes = useCallback((time: string) => {
     const [hours, minutes] = time.split(':').map((val) => Number(val) || 0)
     return hours * 60 + minutes
@@ -299,7 +342,6 @@ const MapPage = () => {
 
   const mapProgress = useMemo(() => {
     if (minuteOfDay === null) return 0
-    // Calculate progress within working hours window
     const progress = ((minuteOfDay - startMinutes) / totalMinutes) * 100
     return Math.max(0, Math.min(100, Number.isFinite(progress) ? progress : 0))
   }, [minuteOfDay, startMinutes, totalMinutes])
@@ -373,105 +415,111 @@ const MapPage = () => {
             statusColorClass={statusColorClass}
             isConnected={isConnected}
             isRunning={status.running}
+            isLoading={status.running && !vehiclesReady}
+            loadingMessage="Väntar på att alla fordonsplaner ska bli klara..."
             error={displayError}
             idleMessage="Ingen aktiv simulering. Starta en simulering för att visa kartdata."
             disconnectedMessage="Ingen anslutning till servern"
             sideControls={
-              <>
-                {settingsMenuProps && (
-                  <SettingsMenu
-                    {...settingsMenuProps}
-                    triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
-                    triggerVariant="ghost"
-                    triggerSize="icon"
-                    iconClassName="h-4 w-4"
-                    triggerTooltip="Kartinställningar"
-                    contentClassName="bg-white/95 backdrop-blur"
-                  />
-                )}
+              vehiclesReady ? (
+                <>
+                  {settingsMenuProps && (
+                    <SettingsMenu
+                      {...settingsMenuProps}
+                      triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                      triggerVariant="ghost"
+                      triggerSize="icon"
+                      iconClassName="h-4 w-4"
+                      triggerTooltip="Kartinställningar"
+                      contentClassName="bg-white/95 backdrop-blur"
+                    />
+                  )}
 
-                {layersMenuProps && (
-                  <LayersMenu
-                    {...layersMenuProps}
-                    triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
-                    triggerVariant="ghost"
-                    triggerSize="icon"
-                    iconClassName="h-4 w-4"
-                    triggerTooltip="Kartlager"
-                    contentClassName="bg-white/95 backdrop-blur"
-                  />
-                )}
+                  {layersMenuProps && (
+                    <LayersMenu
+                      {...layersMenuProps}
+                      triggerClassName="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                      triggerVariant="ghost"
+                      triggerSize="icon"
+                      iconClassName="h-4 w-4"
+                      triggerTooltip="Kartlager"
+                      contentClassName="bg-white/95 backdrop-blur"
+                    />
+                  )}
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="bg-white/90 rounded-full p-1 flex flex-col">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
-                        onClick={handleZoomIn}
-                        disabled={!mapControls}
-                      >
-                        <ZoomIn className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
-                        onClick={handleZoomOut}
-                        disabled={!mapControls}
-                      >
-                        <ZoomOut className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Zooma (demo)</p>
-                  </TooltipContent>
-                </Tooltip>
-
-                <DropdownMenu>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
+                      <div className="bg-white/90 rounded-full p-1 flex flex-col">
                         <Button
                           size="icon"
-                          className="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                          variant="ghost"
+                          className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
+                          onClick={handleZoomIn}
+                          disabled={!mapControls}
                         >
-                          <Gauge className="h-4 w-4" />
+                          <ZoomIn className="h-3 w-3" />
                         </Button>
-                      </DropdownMenuTrigger>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-gray-800 hover:bg-gray-100 h-6 w-6 rounded-full"
+                          onClick={handleZoomOut}
+                          disabled={!mapControls}
+                        >
+                          <ZoomOut className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Hastighet ({status.timeSpeed}x)</p>
+                      <p>Zooma (demo)</p>
                     </TooltipContent>
                   </Tooltip>
-                  <DropdownMenuContent align="end">
-                    {speedOptions.map((option) => (
-                      <DropdownMenuItem
-                        key={option}
-                        onClick={() => handleSpeedChange(option)}
-                        className={
-                          status.timeSpeed === option ? 'bg-accent' : ''
-                        }
-                      >
-                        {option}x
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
+
+                  <DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            className="bg-white/90 text-gray-800 hover:bg-white h-8 w-8"
+                          >
+                            <Gauge className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Hastighet ({status.timeSpeed}x)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent align="end">
+                      {speedOptions.map((option) => (
+                        <DropdownMenuItem
+                          key={option}
+                          onClick={() => handleSpeedChange(option)}
+                          className={
+                            status.timeSpeed === option ? 'bg-accent' : ''
+                          }
+                        >
+                          {option}x
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : null
             }
             overlay={
-              <MapPlaybackOverlay
-                progress={mapProgress}
-                progressLabel={progressLabel}
-                startLabel={workingHours.start}
-                endLabel={workingHours.end}
-                isPlaying={status.timeRunning}
-                onTogglePlayback={handleTogglePlayback}
-                disabled={isPlaybackDisabled}
-              />
+              vehiclesReady ? (
+                <MapPlaybackOverlay
+                  progress={mapProgress}
+                  progressLabel={progressLabel}
+                  startLabel={workingHours.start}
+                  endLabel={workingHours.end}
+                  isPlaying={status.timeRunning}
+                  onTogglePlayback={handleTogglePlayback}
+                  disabled={isPlaybackDisabled}
+                />
+              ) : null
             }
             mapClassName="w-full h-[75vh] max-h-screen min-h-[420px]"
             mapProps={{

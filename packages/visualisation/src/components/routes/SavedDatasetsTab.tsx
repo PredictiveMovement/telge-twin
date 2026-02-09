@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -112,9 +112,7 @@ export default function SavedDatasetsTab() {
       loadDatasets();
     };
 
-    const handlePlanSaved = (data: { sourceDatasetId?: string }) => {
-      // Only reload for other clients (not the one who started the optimization)
-      // The starting client handles completion via OptimizationContext
+    const handleExperimentUpdated = (data: { sourceDatasetId?: string }) => {
       if (data.sourceDatasetId && !runningOptimizations.has(data.sourceDatasetId)) {
         loadDatasets();
       }
@@ -124,11 +122,11 @@ export default function SavedDatasetsTab() {
     socket.emit('joinMap');
 
     socket.on('simulationStarted', handleSimulationStarted);
-    socket.on('planSaved', handlePlanSaved);
+    socket.on('experimentUpdated', handleExperimentUpdated);
 
     return () => {
       socket.off('simulationStarted', handleSimulationStarted);
-      socket.off('planSaved', handlePlanSaved);
+      socket.off('experimentUpdated', handleExperimentUpdated);
     };
   }, [socket, runningOptimizations]);
 

@@ -13,6 +13,11 @@ function register(io: Server): void {
 
     socket.on('startSimulation', async (simData, parameters) => {
       try {
+        const stopped = experimentController.stopGlobalExperiment()
+        if (stopped) {
+          sessionController.notifyGlobalWatchers(io, 'simulationStopped')
+        }
+
         const result = await experimentController.startSimulationFromData(
           simData,
           parameters
@@ -20,18 +25,18 @@ function register(io: Server): void {
 
         virtualTime.reset()
 
-        sessionController.getGlobalWatchers().forEach((socketId) => {
-          const socket = io.sockets.sockets.get(socketId)
-          if (socket) {
-            socketController.connectSocketToExperiment(socket)
-          }
-        })
-
         io.emit('simulationStarted', {
           running: true,
           data: simData,
           experimentId: result.experimentId,
           isReplay: result.isReplay,
+        })
+
+        sessionController.getGlobalWatchers().forEach((socketId) => {
+          const socket = io.sockets.sockets.get(socketId)
+          if (socket) {
+            socketController.connectSocketToExperiment(socket)
+          }
         })
       } catch (error) {
         console.error('Error starting simulation:', error)
@@ -103,7 +108,7 @@ function register(io: Server): void {
             timeRunning: false,
           })
         } catch (error) {
-          console.error(`❌ Error starting session replay:`, error)
+          console.error('Error starting session replay:', error)
           socket.emit('sessionError', {
             sessionId,
             error: error instanceof Error ? error.message : String(error),
@@ -116,21 +121,36 @@ function register(io: Server): void {
       'startSequentialSession',
       async ({ sessionId, datasetId, parameters }) => {
         if (!sessionId) return
+        if (!datasetId) {
+          socket.emit('sessionError', {
+            sessionId,
+            error: 'Dataset ID is required',
+          })
+          return
+        }
 
-        const experiment = await experimentController.createSequentialSession(
-          sessionId,
-          datasetId,
-          parameters
-        )
+        try {
+          const experiment = await experimentController.createSequentialSession(
+            sessionId,
+            datasetId,
+            parameters
+          )
 
-        socketController.connectSocketToExperiment(socket, sessionId)
+          socketController.connectSocketToExperiment(socket, sessionId)
 
-        io.to(sessionId).emit('sessionStarted', {
-          sessionId,
-          running: true,
-          experimentId: experiment.parameters.id,
-          timeRunning: false,
-        })
+          io.to(sessionId).emit('sessionStarted', {
+            sessionId,
+            running: true,
+            experimentId: experiment.parameters.id,
+            timeRunning: false,
+          })
+        } catch (error) {
+          console.error('Error starting sequential session:', error)
+          socket.emit('sessionError', {
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
       }
     )
 
@@ -147,6 +167,18 @@ function register(io: Server): void {
 
         io.emit('init')
         io.emit('parameters', experiment.parameters)
+      }
+    })
+
+    socket.on('joinDatasetRoom', (datasetId: string) => {
+      if (datasetId) {
+        socket.join(`dataset:${datasetId}`)
+      }
+    })
+
+    socket.on('leaveDatasetRoom', (datasetId: string) => {
+      if (datasetId) {
+        socket.leave(`dataset:${datasetId}`)
       }
     })
 

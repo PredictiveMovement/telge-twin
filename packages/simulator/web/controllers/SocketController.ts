@@ -12,6 +12,61 @@ export class SocketController {
     this.ioInstance = io
   }
 
+  private getExpectedTruckPlanCount(experiment: any): number {
+    const rawCount = Number(experiment?.parameters?.expectedTruckPlanCount || 0)
+    if (!Number.isFinite(rawCount) || rawCount < 0) return 0
+    return Math.floor(rawCount)
+  }
+
+  private getSavedTruckPlanIds(experiment: any): string[] {
+    if (!experiment?.parameters) return []
+    if (!Array.isArray(experiment.parameters.savedTruckPlanIds)) {
+      experiment.parameters.savedTruckPlanIds = []
+    }
+    return experiment.parameters.savedTruckPlanIds
+  }
+
+  private recordSavedTruckPlan(experiment: any, planId: string): void {
+    if (!planId) return
+    const savedPlanIds = this.getSavedTruckPlanIds(experiment)
+    if (!savedPlanIds.includes(planId)) {
+      savedPlanIds.push(planId)
+    }
+  }
+
+  private maybeMarkGlobalSimulationReady(experiment: any): void {
+    if (!experiment?.parameters) return
+    if (experiment.parameters.dispatchReady) return
+
+    const expectedTruckPlanCount = this.getExpectedTruckPlanCount(experiment)
+    if (expectedTruckPlanCount === 0) {
+      this.markGlobalSimulationReady(experiment)
+      return
+    }
+
+    const savedTruckPlanIds = this.getSavedTruckPlanIds(experiment)
+    if (savedTruckPlanIds.length >= expectedTruckPlanCount) {
+      this.markGlobalSimulationReady(experiment)
+    }
+  }
+
+  private markGlobalSimulationReady(experiment: any): void {
+    if (!experiment?.parameters) return
+    if (experiment.parameters.dispatchReady) return
+
+    experiment.parameters.dispatchReady = true
+
+    if (experiment.virtualTime && !experiment.virtualTime.isPlaying()) {
+      experiment.virtualTime.play()
+    }
+
+    if (this.ioInstance) {
+      this.ioInstance.emit('simulationReady', {
+        experimentId: experiment.parameters.id,
+      })
+    }
+  }
+
   setupTimeControlsOnly(socket: Socket, experiment: any): void {
     const virtualTimeToUse = experiment.virtualTime
 
@@ -49,9 +104,6 @@ export class SocketController {
       'sessionSpeed',
       ({ sessionId, speed }: { sessionId: string; speed: number }) => {
         if (!sessionController.isSocketInSession(socket.id, sessionId)) {
-          console.warn(
-            `Socket ${socket.id} tried to change speed for session ${sessionId} but is not a member`
-          )
           return
         }
 
@@ -81,9 +133,7 @@ export class SocketController {
       .pipe(throttleTime(1000))
       .subscribe((time: number) => {
         if (this.ioInstance) {
-          this.ioInstance
-            .to(sessionId!)
-            .emit('virtualTime', { sessionId, payload: time })
+          this.ioInstance.to(sessionId!).emit('time', time)
         }
       })
 
@@ -99,23 +149,13 @@ export class SocketController {
     const sessionBroadcastSocket = {
       emit: (event: string, data: any) => {
         if (this.ioInstance) {
-          if (event === 'virtualTime') {
-            this.ioInstance
-              .to(sessionId)
-              .emit('virtualTime', { sessionId, payload: data })
-          } else {
-            this.ioInstance
-              .to(sessionId)
-              .emit(event, { sessionId, payload: data })
-          }
+          this.ioInstance.to(sessionId).emit(event, data)
         }
       },
       volatile: {
         emit: (event: string, data: any) => {
           if (this.ioInstance) {
-            this.ioInstance
-              .to(sessionId)
-              .volatile.emit(event, { sessionId, payload: data })
+            this.ioInstance.to(sessionId).volatile.emit(event, data)
           }
         },
       },
@@ -192,6 +232,15 @@ export class SocketController {
       }
     }
 
+    if (!sessionId) {
+      const hasBookingsEmitter = currentEmitters.includes('bookings')
+      if (!hasBookingsEmitter) {
+        this.markGlobalSimulationReady(experiment)
+      } else {
+        this.maybeMarkGlobalSimulationReady(experiment)
+      }
+    }
+
     return routes.flat().filter(Boolean)
   }
 
@@ -253,6 +302,7 @@ export class SocketController {
         socket.emit('simulationStatus', {
           running: false,
           experimentId: null,
+          dispatchReady: false,
         })
         return
       }
@@ -261,7 +311,8 @@ export class SocketController {
       socket.emit('simulationStatus', {
         running: experimentController.isGlobalRunning,
         experimentId: experiment.parameters.id,
-        timeRunning: true,
+        dispatchReady: !!experiment.parameters?.dispatchReady,
+        timeRunning: experiment.virtualTime?.isPlaying?.() ?? false,
         timeSpeed: experiment.virtualTime
           ? experiment.virtualTime.getTimeMultiplier()
           : 60,
@@ -321,14 +372,27 @@ export class SocketController {
     }
   }
 
-  /**
-   * Broadcast when a truck plan is saved (optimization progress/completion)
-   */
-  emitPlanSaved(experimentId: string, planId: string, sourceDatasetId?: string): void {
-    if (this.ioInstance) {
-      this.ioInstance.emit('planSaved', { experimentId, planId, sourceDatasetId })
+  emitPlanSaved(
+    experimentId: string,
+    planId: string,
+    sourceDatasetId?: string
+  ): void {
+    const activeExperiment = experimentController.currentGlobalExperiment
+    if (activeExperiment?.parameters?.id === experimentId) {
+      this.recordSavedTruckPlan(activeExperiment, planId)
+      this.maybeMarkGlobalSimulationReady(activeExperiment)
+    }
+
+    if (this.ioInstance && sourceDatasetId) {
+      this.ioInstance.to(`dataset:${sourceDatasetId}`).emit('planSaved', {
+        experimentId,
+        planId,
+        sourceDatasetId,
+      })
+      this.ioInstance.emit('experimentUpdated', { experimentId, sourceDatasetId })
     }
   }
+
 }
 
 export const socketController = new SocketController()

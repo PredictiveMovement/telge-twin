@@ -94,27 +94,23 @@ export const useSimulationSession = ({
       setSession(null)
     }
 
-    const handleVirtualTime = (data: { sessionId: string; payload: number }) => {
-      if (data.sessionId !== currentSessionId) return
-      setVirtualTime(data.payload)
+    const handleTime = (time: number) => {
+      setVirtualTime(time)
     }
 
-    const handleCars = (data: { sessionId: string; payload: any | any[] }) => {
-      if (data.sessionId !== currentSessionId) return
+    const handleCars = (payload: any | any[]) => {
       setCars((prev) =>
-        upsertList(prev, data.payload, (car) => ({
+        upsertList(prev, payload, (car) => ({
           ...car,
           position: toLonLatArray(car.position),
         }))
       )
     }
 
-    const handleBookings = (data: { sessionId: string; payload: any | any[] }) => {
-      if (data.sessionId !== currentSessionId) return
-
-      const incomingBookings = Array.isArray(data.payload)
-        ? data.payload
-        : [data.payload]
+    const handleBookings = (payload: any | any[]) => {
+      const incomingBookings = Array.isArray(payload)
+        ? payload
+        : [payload]
 
       setBookings((prev) => {
         const updatedBookings = upsertList(prev, incomingBookings, (b) => ({
@@ -130,7 +126,7 @@ export const useSimulationSession = ({
     socket.on('sessionStarted', handleSessionStarted)
     socket.on('sessionStopped', handleSessionStopped)
     socket.on('sessionError', handleSessionError)
-    socket.on('virtualTime', handleVirtualTime)
+    socket.on('time', handleTime)
     socket.on('cars', handleCars)
     socket.on('bookings', handleBookings)
 
@@ -139,7 +135,7 @@ export const useSimulationSession = ({
       socket.off('sessionStarted', handleSessionStarted)
       socket.off('sessionStopped', handleSessionStopped)
       socket.off('sessionError', handleSessionError)
-      socket.off('virtualTime', handleVirtualTime)
+      socket.off('time', handleTime)
       socket.off('cars', handleCars)
       socket.off('bookings', handleBookings)
     }
@@ -208,7 +204,6 @@ export const useSimulationSession = ({
         socket.emit('startSequentialSession', {
           sessionId: sessionResult.data.sessionId,
           datasetId,
-          parameters: sessionResult.data.parameters,
         })
       }
       setRunning(true)

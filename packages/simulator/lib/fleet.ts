@@ -158,7 +158,12 @@ class Fleet {
           spec.fackDetails.forEach((fack: any) => {
             const types = (fack.avfallstyper || []).map((w: any) => w.avftyp).filter(Boolean)
             types.forEach((typeId: string) => {
-              if (recyclingTypeCoverage.hasOwnProperty(typeId)) {
+              if (
+                Object.prototype.hasOwnProperty.call(
+                  recyclingTypeCoverage,
+                  typeId
+                )
+              ) {
                 recyclingTypeCoverage[typeId]++
               }
             })
