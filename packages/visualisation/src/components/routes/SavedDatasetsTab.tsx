@@ -279,6 +279,29 @@ export default function SavedDatasetsTab() {
     }
   };
 
+  const getExpectedVehicleCount = (
+    dataset: RouteDataset | undefined,
+    experiment?: ExperimentWithDocId
+  ) => {
+    if (typeof dataset?.fleetVehicleCount === 'number' && dataset.fleetVehicleCount > 0) {
+      return dataset.fleetVehicleCount;
+    }
+
+    if (
+      typeof experiment?.expectedTruckPlanCount === 'number' &&
+      experiment.expectedTruckPlanCount > 0
+    ) {
+      return experiment.expectedTruckPlanCount;
+    }
+
+    return (
+      dataset?.fleetConfiguration?.reduce(
+        (sum, fleet) => sum + (fleet.vehicles?.length || 0),
+        0
+      ) || 0
+    );
+  };
+
   const handleShowHistory = (opt: SavedOptimization) => {
     setExpandedHistoryId(expandedHistoryId === opt.id ? null : opt.id);
   };
@@ -326,10 +349,7 @@ export default function SavedDatasetsTab() {
     latestExperimentByDataset.forEach((latestExp, datasetId) => {
       const dataset = datasets.find(d => d.datasetId === datasetId);
 
-      // Calculate expected vehicle count from dataset's fleetConfiguration
-      const expectedVehicleCount = dataset?.fleetConfiguration?.reduce(
-        (sum, fleet) => sum + (fleet.vehicles?.length || 0), 0
-      ) || 0;
+      const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
 
       // Skip experiments that are still optimizing, unless this client started it
       const isOwnOptimization = runningOptimizations.has(datasetId) || completedOptimizations.has(datasetId);
@@ -433,9 +453,6 @@ export default function SavedDatasetsTab() {
         // Verifiera att alla slutförda experiment har färsk data
         const allFresh = completedIds.every(datasetId => {
           const dataset = datasetsData.find(d => d.datasetId === datasetId);
-          const expectedVehicleCount = dataset?.fleetConfiguration?.reduce(
-            (sum, fleet) => sum + (fleet.vehicles?.length || 0), 0
-          ) || 0;
 
           const latestExp = (experimentsData as ExperimentWithDocId[])
             .filter(e => e.sourceDatasetId === datasetId)
@@ -443,6 +460,7 @@ export default function SavedDatasetsTab() {
               new Date(b.createdAt || b.startDate || 0).getTime() -
               new Date(a.createdAt || a.startDate || 0).getTime()
             )[0];
+          const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
 
           return isExperimentComplete(latestExp, expectedVehicleCount);
         });

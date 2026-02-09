@@ -55,6 +55,7 @@ export interface RouteDataset {
   originalRecordCount: number
   status: string
   associatedExperiments: string[]
+  fleetVehicleCount?: number
   fleetConfiguration?: FleetConfiguration[]
   originalSettings?: Record<string, unknown>
   optimizationSettings?: OptimizationSettings
@@ -113,6 +114,7 @@ export interface Experiment {
   areaPartitions?: AreaPartition[]
   // Array of vroom-truck-plan IDs belonging to this experiment
   vroomTruckPlanIds?: string[]
+  expectedTruckPlanCount?: number
   name?: string
   description?: string
   optimizationSettings?: OptimizationSettings

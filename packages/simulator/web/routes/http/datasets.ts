@@ -5,6 +5,17 @@ import { handleError, successResponse } from './helpers'
 
 const router = Router()
 
+const calculateFleetVehicleCount = (fleetConfiguration: any): number => {
+  if (!Array.isArray(fleetConfiguration)) return 0
+
+  return fleetConfiguration.reduce((sum: number, fleet: any) => {
+    const vehicleCount = Array.isArray(fleet?.vehicles)
+      ? fleet.vehicles.length
+      : 0
+    return sum + vehicleCount
+  }, 0)
+}
+
 router.get('/datasets', async (req, res) => {
   try {
     const datasets = await elasticsearchService.listDatasets()
@@ -47,6 +58,9 @@ router.post('/datasets', async (req, res) => {
       status: 'ready',
       associatedExperiments: [],
       fleetConfiguration: datasetData.fleetConfiguration || null,
+      fleetVehicleCount: calculateFleetVehicleCount(
+        datasetData.fleetConfiguration
+      ),
       originalSettings: datasetData.originalSettings || null,
       optimizationSettings: datasetData.optimizationSettings || null,
     }

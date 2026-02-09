@@ -302,6 +302,52 @@ describe('ElasticsearchService', () => {
     })
   })
 
+  describe('listDatasets', () => {
+    it('fetches a lightweight dataset list and maps elastic _id to id', async () => {
+      mockClient.search.mockResolvedValue({
+        body: {
+          hits: {
+            hits: [
+              {
+                _id: 'dataset-1',
+                _source: {
+                  datasetId: 'dataset-1',
+                  name: 'Dataset 1',
+                  description: 'desc',
+                  fleetVehicleCount: 4,
+                },
+              },
+            ],
+          },
+        },
+      })
+
+      const result = await service.listDatasets()
+
+      expect(mockClient.search).toHaveBeenCalledWith({
+        index: 'route-datasets',
+        body: {
+          query: { match_all: {} },
+          sort: [{ uploadTimestamp: { order: 'desc' } }],
+          size: 100,
+          _source: {
+            excludes: ['routeData', 'fleetConfiguration', 'originalSettings'],
+          },
+        },
+      })
+
+      expect(result).toEqual([
+        {
+          id: 'dataset-1',
+          datasetId: 'dataset-1',
+          name: 'Dataset 1',
+          description: 'desc',
+          fleetVehicleCount: 4,
+        },
+      ])
+    })
+  })
+
   describe('deleteExperiment', () => {
     it('deletes experiment and unreferenced plans', async () => {
       // Mock getting the experiment

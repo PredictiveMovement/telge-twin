@@ -177,7 +177,9 @@ export class ElasticsearchService {
         query: { match_all: {} },
         sort: [{ uploadTimestamp: { order: 'desc' } }],
         size: 100,
-        _source: { excludes: ['routeData'] },
+        _source: {
+          excludes: ['routeData', 'fleetConfiguration', 'originalSettings'],
+        },
       },
     })
     return response.body.hits.hits.map((hit: any) => ({
