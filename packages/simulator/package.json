@@ -58,7 +58,8 @@
   "homepage": "https://www.telge.iteam.pub",
   "nodemonConfig": {
     "ignore": [
-      "data/pm_bookings*.json"
+      "data/pm_bookings*.json",
+      ".cache/"
     ]
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch'
 import { startOfDay } from 'date-fns'
-import { error } from './log'
+import { error, warn } from './log'
 import { getFromCache, updateCache } from './cache'
 import queue from './queueSubject'
 import { virtualTime } from './virtualTime'
@@ -93,6 +93,48 @@ export interface PlanInput {
   jobs?: any[]
   shipments?: Shipment[]
   vehicles: Vehicle[]
+  shouldAbort?: () => boolean | Promise<boolean>
+}
+
+export const VROOM_PLANNING_CANCELLED_MESSAGE =
+  'VROOM planning aborted: experiment cancelled'
+
+export function isVroomPlanningCancelledError(err: any): boolean {
+  const message =
+    typeof err?.message === 'string'
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : ''
+  return message.includes(VROOM_PLANNING_CANCELLED_MESSAGE)
+}
+
+async function hasPlanningBeenCancelled(
+  shouldAbort?: () => boolean | Promise<boolean>
+): Promise<boolean> {
+  if (!shouldAbort) return false
+  try {
+    return Boolean(await shouldAbort())
+  } catch {
+    return false
+  }
+}
+
+async function waitWithAbort(
+  ms: number,
+  shouldAbort?: () => boolean | Promise<boolean>
+): Promise<void> {
+  const pollIntervalMs = 200
+  let remainingMs = Math.max(0, ms)
+
+  while (remainingMs > 0) {
+    if (await hasPlanningBeenCancelled(shouldAbort)) {
+      throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
+    }
+    const waitMs = Math.min(pollIntervalMs, remainingMs)
+    await delay(waitMs)
+    remainingMs -= waitMs
+  }
 }
 
 const DEFAULT_SHIFT_DURATION_MS = 8 * 60 * 60 * 1000
@@ -156,9 +198,13 @@ function resolveWorkdayWindow(
 }
 
 async function plan(
-  { jobs = [], shipments = [], vehicles }: PlanInput,
+  { jobs = [], shipments = [], vehicles, shouldAbort }: PlanInput,
   retryCount = 0
 ): Promise<any> {
+  if (await hasPlanningBeenCancelled(shouldAbort)) {
+    throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
+  }
+
   if (!vehicles || !Array.isArray(vehicles) || vehicles.length === 0) {
     throw new Error('No vehicles provided for VROOM planning')
   }
@@ -205,7 +251,6 @@ async function plan(
       }).then(async (res: Response) => {
         if (!res.ok) {
           const errorText = await res.text()
-          error(`VROOM HTTP ${res.status} error:`, errorText)
           throw new Error(`Vroom HTTP ${res.status}: ${errorText}`)
         }
         return res.json()
@@ -215,15 +260,24 @@ async function plan(
     const json = await Promise.race([vroomPromise, timeoutPromise])
 
     return updateCache(normalizedInput, json)
-  } catch (vroomError) {
-    error('Vroom error', vroomError)
+  } catch (vroomError: any) {
+    if (isVroomPlanningCancelledError(vroomError)) {
+      throw vroomError
+    }
+
+    if (await hasPlanningBeenCancelled(shouldAbort)) {
+      throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
+    }
 
     if (retryCount < 3) {
+      warn(`VROOM retry ${retryCount + 1}/3: ${vroomError.code || vroomError.message}`)
       const backoffDelay = Math.pow(2, retryCount + 1) * 1000
-      await delay(backoffDelay)
-      return plan({ jobs, shipments, vehicles }, retryCount + 1)
+      await waitWithAbort(backoffDelay, shouldAbort)
+      if (await hasPlanningBeenCancelled(shouldAbort)) {
+        throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
+      }
+      return plan({ jobs, shipments, vehicles, shouldAbort }, retryCount + 1)
     } else {
-      error('Max VROOM retries reached, giving up', vroomError)
       throw vroomError
     }
   }
@@ -433,6 +487,8 @@ export default {
   bookingToShipment,
   truckToVehicle,
   plan,
+  isVroomPlanningCancelledError,
+  VROOM_PLANNING_CANCELLED_MESSAGE,
 }
 
 // CommonJS compatibility
@@ -443,5 +499,7 @@ if (typeof module !== 'undefined') {
     bookingToShipment,
     truckToVehicle,
     plan,
+    isVroomPlanningCancelledError,
+    VROOM_PLANNING_CANCELLED_MESSAGE,
   }
 }

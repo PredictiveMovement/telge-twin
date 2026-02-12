@@ -586,15 +586,15 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
 
             {!simulation.isConnected && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-black/70 text-white px-4 py-2 rounded-md text-sm">
+                <div className="bg-black text-white px-4 py-2 rounded-md text-sm">
                   Ingen anslutning till servern
                 </div>
               </div>
             )}
 
             {simulation.error && (
-              <div className="absolute inset-x-4 bottom-4">
-                <div className="bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-md text-sm shadow-lg">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-destructive text-destructive-foreground px-4 py-2 rounded-md text-sm">
                   {simulation.error}
                 </div>
               </div>
@@ -602,7 +602,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
 
             {!simulation.isRunning && !simulation.error && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-black/60 text-white px-4 py-2 rounded-md text-sm">
+                <div className="bg-black text-white px-4 py-2 rounded-md text-sm">
                   Tryck på play för att starta simuleringen
                 </div>
               </div>

@@ -5,6 +5,10 @@ import { virtualTime, VirtualTime } from '../../lib/virtualTime'
 import { safeId } from '../../lib/id'
 import { elasticsearchService } from '../services/ElasticsearchService'
 import { calculateBaselineStatistics } from '../../lib/dispatch/truckDispatch'
+import {
+  clearExperimentCancelled,
+  markExperimentCancelled,
+} from '../../lib/cancelledExperiments'
 import engine from '../../index'
 
 export class ExperimentController {
@@ -152,6 +156,7 @@ export class ExperimentController {
   createGlobalExperiment(directParams?: any) {
     const currentEmitters = emitters()
     const experimentId = directParams?.id || directParams?.experimentId || safeId()
+    clearExperimentCancelled(experimentId)
 
     const workdaySettings: any = directParams?.workdaySettings || null
     const startMinutes =
@@ -205,6 +210,7 @@ export class ExperimentController {
   createSessionExperiment(sessionId: string, directParams?: any) {
     const currentEmitters = emitters()
     const experimentId = directParams?.id || directParams?.experimentId || safeId()
+    clearExperimentCancelled(experimentId)
 
     const workdaySettings: any = directParams?.workdaySettings || null
     const startMinutes =
@@ -253,12 +259,78 @@ export class ExperimentController {
 
   stopGlobalExperiment() {
     if (this.globalExperiment) {
+      const experimentId =
+        typeof this.globalExperiment?.parameters?.id === 'string'
+          ? this.globalExperiment.parameters.id
+          : null
+      markExperimentCancelled(experimentId)
       this.globalExperiment = null
       this.isGlobalSimulationRunning = false
       virtualTime.reset()
       return true
     }
     return false
+  }
+
+  /**
+   * Cancels an active global optimization for a specific dataset.
+   * This operation is idempotent and safe to call repeatedly.
+   */
+  async cancelGlobalOptimizationByDataset(datasetId: string): Promise<{
+    reason: 'cancelled' | 'not_running' | 'dataset_mismatch'
+    experimentId: string | null
+    deletedExperiment: boolean
+  }> {
+    const activeExperiment = this.globalExperiment
+    if (!this.isGlobalSimulationRunning || !activeExperiment) {
+      return {
+        reason: 'not_running',
+        experimentId: null,
+        deletedExperiment: false,
+      }
+    }
+
+    const activeExperimentId =
+      typeof activeExperiment?.parameters?.id === 'string'
+        ? activeExperiment.parameters.id
+        : null
+    const activeDatasetId =
+      typeof activeExperiment?.parameters?.sourceDatasetId === 'string'
+        ? activeExperiment.parameters.sourceDatasetId
+        : null
+
+    if (activeDatasetId && activeDatasetId !== datasetId) {
+      return {
+        reason: 'dataset_mismatch',
+        experimentId: activeExperimentId,
+        deletedExperiment: false,
+      }
+    }
+
+    this.stopGlobalExperiment()
+
+    let deletedExperiment = false
+    if (activeExperimentId) {
+      try {
+        const existing = await elasticsearchService.findDocumentById(
+          'experiments',
+          activeExperimentId
+        )
+        if (existing) {
+          await elasticsearchService.deleteExperiment(activeExperimentId)
+          deletedExperiment = true
+        }
+      } catch (_error) {
+        // Idempotent cancel: missing/deleted experiment should not fail cancel.
+        deletedExperiment = false
+      }
+    }
+
+    return {
+      reason: 'cancelled',
+      experimentId: activeExperimentId,
+      deletedExperiment,
+    }
   }
 
   /**
@@ -270,6 +342,11 @@ export class ExperimentController {
   stopSessionExperiment(sessionId: string) {
     const experiment = this.sessionExperiments.get(sessionId)
     if (experiment) {
+      const experimentId =
+        typeof experiment?.parameters?.id === 'string'
+          ? experiment.parameters.id
+          : null
+      markExperimentCancelled(experimentId)
       this.sessionExperiments.delete(sessionId)
       this.sessionVirtualTimes.delete(sessionId)
       virtualTime.unregisterSession(sessionId)

@@ -37,6 +37,10 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {optimizations.map((opt) => {
         const isOptimizing = opt.isOptimizing === true;
+        const isFailed = opt.isFailed === true;
+        const isBlocked = isFailed || isOptimizing;
+        const isEditDisabled = isFailed || isOptimizing;
+        const isDeleteDisabled = isOptimizing;
 
         return (
           <Card
@@ -45,11 +49,15 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
           >
             <CardContent className="p-4 h-full flex flex-col">
               <div
-                className="flex-1 cursor-pointer"
-                onClick={() => onOpen(opt)}
-                tabIndex={0}
+                className={isBlocked ? 'flex-1 cursor-default' : 'flex-1 cursor-pointer'}
+                onClick={() => {
+                  if (!isBlocked) onOpen(opt);
+                }}
+                tabIndex={isBlocked ? -1 : 0}
                 role="button"
+                aria-disabled={isBlocked ? true : undefined}
                 onKeyDown={(e) => {
+                  if (isBlocked) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onOpen(opt);
@@ -60,6 +68,7 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
                   <h4 className="font-medium leading-snug line-clamp-2">{opt.name}</h4>
                   <OptimizationStatusIndicator
                     isOptimizing={isOptimizing}
+                    isFailed={isFailed}
                     versionCount={opt.versions?.length || 1}
                   />
                   {currentOptimizationId === opt.id && onCancelOptimization && (
@@ -96,15 +105,20 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-full h-8 w-8 p-0 hover:bg-destructive/10"
+                  className="rounded-full h-8 w-8 p-0 hover:bg-destructive/10 disabled:opacity-40 disabled:hover:bg-transparent"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (isDeleteDisabled) return;
                     onDelete(opt.id);
                   }}
+                  disabled={isDeleteDisabled}
                   aria-label={`Ta bort ${opt.name}`}
-                  title="Ta bort"
+                  title={isDeleteDisabled ? 'Kan inte tas bort just nu' : 'Ta bort'}
                 >
-                  <Trash2 size={14} className="text-destructive" />
+                  <Trash2
+                    size={14}
+                    className={isDeleteDisabled ? 'text-muted-foreground' : 'text-destructive'}
+                  />
                 </Button>
                 <div className="flex gap-2">
                   {onShowHistory && opt.versions && opt.versions.length > 1 && (
@@ -128,8 +142,10 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
                     className="rounded-full h-8 w-8 p-0 hover:bg-[#E5E5E5]"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isEditDisabled) return;
                       onEditName(opt);
                     }}
+                    disabled={isEditDisabled}
                     aria-label={`Redigera ${opt.name}`}
                     title="Redigera namn och beskrivning"
                   >

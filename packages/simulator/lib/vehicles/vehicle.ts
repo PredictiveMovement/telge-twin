@@ -150,26 +150,36 @@ class Vehicle {
       .getTimeInMilliseconds()
       .pipe(
         scan((prevRemainingPointsInRoute: any, currentTimeInMs: any) => {
-          if (!prevRemainingPointsInRoute.length) {
+          try {
+            if (!prevRemainingPointsInRoute || !prevRemainingPointsInRoute.length) {
+              this.stopped()
+              return []
+            }
+
+            const result =
+              interpolate.route(
+                route.started,
+                currentTimeInMs,
+                prevRemainingPointsInRoute
+              ) ?? this.destination
+            const { skippedPoints, remainingPoints, ...position } = result
+            const newPosition = new Position(position)
+            if (route.started > currentTimeInMs) {
+              return []
+            }
+            this.updatePosition(newPosition, skippedPoints, currentTimeInMs)
+            return remainingPoints || []
+          } catch (err: any) {
+            error(`[simulate] scan error for vehicle ${this.id}:`, err?.message || err)
             this.stopped()
             return []
           }
-
-          const { skippedPoints, remainingPoints, ...position } =
-            interpolate.route(
-              route.started,
-              currentTimeInMs,
-              prevRemainingPointsInRoute
-            ) ?? this.destination
-          const newPosition = new Position(position)
-          if (route.started > currentTimeInMs) {
-            return []
-          }
-          this.updatePosition(newPosition, skippedPoints, currentTimeInMs)
-          return remainingPoints
         }, interpolate.points(route))
       )
-      .subscribe(() => null)
+      .subscribe({
+        next: () => {},
+        error: (err: any) => error(`[simulate] subscription error for vehicle ${this.id}:`, err?.message || err),
+      })
   }
 
   navigateTo(destination: any /* Position */) {

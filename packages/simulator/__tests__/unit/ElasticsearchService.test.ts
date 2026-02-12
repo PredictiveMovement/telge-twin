@@ -215,6 +215,50 @@ describe('ElasticsearchService', () => {
     })
   })
 
+  describe('addDispatchErrorToExperiment', () => {
+    const errorEntry = {
+      truckId: 'truck-1',
+      fleet: 'Fleet A',
+      error: 'VROOM failed',
+      timestamp: '2026-02-12T10:00:00.000Z',
+    }
+
+    it('updates experiment with script to add dispatch error', async () => {
+      mockClient.update.mockResolvedValue({ body: { result: 'updated' } })
+
+      await service.addDispatchErrorToExperiment('exp-123', errorEntry)
+
+      expect(mockClient.update).toHaveBeenCalledWith({
+        index: 'experiments',
+        id: 'exp-123',
+        body: {
+          script: {
+            source: expect.stringContaining('dispatchErrors'),
+            params: { errorEntry },
+          },
+        },
+        retry_on_conflict: 3,
+        refresh: 'wait_for',
+      })
+    })
+
+    it('handles document_missing_exception without throwing', async () => {
+      mockClient.update.mockRejectedValue({
+        meta: {
+          body: {
+            error: {
+              type: 'document_missing_exception',
+            },
+          },
+        },
+      })
+
+      await expect(
+        service.addDispatchErrorToExperiment('missing-exp', errorEntry)
+      ).resolves.toBeUndefined()
+    })
+  })
+
   describe('updateTruckPlan', () => {
     it('updates the completePlan for a specific plan', async () => {
       mockClient.update.mockResolvedValue({ body: { result: 'updated' } })

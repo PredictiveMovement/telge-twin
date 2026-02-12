@@ -2,7 +2,9 @@ const {
   findBestRouteToPickupBookings,
   useReplayRoute,
   saveCompletePlanForReplay,
+  reportDispatchError,
 } = require('../dispatch/truckDispatch')
+const { isVroomPlanningCancelledError } = require('../vroom')
 const { warn, error: logError } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
@@ -48,6 +50,7 @@ class Truck extends Vehicle {
   private breakSchedule: ScheduledBreak[] = []
   private breakActive: ScheduledBreak | null = null
   private finishingWorkday = false
+  private skipQueueUnreachableMarking = false
 
   private isSequentialExperiment(): boolean {
     const fleetExperimentType =
@@ -480,11 +483,37 @@ class Truck extends Vehicle {
    */
 
   stopped() {
-    const maybePromise = super.stopped()
-    if (maybePromise && typeof maybePromise.then === 'function') {
-      return maybePromise.then(() => this.handlePostStop())
+    try {
+      const maybePromise = super.stopped()
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        return maybePromise
+          .then(() => this.handlePostStop())
+          .catch((err: any) => {
+            logError(
+              `[truck ${this.id}] stopped chain error (after pickup/dropoff):`,
+              err?.message || err
+            )
+            // Recover: try to continue with the next instruction
+            return this.handlePostStop()
+          })
+      }
+      const postStopResult = this.handlePostStop()
+      if (postStopResult && typeof postStopResult.then === 'function') {
+        return postStopResult.catch((err: any) => {
+          logError(
+            `[truck ${this.id}] handlePostStop error:`,
+            err?.message || err
+          )
+          // Don't try to recover from handlePostStop errors to avoid loops
+        })
+      }
+      return postStopResult
+    } catch (err: any) {
+      logError(
+        `[truck ${this.id}] stopped() sync error:`,
+        err?.message || err
+      )
     }
-    return this.handlePostStop()
   }
 
   private async handlePostStop(): Promise<void> {
@@ -522,8 +551,14 @@ class Truck extends Vehicle {
         return this.pickNextInstructionFromPlan()
       }
 
-      // No cargo, no plan — mark remaining queue items as unreachable
-      await this.markRemainingAsUnreachable()
+      // Planning errors should not rewrite booking status to unreachable.
+      if (this.skipQueueUnreachableMarking) {
+        this.skipQueueUnreachableMarking = false
+        this.queue = []
+      } else {
+        // No cargo, no plan — mark remaining queue items as unreachable
+        await this.markRemainingAsUnreachable()
+      }
       this.instruction = undefined
       this.booking = null
 
@@ -607,7 +642,11 @@ class Truck extends Vehicle {
       }
     }
 
-    await this.virtualTime.wait(20 * 1000)
+    try {
+      await this.virtualTime.wait(20 * 1000)
+    } catch (err: any) {
+      logError(`[truck ${this.id}] pickup wait error, continuing:`, err?.message || err)
+    }
 
     if (this.hasReachedEndOfWorkday()) {
       return this.concludeWorkday()
@@ -841,6 +880,7 @@ class Truck extends Vehicle {
       Math.random() * CLUSTERING_CONFIG.TRUCK_PLANNING_RANDOM_DELAY_MS
     this._timeout = setTimeout(async () => {
       this.setStatus('planning')
+      this.skipQueueUnreachableMarking = false
 
       if (this.fleet.settings.replayExperiment) {
         this.plan = await useReplayRoute(this, this.queue)
@@ -896,39 +936,24 @@ class Truck extends Vehicle {
             throw new Error('VROOM returned null plan')
           }
         } catch (error: any) {
-          // Log the VROOM failure so we can identify when fallback is used
-          logError(`VROOM planning failed for truck ${this.id}, using sequential fallback`, {
-            experimentId,
-            truckId: this.id,
-            error: error.message,
-            bookingCount: this.queue.length,
-          })
+          const failedBookingCount = this.queue.length
+          this.plan = []
+          this.skipQueueUnreachableMarking = true
+          this.queue = []
+          if (!isVroomPlanningCancelledError(error)) {
+            logError(`VROOM planning failed for truck ${this.id}`, {
+              experimentId,
+              truckId: this.id,
+              error: error.message,
+              bookingCount: failedBookingCount,
+            })
 
-          this.plan = [
-            { action: 'start' },
-            ...this.queue.map((b: any) => ({
-              action: 'pickup',
-              booking: b,
-            })),
-            { action: 'delivery' },
-            { action: 'end' },
-          ]
-
-          // Use planGroupId from fleet settings, fallback to experimentId
-          const fallbackPlanGroupId = this.fleet?.settings?.planGroupId || experimentId
-          await saveCompletePlanForReplay(
-            fallbackPlanGroupId,
-            this.id,
-            this.fleet?.name || this.id,
-            this.plan,
-            this.queue,
-            this.fleet?.settings?.createReplay ?? true
-          )
-          // Ensure area partitions are saved even when falling back
-          try {
-            createSpatialChunks(this.queue, experimentId, this.id)
-          } catch (e) {
-            // non-fatal
+            await reportDispatchError(
+              experimentId,
+              this.id,
+              this.fleet?.name || this.id,
+              error.message || 'VROOM planning failed'
+            )
           }
         }
       }

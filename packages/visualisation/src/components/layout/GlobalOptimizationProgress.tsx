@@ -4,6 +4,7 @@ import { useOptimizationContext } from '@/contexts/OptimizationContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { cancelSimulationByDataset } from '@/api/simulator';
 
 const GlobalOptimizationProgress: React.FC = () => {
   const location = useLocation();
@@ -84,6 +85,28 @@ const GlobalOptimizationProgress: React.FC = () => {
   const progress = currentOptimization?.progress ?? 100;
   const isOnRoutesPage = location.pathname === '/routes';
 
+  const handleCancel = async () => {
+    if (!currentOptimization) return;
+
+    cancelOptimization(currentOptimization.id);
+
+    try {
+      const result = await cancelSimulationByDataset(currentOptimization.id);
+      if (!result.success) {
+        toast.error(result.error || 'Kunde inte avbryta optimeringen');
+        return;
+      }
+
+      if (result.reason === 'dataset_mismatch') {
+        toast.error('En annan simulering är aktiv');
+      } else {
+        toast.success('Optimering avbruten');
+      }
+    } catch {
+      toast.error('Kunde inte avbryta optimeringen');
+    }
+  };
+
   return (
     <div
       className={`fixed top-0 left-0 right-0 z-[9999] transition-opacity duration-500 ${
@@ -101,7 +124,7 @@ const GlobalOptimizationProgress: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => cancelOptimization(currentOptimization.id)}
+            onClick={handleCancel}
             className="h-8 gap-2"
           >
             <X className="h-3 w-3" />

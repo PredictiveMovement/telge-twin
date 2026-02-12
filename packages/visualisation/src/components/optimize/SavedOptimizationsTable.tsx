@@ -48,6 +48,7 @@ export interface SavedOptimization {
   versions?: OptimizationVersion[];
   vehicleCount?: number;  // Antal fordon med planer
   isOptimizing?: boolean; // True om optimering pågår (vroomTruckPlanIds är tom array)
+  isFailed?: boolean; // True om alla truckar fick dispatch errors
 }
 
 interface SavedOptimizationsTableProps {
@@ -140,14 +141,22 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
         <TableBody>
           {optimizations.map((opt) => {
             const isOptimizing = opt.isOptimizing === true;
+            const isFailed = opt.isFailed === true;
+            const isBlocked = isFailed || isOptimizing;
+            const isEditDisabled = isFailed || isOptimizing;
+            const isDeleteDisabled = isOptimizing;
 
             return (
               <React.Fragment key={opt.id}>
                 <TableRow
-                  className="cursor-pointer"
-                  onClick={() => onOpen(opt)}
-                  tabIndex={0}
+                  className={isBlocked ? 'cursor-default hover:bg-transparent' : 'cursor-pointer'}
+                  onClick={() => {
+                    if (!isBlocked) onOpen(opt);
+                  }}
+                  tabIndex={isBlocked ? -1 : 0}
+                  aria-disabled={isBlocked ? true : undefined}
                   onKeyDown={(e) => {
+                    if (isBlocked) return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       onOpen(opt);
@@ -159,6 +168,7 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
                       <span className="truncate">{opt.name}</span>
                       <OptimizationStatusIndicator
                         isOptimizing={isOptimizing}
+                        isFailed={isFailed}
                         versionCount={opt.versions?.length || 1}
                       />
                       {currentOptimizationId === opt.id && onCancelOptimization && (
@@ -205,8 +215,10 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
                         className="rounded-full h-8 w-8 p-0 hover:bg-[#E5E5E5]"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isEditDisabled) return;
                           onEditName(opt);
                         }}
+                        disabled={isEditDisabled}
                         aria-label={`Redigera ${opt.name}`}
                         title="Redigera namn och beskrivning"
                       >
@@ -215,15 +227,20 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="rounded-full h-8 w-8 p-0 hover:bg-destructive/10"
+                        className="rounded-full h-8 w-8 p-0 hover:bg-destructive/10 disabled:opacity-40 disabled:hover:bg-transparent"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isDeleteDisabled) return;
                           onDelete(opt.id);
                         }}
+                        disabled={isDeleteDisabled}
                         aria-label={`Ta bort ${opt.name}`}
-                        title="Ta bort"
+                        title={isDeleteDisabled ? 'Kan inte tas bort just nu' : 'Ta bort'}
                       >
-                        <Trash2 size={14} className="text-destructive" />
+                        <Trash2
+                          size={14}
+                          className={isDeleteDisabled ? 'text-muted-foreground' : 'text-destructive'}
+                        />
                       </Button>
                     </div>
                   </TableCell>

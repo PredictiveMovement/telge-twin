@@ -1,6 +1,16 @@
 /* Truck-level optimisation with spatial clustering and VROOM */
 
-const { plan, truckToVehicle, bookingToShipment } = require('../vroom')
+const {
+  plan,
+  truckToVehicle,
+  bookingToShipment,
+  isVroomPlanningCancelledError,
+  VROOM_PLANNING_CANCELLED_MESSAGE,
+} = require('../vroom')
+const {
+  isExperimentCancelled,
+  shouldLogExperimentCancellation,
+} = require('../cancelledExperiments')
 const { error, info } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 const { createSpatialChunks, calculateCenter, calculateBoundingBox } = require('../clustering')
@@ -243,7 +253,8 @@ export function combineSubResults(
 /*  BESTÄM OPTIMAL ORDNING MELLAN KLUSTER MED VROOM (TSP)      */
 async function orderChunksWithVroom(
   chunks: any[],
-  truckStart: [number, number]
+  truckStart: [number, number],
+  shouldAbort?: () => boolean | Promise<boolean>
 ): Promise<any[]> {
   if (chunks.length <= 1) return chunks
 
@@ -267,13 +278,16 @@ async function orderChunksWithVroom(
   ]
 
   try {
-    const tsp = await plan({ jobs, vehicles })
+    const tsp = await plan({ jobs, vehicles, shouldAbort })
     const orderIds: number[] = tsp.routes[0].steps
       .filter((s: any) => s.type === 'job')
       .map((s: any) => s.job - 1) // 0‑baserat
 
     return orderIds.map((idx) => chunks[idx])
   } catch (e) {
+    if (isVroomPlanningCancelledError(e)) {
+      throw e
+    }
     return chunks
   }
 }
@@ -285,12 +299,38 @@ export async function findBestRouteToPickupBookings(
   bookings: any[],
   instructions?: ('pickup' | 'delivery' | 'start')[]
 ): Promise<Instruction[] | undefined> {
+  const shouldAbort = async () => {
+    if (isExperimentCancelled(experimentId)) {
+      return true
+    }
+
+    try {
+      const existingExperiment = await elasticsearchService.findDocumentById(
+        'experiments',
+        experimentId
+      )
+      return !existingExperiment
+    } catch {
+      return isExperimentCancelled(experimentId)
+    }
+  }
+
+  const throwIfCancelled = async () => {
+    if (await shouldAbort()) {
+      if (shouldLogExperimentCancellation(experimentId)) {
+        info(`   ⚠️ Experiment ${experimentId} was deleted - optimization cancelled`)
+      }
+      throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
+    }
+  }
+
+  await throwIfCancelled()
+
   // Only use pickup instructions, delivery will be handled dynamically by truck
   if (!instructions) {
     instructions = ['pickup']
   }
 
-  try {
     /* -------- 1. Klustra ------------------------------------ */
     const chunks = createSpatialChunks(bookings, experimentId, truck.id)
 
@@ -340,7 +380,11 @@ export async function findBestRouteToPickupBookings(
       truck.position.lon || truck.position.lng,
       truck.position.lat,
     ]
-    const orderedChunks = await orderChunksWithVroom(chunks, initialStart)
+    const orderedChunks = await orderChunksWithVroom(
+      chunks,
+      initialStart,
+      shouldAbort
+    )
 
     /* -------- 3. Optimera varje kluster separat med VROOM --- */
     const chunkResults: any[] = []
@@ -349,155 +393,108 @@ export async function findBestRouteToPickupBookings(
     let currentStart: [number, number] = initialStart
 
     for (const chunk of orderedChunks) {
-      try {
-        const maxSize = CLUSTERING_CONFIG.MAX_CLUSTER_SIZE
+      await throwIfCancelled()
 
-        // Helper: plan a set of bookings (sub- or full chunk) from currentStart
-        const planBookings = async (bkgs: any[]) => {
-          const baseVehicle = truckToVehicle(truck, 0, {
-            start: [currentStart[0], currentStart[1]],
+      const maxSize = CLUSTERING_CONFIG.MAX_CLUSTER_SIZE
+
+      // Helper: plan a set of bookings (sub- or full chunk) from currentStart
+      const planBookings = async (bkgs: any[]) => {
+        const baseVehicle = truckToVehicle(truck, 0, {
+          start: [currentStart[0], currentStart[1]],
+        })
+        const capacityDimensions =
+          (baseVehicle as any).__capacityDimensions || ['count']
+
+        const vehicles = [baseVehicle]
+        const shipments = bkgs.map((b: any, i: number) =>
+          bookingToShipment(b, i, {
+            capacityDimensions,
+            fleet: truck.fleet,
           })
-          const capacityDimensions =
-            (baseVehicle as any).__capacityDimensions || ['count']
+        )
+        const result = await plan({ shipments, vehicles, shouldAbort }, 0)
 
-          const vehicles = [baseVehicle]
-          const shipments = bkgs.map((b: any, i: number) =>
-            bookingToShipment(b, i, {
-              capacityDimensions,
-              fleet: truck.fleet,
+        const unreachableIndices = new Set<number>()
+        if (Array.isArray(result?.unassigned)) {
+          for (const unassigned of result.unassigned) {
+            if (typeof unassigned?.id === 'number') {
+              const idx = Math.floor(unassigned.id / 2)
+              unreachableIndices.add(idx)
+            } else if (typeof unassigned?.job === 'number') {
+              unreachableIndices.add(unassigned.job)
+            }
+          }
+        }
+
+        if (unreachableIndices.size) {
+          await Promise.all(
+            Array.from(unreachableIndices).map(async (idx) => {
+              const booking = bkgs[idx]
+              if (booking) {
+                if (typeof booking.markUnreachable === 'function') {
+                  await booking.markUnreachable('workday-limit')
+                } else {
+                  booking.status = 'Unreachable'
+                }
+              }
             })
           )
-          const result = await plan({ shipments, vehicles }, 0)
-
-          const unreachableIndices = new Set<number>()
-          if (Array.isArray(result?.unassigned)) {
-            for (const unassigned of result.unassigned) {
-              if (typeof unassigned?.id === 'number') {
-                const idx = Math.floor(unassigned.id / 2)
-                unreachableIndices.add(idx)
-              } else if (typeof unassigned?.job === 'number') {
-                unreachableIndices.add(unassigned.job)
-              }
-            }
-          }
-
-          if (unreachableIndices.size) {
-            await Promise.all(
-              Array.from(unreachableIndices).map(async (idx) => {
-                const booking = bkgs[idx]
-                if (booking) {
-                  if (typeof booking.markUnreachable === 'function') {
-                    await booking.markUnreachable('workday-limit')
-                  } else {
-                    booking.status = 'Unreachable'
-                  }
-                }
-              })
-            )
-          }
-
-          // Build id→booking mapping for assigned bookings only
-          const idToBooking: Record<number, any> = {}
-          bkgs.forEach((_b: any, i: number) => {
-            if (!unreachableIndices.has(i)) {
-              idToBooking[i * 2] = bkgs[i]
-              idToBooking[i * 2 + 1] = bkgs[i]
-            }
-          })
-
-          return { result, idToBooking }
         }
 
-        if (chunk.bookings.length > maxSize) {
-          // Large cluster – subdividing for VROOM optimization
-
-          const subChunks = simpleGeographicSplit(chunk.bookings, maxSize)
-          const subResults: any[] = []
-
-          for (const subChunk of subChunks) {
-            try {
-              const { result, idToBooking } = await planBookings(subChunk)
-              subResults.push({ ...result, idToBooking })
-            } catch (err) {
-              // Fallback for failed sub-chunk
-              const fallbackSteps = subChunk.map((_b: any, i: number) => ({
-                id: i * 2,
-                type: 'pickup',
-                arrival: 0,
-                departure: 0,
-              }))
-              const idToBooking: Record<number, any> = {}
-              subChunk.forEach((_b: any, i: number) => {
-                idToBooking[i * 2] = subChunk[i]
-                idToBooking[i * 2 + 1] = subChunk[i]
-              })
-              subResults.push({
-                routes: [{ steps: fallbackSteps }],
-                unassigned: [],
-                idToBooking,
-              })
-            }
-          }
-
-          const combinedResult = combineSubResults(subResults, chunk.bookings)
-          chunk.bookings = chunk.bookings.filter(
-            (b: any) => b?.status !== 'Unreachable'
-          )
-          chunkResults.push({ result: combinedResult, chunk })
-
-          // Update currentStart to last pickup of this combined result (if any)
-          const steps = combinedResult?.routes?.[0]?.steps || []
-          const lastPickup = [...steps]
-            .reverse()
-            .find((s: any) => s.type === 'pickup')
-          if (
-            lastPickup &&
-            combinedResult.idToBooking &&
-            combinedResult.idToBooking[lastPickup.id]
-          ) {
-            const b = combinedResult.idToBooking[lastPickup.id]
-            const lon = b.pickup?.position?.lon || b.pickup?.position?.lng
-            const lat = b.pickup?.position?.lat
-            if (lon && lat) currentStart = [lon, lat]
-          }
-        } else {
-          // Normal-sized cluster
-          const { result, idToBooking } = await planBookings(chunk.bookings)
-          chunk.bookings = chunk.bookings.filter(
-            (b: any) => b?.status !== 'Unreachable'
-          )
-          chunkResults.push({ result: { ...result, idToBooking }, chunk })
-
-          // Update currentStart to last pickup
-          const steps = result?.routes?.[0]?.steps || []
-          const lastPickup = [...steps]
-            .reverse()
-            .find((s: any) => s.type === 'pickup')
-          if (lastPickup && idToBooking[lastPickup.id]) {
-            const b = idToBooking[lastPickup.id]
-            const lon = b.pickup?.position?.lon || b.pickup?.position?.lng
-            const lat = b.pickup?.position?.lat
-            if (lon && lat) currentStart = [lon, lat]
-          }
-        }
-      } catch (err) {
-        // Fallback for any errors
-        const steps = chunk.bookings.map((_b: any, i: number) => ({
-          id: i * 2,
-          type: 'pickup',
-          arrival: 0,
-          departure: 0,
-        }))
+        // Build id→booking mapping for assigned bookings only
         const idToBooking: Record<number, any> = {}
-        chunk.bookings.forEach((_b: any, i: number) => {
-          idToBooking[i * 2] = chunk.bookings[i]
-          idToBooking[i * 2 + 1] = chunk.bookings[i]
+        bkgs.forEach((_b: any, i: number) => {
+          if (!unreachableIndices.has(i)) {
+            idToBooking[i * 2] = bkgs[i]
+            idToBooking[i * 2 + 1] = bkgs[i]
+          }
         })
-        chunkResults.push({
-          result: { routes: [{ steps }], unassigned: [], idToBooking },
-          chunk,
-        })
-        // Update currentStart to last pickup of fallback
+
+        return { result, idToBooking }
+      }
+
+      if (chunk.bookings.length > maxSize) {
+        // Large cluster – subdividing for VROOM optimization
+
+        const subChunks = simpleGeographicSplit(chunk.bookings, maxSize)
+        const subResults: any[] = []
+
+        for (const subChunk of subChunks) {
+          const { result, idToBooking } = await planBookings(subChunk)
+          subResults.push({ ...result, idToBooking })
+        }
+
+        const combinedResult = combineSubResults(subResults, chunk.bookings)
+        chunk.bookings = chunk.bookings.filter(
+          (b: any) => b?.status !== 'Unreachable'
+        )
+        chunkResults.push({ result: combinedResult, chunk })
+
+        // Update currentStart to last pickup of this combined result (if any)
+        const steps = combinedResult?.routes?.[0]?.steps || []
+        const lastPickup = [...steps]
+          .reverse()
+          .find((s: any) => s.type === 'pickup')
+        if (
+          lastPickup &&
+          combinedResult.idToBooking &&
+          combinedResult.idToBooking[lastPickup.id]
+        ) {
+          const b = combinedResult.idToBooking[lastPickup.id]
+          const lon = b.pickup?.position?.lon || b.pickup?.position?.lng
+          const lat = b.pickup?.position?.lat
+          if (lon && lat) currentStart = [lon, lat]
+        }
+      } else {
+        // Normal-sized cluster
+        const { result, idToBooking } = await planBookings(chunk.bookings)
+        chunk.bookings = chunk.bookings.filter(
+          (b: any) => b?.status !== 'Unreachable'
+        )
+        chunkResults.push({ result: { ...result, idToBooking }, chunk })
+
+        // Update currentStart to last pickup
+        const steps = result?.routes?.[0]?.steps || []
         const lastPickup = [...steps]
           .reverse()
           .find((s: any) => s.type === 'pickup')
@@ -511,9 +508,6 @@ export async function findBestRouteToPickupBookings(
     }
 
     return mergeVroomChunkResults(chunkResults, instructions)
-  } catch (e) {
-    error(`findBestRouteToPickupBookings failed for truck ${truck.id}:`, e)
-  }
 }
 
 /* ----------------------------------------------------------- */
@@ -731,6 +725,15 @@ export function createBookingFromInstructionData(insBook: any) {
   })
 }
 
+export async function reportDispatchError(
+  experimentId: string,
+  truckId: string,
+  fleetName: string,
+  errorMessage: string
+): Promise<void> {
+  socketController.emitDispatchError(experimentId, truckId, fleetName, errorMessage)
+}
+
 /* ----------------------------------------------------------- */
 module.exports = {
   findBestRouteToPickupBookings,
@@ -742,4 +745,5 @@ module.exports = {
   calculateBaselineStatistics,
   simpleGeographicSplit,
   combineSubResults,
+  reportDispatchError,
 }

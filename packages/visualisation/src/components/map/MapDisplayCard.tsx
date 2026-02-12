@@ -12,7 +12,7 @@ interface MapDisplayCardProps {
   isRunning: boolean
   isLoading?: boolean
   loadingMessage?: string
-  error?: string | null
+  errorMessage?: string
   idleMessage?: string
   disconnectedMessage?: string
   sideControls?: React.ReactNode
@@ -30,7 +30,7 @@ export const MapDisplayCard: React.FC<MapDisplayCardProps> = ({
   isRunning,
   isLoading,
   loadingMessage,
-  error,
+  errorMessage,
   idleMessage,
   disconnectedMessage,
   sideControls,
@@ -62,23 +62,23 @@ export const MapDisplayCard: React.FC<MapDisplayCardProps> = ({
 
           {!isConnected && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-black/70 text-white px-4 py-2 rounded-md text-sm">
+              <div className="bg-black text-white px-4 py-2 rounded-md text-sm">
                 {disconnectedMessage ?? 'Ingen anslutning till servern'}
               </div>
             </div>
           )}
 
-          {error && (
-            <div className="absolute inset-x-4 bottom-4">
-              <div className="bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-md text-sm shadow-lg">
-                {error}
+          {isRunning && errorMessage && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center">
+              <div className="bg-destructive text-destructive-foreground px-4 py-2 rounded-md text-sm">
+                {errorMessage}
               </div>
             </div>
           )}
 
-          {isRunning && isLoading && (
-            <div className="absolute inset-0 z-40 bg-black/65 backdrop-blur-sm flex items-center justify-center p-6">
-              <div className="w-full max-w-md rounded-xl border border-white/20 bg-black/75 px-6 py-5 text-white shadow-2xl">
+          {isRunning && isLoading && !errorMessage && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center p-6">
+              <div className="w-full max-w-md rounded-xl border border-white/20 bg-black px-6 py-5 text-white shadow-2xl">
                 <div className="flex items-center gap-4">
                   <div className="animate-spin rounded-full h-9 w-9 border-2 border-white/30 border-t-white" />
                   <div className="space-y-1">
@@ -94,9 +94,9 @@ export const MapDisplayCard: React.FC<MapDisplayCardProps> = ({
             </div>
           )}
 
-          {!isRunning && !error && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="bg-black/60 text-white px-4 py-2 rounded-md text-sm">
+          {!isRunning && !errorMessage && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center">
+              <div className="bg-black text-white px-4 py-2 rounded-md text-sm">
                 {idleMessage ?? 'Tryck på play för att starta simuleringen'}
               </div>
             </div>

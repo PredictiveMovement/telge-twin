@@ -301,13 +301,54 @@ export class ElasticsearchService {
       // Check if experiment was deleted (e.g., cancelled by user)
       if (err?.meta?.body?.error?.type === 'document_missing_exception') {
         console.info(
-          `Experiment ${experimentId} was deleted (optimization cancelled) - skipping planId update`
+          `Experiment ${experimentId} was deleted - optimization cancelled - skipping planId update`
         )
         return
       }
       // Experiment might not exist yet - that's OK
       console.warn(
         `Could not add planId ${planId} to experiment ${experimentId}:`,
+        err
+      )
+    }
+  }
+
+  /**
+   * Add a dispatch error to an experiment's dispatchErrors array.
+   * Called when VROOM planning fails for a truck.
+   */
+  async addDispatchErrorToExperiment(
+    experimentId: string,
+    errorEntry: { truckId: string; fleet: string; error: string; timestamp: string }
+  ): Promise<void> {
+    try {
+      await this.client.update({
+        index: 'experiments',
+        id: experimentId,
+        body: {
+          script: {
+            source: `
+              if (ctx._source.dispatchErrors == null) {
+                ctx._source.dispatchErrors = [params.errorEntry];
+              } else {
+                ctx._source.dispatchErrors.add(params.errorEntry);
+              }
+            `,
+            params: { errorEntry },
+          },
+        },
+        retry_on_conflict: 3,
+        refresh: 'wait_for',
+      })
+    } catch (err: any) {
+      if (err?.meta?.body?.error?.type === 'document_missing_exception') {
+        console.info(
+          `Experiment ${experimentId} was deleted - skipping dispatch error update`
+        )
+        return
+      }
+      console.warn(
+        `Could not add dispatch error to experiment ${experimentId}:`,
         err
       )
     }

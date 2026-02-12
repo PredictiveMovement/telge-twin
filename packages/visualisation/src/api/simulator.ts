@@ -123,6 +123,12 @@ export interface Experiment {
     totalCo2Kg: number
     bookingCount: number
   }
+  dispatchErrors?: Array<{
+    truckId: string
+    fleet: string
+    error: string
+    timestamp: string
+  }>
 }
 
 export interface ExperimentStatistics {
@@ -297,11 +303,24 @@ export async function getExperiment(
 
 export async function deleteExperiment(
   documentId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; statusCode?: number }> {
   try {
     const response = await simulatorApi.delete(`/api/experiments/${documentId}`)
     return response.data
   } catch (_error) {
+    if (axios.isAxiosError(_error)) {
+      const responseError =
+        (typeof _error.response?.data?.error === 'string' &&
+          _error.response.data.error) ||
+        _error.message
+
+      return {
+        success: false,
+        error: responseError,
+        statusCode: _error.response?.status,
+      }
+    }
+
     return {
       success: false,
       error:
@@ -572,6 +591,46 @@ export async function updateRouteOrder(
         error instanceof Error
           ? error.message
           : 'Failed to update route order',
+    }
+  }
+}
+
+export type CancelSimulationReason =
+  | 'cancelled'
+  | 'not_running'
+  | 'dataset_mismatch'
+
+export async function cancelSimulationByDataset(datasetId: string): Promise<{
+  success: boolean
+  reason?: CancelSimulationReason
+  experimentId?: string | null
+  deletedExperiment?: boolean
+  error?: string
+}> {
+  try {
+    const response = await simulatorApi.delete(
+      `/api/simulation/cancel/${datasetId}`
+    )
+    if (response.data?.success && response.data?.data) {
+      return {
+        success: true,
+        reason: response.data.data.reason,
+        experimentId: response.data.data.experimentId,
+        deletedExperiment: response.data.data.deletedExperiment,
+      }
+    }
+
+    return {
+      success: false,
+      error: response.data?.error || 'Failed to cancel simulation',
+    }
+  } catch (_error) {
+    return {
+      success: false,
+      error:
+        _error instanceof Error
+          ? _error.message
+          : 'Failed to cancel simulation',
     }
   }
 }

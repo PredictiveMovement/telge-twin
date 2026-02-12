@@ -19,13 +19,14 @@ import {
   deleteRouteDataset,
   getExperiments,
   copyExperiment,
+  cancelSimulationByDataset,
   deleteExperiment,
   Experiment,
 } from '@/api/simulator';
 import { toast } from '@/hooks/use-toast';
 import { useMapSocket } from '@/hooks/useMapSocket';
 import { useOptimizationContext } from '@/contexts/OptimizationContext';
-import { isExperimentOptimizing, isExperimentComplete } from '@/utils/optimization';
+import { isExperimentOptimizing, isExperimentComplete, isExperimentFailed } from '@/utils/optimization';
 
 interface ExperimentWithDocId extends Experiment {
   documentId: string;
@@ -34,7 +35,7 @@ interface ExperimentWithDocId extends Experiment {
 export default function SavedDatasetsTab() {
   const navigate = useNavigate();
   const { socket } = useMapSocket();
-  const { runningOptimizations, completedOptimizations, markAsViewed } = useOptimizationContext();
+  const { runningOptimizations, completedOptimizations, markAsViewed, cancelOptimization } = useOptimizationContext();
   const [datasets, setDatasets] = useState<RouteDataset[]>([]);
   const [experiments, setExperiments] = useState<ExperimentWithDocId[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
@@ -146,18 +147,19 @@ export default function SavedDatasetsTab() {
   };
 
   const handleOpenEdit = (opt: SavedOptimization) => {
-    // Find the experiment by its experimentId (latestExperimentId)
+    if (opt.isOptimizing || opt.isFailed) {
+      return;
+    }
+
     const experiment = experiments.find(e => e.documentId === opt.experimentId);
     if (!experiment) return;
 
-    // Also get dataset for fallback settings
     const dataset = datasets.find(d => d.datasetId === experiment.sourceDatasetId);
 
     setEditingExperiment(experiment);
     setEditName(experiment.name || experiment.datasetName || dataset?.name || '');
     setEditDescription(experiment.description || dataset?.description || '');
 
-    // Load working hours from experiment or fall back to dataset
     const workingHours = experiment.optimizationSettings?.workingHours || dataset?.optimizationSettings?.workingHours;
     setEditStartTime(workingHours?.start || '06:00');
     setEditEndTime(workingHours?.end || '15:00');
@@ -223,13 +225,13 @@ export default function SavedDatasetsTab() {
   };
 
   const handleOpen = (opt: SavedOptimization) => {
-    // Use experimentId directly since each row is now an experiment
+    if (opt.isOptimizing || opt.isFailed) return;
+
     const experimentId = opt.experimentId || opt.latestExperimentId;
     if (!experimentId) return;
 
     setNavigatingId(opt.id);
 
-    // Pass experiment data via navigation state to avoid redundant API call
     const experiment = experiments.find(e => e.documentId === experimentId);
     navigate(`/optimize/${experimentId}`, {
       state: { experiment }
@@ -237,25 +239,39 @@ export default function SavedDatasetsTab() {
   };
 
   const handleDelete = async (datasetId: string) => {
-    const dataset = datasets.find(d => d.datasetId === datasetId);
-    if (!dataset) return;
-
     try {
-      const result = await deleteRouteDataset(datasetId);
-      if (result.success) {
-        toast.success('Dataset borttagen');
-        await loadDatasets();
-      } else {
-        toast.error(`Fel vid borttagning: ${result.error}`);
+      const relatedExperiments = experiments.filter(e => e.sourceDatasetId === datasetId);
+      const deleteResults = await Promise.all(
+        relatedExperiments.map(exp => deleteExperiment(exp.documentId))
+      );
+      if (deleteResults.some(r => !r.success)) {
+        toast.error('Kunde inte ta bort simulering');
+        return;
       }
+
+      const datasetDeleteResult = await deleteRouteDataset(datasetId);
+      if (!datasetDeleteResult.success) {
+        toast.error(datasetDeleteResult.error || 'Kunde inte ta bort optimering');
+        return;
+      }
+
+      setDatasets(prev => prev.filter(d => d.datasetId !== datasetId));
+      setExperiments(prev => prev.filter(e => e.sourceDatasetId !== datasetId));
+
+      toast.success('Optimering borttagen');
     } catch {
-      toast.error('Fel vid borttagning av dataset');
+      toast.error('Fel vid borttagning av optimering');
     }
   };
 
   const handleRequestDelete = (datasetId: string) => {
     const dataset = datasets.find(d => d.datasetId === datasetId);
     const opt = optimizations.find(o => o.sourceDatasetId === datasetId);
+
+    if (opt?.isOptimizing) {
+      return;
+    }
+
     setConfirmDeleteTarget({
       id: datasetId,
       name: opt?.name || dataset?.name || ''
@@ -310,10 +326,7 @@ export default function SavedDatasetsTab() {
     navigate(`/optimize/${version.id}`);
   };
 
-  // Convert datasets to SavedOptimization format, showing one row per dataset
-  // with a reference to the latest experiment for that dataset
   const optimizations: SavedOptimization[] = useMemo(() => {
-    // Group experiments by sourceDatasetId and find the latest one for each
     const latestExperimentByDataset = new Map<string, ExperimentWithDocId>();
     const experimentCountByDataset = new Map<string, number>();
     const experimentsByDataset = new Map<string, ExperimentWithDocId[]>();
@@ -322,15 +335,12 @@ export default function SavedDatasetsTab() {
       const datasetId = exp.sourceDatasetId;
       if (!datasetId) return;
 
-      // Count experiments per dataset
       experimentCountByDataset.set(datasetId, (experimentCountByDataset.get(datasetId) || 0) + 1);
 
-      // Collect all experiments per dataset
       const list = experimentsByDataset.get(datasetId) || [];
       list.push(exp);
       experimentsByDataset.set(datasetId, list);
 
-      // Track the latest experiment (by createdAt)
       const current = latestExperimentByDataset.get(datasetId);
       if (!current) {
         latestExperimentByDataset.set(datasetId, exp);
@@ -343,7 +353,6 @@ export default function SavedDatasetsTab() {
       }
     });
 
-    // Create one row per dataset with experiment that has VROOM plans
     const result: SavedOptimization[] = [];
 
     latestExperimentByDataset.forEach((latestExp, datasetId) => {
@@ -351,26 +360,24 @@ export default function SavedDatasetsTab() {
 
       const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
 
-      // Skip experiments that are still optimizing, unless this client started it
       const isOwnOptimization = runningOptimizations.has(datasetId) || completedOptimizations.has(datasetId);
+      const completionInfo = completedOptimizations.get(datasetId);
+      const failedFromCompletion = completionInfo && !completionInfo.hadSuccessfulPlans;
+      const failed = isExperimentFailed(latestExp) || !!failedFromCompletion;
       if (isExperimentOptimizing(latestExp) && !isOwnOptimization) {
-        return; // Don't show to other clients until optimization is complete
+        return;
       }
 
-      // Check if all vehicles are complete
       const isComplete = isExperimentComplete(latestExp, expectedVehicleCount);
 
-      // If not complete AND not our own optimization, don't show
-      if (!isComplete && !isOwnOptimization) {
+      if (!isComplete && !failed && !isOwnOptimization) {
         return;
       }
       const experimentCount = experimentCountByDataset.get(datasetId) || 1;
 
-      // Build versions array from all experiments for this dataset
       const versions: OptimizationVersion[] = experimentsByDataset.get(datasetId)
         ?.sort((a, b) => new Date(b.createdAt || b.startDate || 0).getTime() - new Date(a.createdAt || a.startDate || 0).getTime())
         .map(exp => {
-          // Count enabled breaks from optimization settings
           const breaks = exp.optimizationSettings?.breaks || [];
           const extraBreaks = exp.optimizationSettings?.extraBreaks || [];
           const enabledBreakCount = [...breaks, ...extraBreaks].filter(b => b.enabled).length;
@@ -404,40 +411,43 @@ export default function SavedDatasetsTab() {
         isLatestVersion: true,
         versions,
         vehicleCount: latestExp.vroomTruckPlanIds?.length || 0,
-        // Only show loading for the client that started the optimization
         isOptimizing: runningOptimizations.has(datasetId),
+        isFailed: failed,
       });
     });
 
     return result;
   }, [datasets, experiments, runningOptimizations, completedOptimizations]);
 
-  // Find the currently optimizing optimization (if any)
   const currentOptimizationId = useMemo(() => {
     const optimizing = optimizations.find(opt => opt.isOptimizing === true);
     return optimizing?.id;
   }, [optimizations]);
 
-  // Cancel an ongoing optimization by deleting the experiment
   const handleCancelOptimization = async (id: string) => {
-    const opt = optimizations.find(o => o.id === id);
-    if (!opt?.experimentId) return;
+    cancelOptimization(id);
 
     try {
-      const result = await deleteExperiment(opt.experimentId);
-      if (result.success) {
-        toast.success('Optimering avbruten');
-        loadDatasets();
-      } else {
+      const result = await cancelSimulationByDataset(id);
+      if (!result.success) {
         toast.error(result.error || 'Kunde inte avbryta optimeringen');
+        await loadDatasets();
+        return;
       }
+
+      if (result.reason === 'dataset_mismatch') {
+        toast.error('En annan simulering är aktiv');
+      } else {
+        toast.success('Optimering avbruten');
+      }
+
+      await loadDatasets();
     } catch {
       toast.error('Kunde inte avbryta optimeringen');
+      await loadDatasets();
     }
   };
 
-  // Reload datasets when an optimization completes (detected by OptimizationContext)
-  // This runs in the background without blocking the UI
   useEffect(() => {
     if (completedOptimizations.size === 0) return;
 
@@ -450,7 +460,6 @@ export default function SavedDatasetsTab() {
           getExperiments(),
         ]);
 
-        // Verifiera att alla slutförda experiment har färsk data
         const allFresh = completedIds.every(datasetId => {
           const dataset = datasetsData.find(d => d.datasetId === datasetId);
 
@@ -462,23 +471,32 @@ export default function SavedDatasetsTab() {
             )[0];
           const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
 
-          return isExperimentComplete(latestExp, expectedVehicleCount);
+          return isExperimentComplete(latestExp, expectedVehicleCount) || isExperimentFailed(latestExp);
         });
 
         if (!allFresh && retriesLeft > 0) {
-          // Data inte färsk ännu, försök igen efter delay
           await new Promise(resolve => setTimeout(resolve, delay));
           return loadWithRetry(retriesLeft - 1, delay * 2);
         }
 
-        // Uppdatera state med färsk data
         setDatasets(datasetsData);
         setExperiments(experimentsData as ExperimentWithDocId[]);
 
-        // Markera som visad först efter färsk data
-        completedIds.forEach(id => markAsViewed(id));
+        completedIds.forEach(id => {
+          const dataset = datasetsData.find(d => d.datasetId === id);
+          const latestExp = (experimentsData as ExperimentWithDocId[])
+            .filter(e => e.sourceDatasetId === id)
+            .sort((a, b) =>
+              new Date(b.createdAt || b.startDate || 0).getTime() -
+              new Date(a.createdAt || a.startDate || 0).getTime()
+            )[0];
+          const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
+
+          if (isExperimentComplete(latestExp, expectedVehicleCount) || isExperimentFailed(latestExp)) {
+            markAsViewed(id);
+          }
+        });
       } catch {
-        // Silently fail for background refresh
       }
     };
 
@@ -642,7 +660,6 @@ export default function SavedDatasetsTab() {
             
             {editingExperiment && (
               <div className="space-y-8">
-                  {/* Optimeringdetaljer */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Optimeringsdetaljer</h3>
                     <div className="space-y-2">
@@ -667,7 +684,6 @@ export default function SavedDatasetsTab() {
                     </div>
                   </div>
 
-                  {/* Arbetsinställningar */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Arbetsinställningar</h3>
                     
@@ -708,7 +724,6 @@ export default function SavedDatasetsTab() {
                     </p>
                   </div>
 
-                  {/* Raster */}
                   <BreaksSection
                     breaks={editBreaks}
                     extraBreaks={editExtraBreaks}
@@ -723,11 +738,11 @@ export default function SavedDatasetsTab() {
             <DialogFooter>
               <div className="flex items-center gap-2 mr-auto">
                 <Button 
-                  variant="secondary-destructive" 
+                  variant="secondary-destructive"
                   onClick={() => {
-                    if (!editingExperiment) return;
+                    if (!editingExperiment?.sourceDatasetId) return;
                     setConfirmDeleteTarget({
-                      id: editingExperiment.documentId,
+                      id: editingExperiment.sourceDatasetId,
                       name: editName.trim() || editingExperiment.name || editingExperiment.datasetName || ''
                     });
                   }}

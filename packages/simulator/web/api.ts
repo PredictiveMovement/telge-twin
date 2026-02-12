@@ -86,6 +86,44 @@ router.delete('/simulation/stop', async (req: Request, res: Response) => {
   }
 })
 
+router.delete(
+  '/simulation/cancel/:datasetId',
+  async (req: Request, res: Response) => {
+    try {
+      const { datasetId } = req.params
+      if (!datasetId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Dataset ID is required',
+        })
+      }
+
+      const result =
+        await experimentController.cancelGlobalOptimizationByDataset(datasetId)
+
+      if (result.reason === 'cancelled') {
+        socketController.broadcastSimulationStopped()
+      }
+
+      Object.assign(module.exports, {
+        globalExperiment: experimentController.currentGlobalExperiment,
+        isGlobalSimulationRunning: experimentController.isGlobalRunning,
+        sessionExperiments: experimentController.sessions,
+      })
+
+      return res.json({
+        success: true,
+        data: result,
+      })
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to cancel simulation',
+      })
+    }
+  }
+)
+
 router.get('/simulation/status', async (req: Request, res: Response) => {
   try {
     res.json({

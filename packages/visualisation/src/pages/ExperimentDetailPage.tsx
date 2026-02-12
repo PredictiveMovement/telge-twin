@@ -591,6 +591,22 @@ const ExperimentDetailPage = () => {
           onSaveChanges={handleSaveChanges}
         />
 
+        {experiment.dispatchErrors && experiment.dispatchErrors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <p className="font-medium mb-1">Ruttplanering misslyckades för följande fordon:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                {experiment.dispatchErrors.map((err, i) => (
+                  <li key={i}>
+                    {err.truckId} ({err.fleet}): {err.error}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <OptimizeMapComparison
           startTime={savedProject.workingHours.start}
           endTime={savedProject.workingHours.end}

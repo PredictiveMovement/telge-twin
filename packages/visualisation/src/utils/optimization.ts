@@ -5,6 +5,7 @@
 
 interface ExperimentLike {
   vroomTruckPlanIds?: string[];
+  dispatchErrors?: Array<{ truckId: string }>;
 }
 
 /**
@@ -12,9 +13,21 @@ interface ExperimentLike {
  * An experiment is optimizing if vroomTruckPlanIds exists as an array but is empty.
  */
 export function isExperimentOptimizing(experiment?: ExperimentLike): boolean {
+  if (!Array.isArray(experiment?.vroomTruckPlanIds)) return false;
+  if (experiment.vroomTruckPlanIds.length > 0) return false;
+  // If there are dispatch errors, it's not optimizing — it has failed
+  if (experiment.dispatchErrors && experiment.dispatchErrors.length > 0) return false;
+  return true;
+}
+
+/**
+ * Checks if an experiment optimization has failed.
+ * An experiment is failed if it has at least one dispatch error.
+ */
+export function isExperimentFailed(experiment?: ExperimentLike): boolean {
   return (
-    Array.isArray(experiment?.vroomTruckPlanIds) &&
-    experiment.vroomTruckPlanIds.length === 0
+    Array.isArray(experiment?.dispatchErrors) &&
+    experiment.dispatchErrors.length > 0
   );
 }
 
@@ -27,6 +40,9 @@ export function isExperimentComplete(
   experiment?: ExperimentLike,
   expectedVehicleCount?: number
 ): boolean {
+  // Any dispatch error means the optimization should be treated as failed, not complete.
+  if (isExperimentFailed(experiment)) return false;
+
   if (!Array.isArray(experiment?.vroomTruckPlanIds)) return false;
 
   const actualCount = experiment.vroomTruckPlanIds.length;

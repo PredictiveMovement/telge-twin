@@ -3,7 +3,6 @@ import Layout from '@/components/layout/Layout'
 import { Car, Booking } from '@/types/map'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Tooltip,
   TooltipContent,
@@ -16,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Square, Gauge, ZoomIn, ZoomOut, AlertTriangle } from 'lucide-react'
+import { Square, Gauge, ZoomIn, ZoomOut } from 'lucide-react'
 import StatusBadges from '@/components/StatusBadges'
 import { useMapSocket } from '@/hooks/useMapSocket'
 import { useMapStatus } from '@/hooks/useMapStatus'
@@ -35,13 +34,13 @@ const MapPage = () => {
   const {
     socket,
     isConnected,
-    error: socketError,
     virtualTime,
     joinMap,
     leaveMap,
     playTime,
     pauseTime,
     setTimeSpeed: setSocketTimeSpeed,
+    stopSimulation,
   } = useMapSocket()
 
   const { status, setRunning, setTimeState } = useMapStatus()
@@ -63,6 +62,9 @@ const MapPage = () => {
     start: '06:00',
     end: '15:00',
   })
+  const [dispatchErrors, setDispatchErrors] = useState<
+    Array<{ truckId: string; fleet: string; error: string }>
+  >([])
 
   const speedOptions = useMemo(
     () => [1, 10, 20, 30, 60, 120, 300, 600, 900],
@@ -92,6 +94,7 @@ const MapPage = () => {
       dispatchReady: boolean
       timeRunning?: boolean
       timeSpeed?: number
+      dispatchErrors?: Array<{ truckId: string; fleet: string; error: string }>
     }) => {
       setRunning(socketStatus.running, socketStatus.experimentId)
 
@@ -100,9 +103,11 @@ const MapPage = () => {
         const backendTimeSpeed = socketStatus.timeSpeed ?? 60
         setTimeState(backendTimeRunning, backendTimeSpeed)
         setVehiclesReady(socketStatus.dispatchReady)
+        setDispatchErrors(socketStatus.dispatchErrors || [])
       } else {
         setVehiclesReady(false)
         setTimeState(false, socketStatus.timeSpeed ?? 60)
+        setDispatchErrors([])
       }
     },
     [setRunning, setTimeState]
@@ -115,6 +120,7 @@ const MapPage = () => {
       setBookings([])
       setAreaPartitions(undefined)
       setVehiclesReady(false)
+      setDispatchErrors([])
       setSocketTimeSpeed(status.timeSpeed)
     },
     [setRunning, status.timeSpeed, setSocketTimeSpeed]
@@ -122,7 +128,7 @@ const MapPage = () => {
 
   const handleSimulationReady = useCallback(() => {
     setVehiclesReady(true)
-    setTimeState(true, status.timeSpeed)
+    setTimeState(false, status.timeSpeed)
   }, [setTimeState, status.timeSpeed])
 
   const handleSimulationStopped = useCallback(() => {
@@ -130,6 +136,7 @@ const MapPage = () => {
     setCars([])
     setBookings([])
     setVehiclesReady(false)
+    setDispatchErrors([])
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -142,6 +149,20 @@ const MapPage = () => {
     pauseTime()
     setAreaPartitions(undefined)
   }, [setRunning, setTimeState, pauseTime])
+
+  const handleDispatchError = useCallback(
+    (data: {
+      experimentId: string
+      truckId: string
+      fleet: string
+      error: string
+    }) => {
+      if (!status.running || !status.experimentId) return
+      if (data.experimentId !== status.experimentId) return
+      setDispatchErrors((prev) => [...prev, data])
+    },
+    [status.running, status.experimentId]
+  )
 
   const handleCars = useCallback(
     (payload: Car | Car[]) => {
@@ -180,6 +201,7 @@ const MapPage = () => {
     socket.on('simulationFinished', handleSimulationFinished)
     socket.on('cars', handleCars)
     socket.on('bookings', handleBookings)
+    socket.on('dispatchError', handleDispatchError)
 
     return () => {
       socket.off('simulationStatus', handleSimulationStatus)
@@ -189,6 +211,7 @@ const MapPage = () => {
       socket.off('simulationFinished', handleSimulationFinished)
       socket.off('cars', handleCars)
       socket.off('bookings', handleBookings)
+      socket.off('dispatchError', handleDispatchError)
     }
   }, [
     socket,
@@ -200,6 +223,7 @@ const MapPage = () => {
     handleSimulationFinished,
     handleCars,
     handleBookings,
+    handleDispatchError,
   ])
 
   useEffect(() => {
@@ -287,7 +311,7 @@ const MapPage = () => {
   }, [socket, isMapActive, status.running, status.experimentId])
 
   const handlePlayTime = () => {
-    if (!vehiclesReady || !status.running) return
+    if (!vehiclesReady || !status.running || hasRoutingFailure) return
     setTimeState(true, status.timeSpeed)
     playTime()
   }
@@ -303,12 +327,8 @@ const MapPage = () => {
   }
 
   const handleStopSimulation = () => {
-    if (socket) {
-      socket.emit('stopSimulation')
-    }
+    stopSimulation()
   }
-
-  const displayError = socketError
 
   const parseTimeToMinutes = useCallback((time: string) => {
     const [hours, minutes] = time.split(':').map((val) => Number(val) || 0)
@@ -356,7 +376,10 @@ const MapPage = () => {
     })
   }, [virtualTime])
 
-  const isPlaybackDisabled = !status.running || !isConnected
+  const hasRoutingFailure = status.running && dispatchErrors.length > 0
+  const isPlaybackDisabled = !status.running || !isConnected || hasRoutingFailure
+  const showIdleMapState = !status.running
+  const showMapControls = vehiclesReady && !hasRoutingFailure && isConnected
 
   const handleTogglePlayback = () => {
     if (isPlaybackDisabled) return
@@ -370,11 +393,11 @@ const MapPage = () => {
   const handleZoomIn = () => mapControls?.zoomIn()
   const handleZoomOut = () => mapControls?.zoomOut()
 
-  const statusColorClass = status.running
-    ? status.timeRunning
+  const statusColorClass = showIdleMapState
+    ? 'bg-gray-400'
+    : status.timeRunning
       ? 'bg-emerald-500'
       : 'bg-blue-500'
-    : 'bg-gray-400'
 
   return (
     <Layout>
@@ -402,26 +425,21 @@ const MapPage = () => {
           </div>
         </div>
 
-        {displayError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{displayError}</AlertDescription>
-          </Alert>
-        )}
-
         <TooltipProvider>
           <MapDisplayCard
             title="Live-karta"
             statusColorClass={statusColorClass}
             isConnected={isConnected}
-            isRunning={status.running}
+            isRunning={!showIdleMapState}
             isLoading={status.running && !vehiclesReady}
             loadingMessage="Väntar på att alla fordonsplaner ska bli klara..."
-            error={displayError}
+            errorMessage={
+              hasRoutingFailure ? 'Ruttplanering misslyckades' : undefined
+            }
             idleMessage="Ingen aktiv simulering. Starta en simulering för att visa kartdata."
             disconnectedMessage="Ingen anslutning till servern"
             sideControls={
-              vehiclesReady ? (
+              showMapControls ? (
                 <>
                   {settingsMenuProps && (
                     <SettingsMenu
@@ -509,7 +527,7 @@ const MapPage = () => {
               ) : null
             }
             overlay={
-              vehiclesReady ? (
+              showMapControls ? (
                 <MapPlaybackOverlay
                   progress={mapProgress}
                   progressLabel={progressLabel}
@@ -548,7 +566,7 @@ const MapPage = () => {
           />
         </TooltipProvider>
 
-        {isConnected && status.running && (
+        {isConnected && status.running && !hasRoutingFailure && (
           <Card>
             <CardContent className="p-4">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

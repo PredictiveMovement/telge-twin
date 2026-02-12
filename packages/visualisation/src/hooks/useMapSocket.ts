@@ -121,6 +121,12 @@ export const useMapSocket = () => {
     [state.socket]
   )
 
+  const stopSimulation = useCallback(() => {
+    if (state.socket) {
+      state.socket.emit('stopSimulation')
+    }
+  }, [state.socket])
+
   return {
     ...state,
     joinMap,
@@ -131,5 +137,6 @@ export const useMapSocket = () => {
     pauseTime,
     resetTime,
     setTimeSpeed,
+    stopSimulation,
   }
 }

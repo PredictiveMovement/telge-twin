@@ -4,11 +4,13 @@ import { Loader2 } from 'lucide-react';
 
 interface OptimizationStatusIndicatorProps {
   isOptimizing?: boolean;
+  isFailed?: boolean;
   versionCount?: number; // Number of versions for this optimization
 }
 
 const OptimizationStatusIndicator: React.FC<OptimizationStatusIndicatorProps> = ({
   isOptimizing = false,
+  isFailed = false,
   versionCount = 1,
 }) => {
   const [showSpinner, setShowSpinner] = useState(true);
@@ -24,6 +26,17 @@ const OptimizationStatusIndicator: React.FC<OptimizationStatusIndicatorProps> = 
 
     return () => clearInterval(interval);
   }, [isOptimizing]);
+
+  if (isFailed) {
+    return (
+      <Badge
+        variant="secondary"
+        className="ml-2 text-xs"
+      >
+        Fel
+      </Badge>
+    );
+  }
 
   if (isOptimizing) {
     return (
