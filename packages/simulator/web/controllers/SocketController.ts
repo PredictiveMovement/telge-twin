@@ -308,6 +308,11 @@ export class SocketController {
       }
 
       sessionController.addGlobalWatcher(socket.id)
+      const workdaySettings = experiment.parameters?.workdaySettings
+      const workdayBounds =
+        typeof experiment.virtualTime?.getWorkdayBounds === 'function'
+          ? experiment.virtualTime.getWorkdayBounds()
+          : null
       socket.emit('simulationStatus', {
         running: experimentController.isGlobalRunning,
         experimentId: experiment.parameters.id,
@@ -317,6 +322,14 @@ export class SocketController {
           ? experiment.virtualTime.getTimeMultiplier()
           : 60,
         dispatchErrors: experiment.parameters?.dispatchErrors || [],
+        workdayStartMs:
+          typeof workdayBounds?.startMs === 'number'
+            ? workdayBounds.startMs
+            : null,
+        workdayStartMinutes:
+          typeof workdaySettings?.startMinutes === 'number'
+            ? workdaySettings.startMinutes
+            : null,
       })
 
       socket.data.experiment = experiment

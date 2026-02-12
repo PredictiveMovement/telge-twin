@@ -65,6 +65,10 @@ const MapPage = () => {
   const [dispatchErrors, setDispatchErrors] = useState<
     Array<{ truckId: string; fleet: string; error: string }>
   >([])
+  const [workdayStartMs, setWorkdayStartMs] = useState<number | null>(null)
+  const [workdayStartMinutes, setWorkdayStartMinutes] = useState<number | null>(
+    null
+  )
 
   const speedOptions = useMemo(
     () => [1, 10, 20, 30, 60, 120, 300, 600, 900],
@@ -95,6 +99,8 @@ const MapPage = () => {
       timeRunning?: boolean
       timeSpeed?: number
       dispatchErrors?: Array<{ truckId: string; fleet: string; error: string }>
+      workdayStartMs?: number | null
+      workdayStartMinutes?: number | null
     }) => {
       setRunning(socketStatus.running, socketStatus.experimentId)
 
@@ -104,10 +110,22 @@ const MapPage = () => {
         setTimeState(backendTimeRunning, backendTimeSpeed)
         setVehiclesReady(socketStatus.dispatchReady)
         setDispatchErrors(socketStatus.dispatchErrors || [])
+        setWorkdayStartMs(
+          typeof socketStatus.workdayStartMs === 'number'
+            ? socketStatus.workdayStartMs
+            : null
+        )
+        setWorkdayStartMinutes(
+          typeof socketStatus.workdayStartMinutes === 'number'
+            ? socketStatus.workdayStartMinutes
+            : null
+        )
       } else {
         setVehiclesReady(false)
         setTimeState(false, socketStatus.timeSpeed ?? 60)
         setDispatchErrors([])
+        setWorkdayStartMs(null)
+        setWorkdayStartMinutes(null)
       }
     },
     [setRunning, setTimeState]
@@ -121,6 +139,8 @@ const MapPage = () => {
       setAreaPartitions(undefined)
       setVehiclesReady(false)
       setDispatchErrors([])
+      setWorkdayStartMs(null)
+      setWorkdayStartMinutes(null)
       setSocketTimeSpeed(status.timeSpeed)
     },
     [setRunning, status.timeSpeed, setSocketTimeSpeed]
@@ -137,6 +157,8 @@ const MapPage = () => {
     setBookings([])
     setVehiclesReady(false)
     setDispatchErrors([])
+    setWorkdayStartMs(null)
+    setWorkdayStartMinutes(null)
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -145,6 +167,8 @@ const MapPage = () => {
   const handleSimulationFinished = useCallback(() => {
     setRunning(false, null)
     setVehiclesReady(false)
+    setWorkdayStartMs(null)
+    setWorkdayStartMinutes(null)
     setTimeState(false)
     pauseTime()
     setAreaPartitions(undefined)
@@ -350,6 +374,15 @@ const MapPage = () => {
 
   const minuteOfDay = useMemo(() => {
     if (!virtualTime) return null
+
+    if (typeof workdayStartMs === 'number' && Number.isFinite(workdayStartMs)) {
+      const elapsedMinutes = (virtualTime - workdayStartMs) / 60000
+      if (Number.isFinite(elapsedMinutes)) {
+        const baselineMinutes = workdayStartMinutes ?? startMinutes
+        return baselineMinutes + elapsedMinutes
+      }
+    }
+
     const date = new Date(virtualTime)
     if (Number.isNaN(date.getTime())) return null
     return (
@@ -358,7 +391,7 @@ const MapPage = () => {
       date.getSeconds() / 60 +
       date.getMilliseconds() / 60000
     )
-  }, [virtualTime])
+  }, [virtualTime, workdayStartMs, workdayStartMinutes, startMinutes])
 
   const mapProgress = useMemo(() => {
     if (minuteOfDay === null) return 0
@@ -367,14 +400,14 @@ const MapPage = () => {
   }, [minuteOfDay, startMinutes, totalMinutes])
 
   const progressLabel = useMemo(() => {
-    if (!virtualTime) return '--:--'
-    const date = new Date(virtualTime)
-    if (Number.isNaN(date.getTime())) return '--:--'
-    return date.toLocaleTimeString('sv-SE', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }, [virtualTime])
+    if (minuteOfDay === null) return '--:--'
+    const normalized = ((minuteOfDay % 1440) + 1440) % 1440
+    const hours = Math.floor(normalized / 60)
+    const minutes = Math.floor(normalized % 60)
+    return `${hours.toString().padStart(2, '0')}:${minutes
+      .toString()
+      .padStart(2, '0')}`
+  }, [minuteOfDay])
 
   const hasRoutingFailure = status.running && dispatchErrors.length > 0
   const isPlaybackDisabled = !status.running || !isConnected || hasRoutingFailure
