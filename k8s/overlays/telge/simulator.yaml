@@ -33,8 +33,22 @@ kind: Deployment
 metadata:
   name: simulator
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   template:
     spec:
+      containers:
+        - name: simulator
+          resources:
+            requests:
+              cpu: "1500m"
+              memory: "2Gi"
+            limits:
+              cpu: "3"
+              memory: "4Gi"
       initContainers:
         - name: elastic-init
           image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.65 # {"$imagepolicy": "flux-system:simulator"}
