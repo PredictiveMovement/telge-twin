@@ -36,7 +36,7 @@ This will:
 Preboot automatically creates 4 Elasticsearch indices:
 - `bookings` - Delivery bookings and assignments
 - `route-datasets` - Uploaded route data
-- `vroom-truck-plans` - Optimized vehicle plans
+- `truck-plans` - Optimized vehicle plans
 - `experiments` - Simulation experiments
 
 Mappings are defined in: `packages/simulator/data/elasticsearch_mappings.json`

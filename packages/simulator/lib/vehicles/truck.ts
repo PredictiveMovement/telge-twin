@@ -2,8 +2,10 @@ const {
   findBestRouteToPickupBookings,
   useReplayRoute,
   saveCompletePlanForReplay,
+  reportDispatchError,
 } = require('../dispatch/truckDispatch')
-const { warn } = require('../log')
+const { isVroomPlanningCancelledError } = require('../vroom')
+const { warn, error: logError } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
 import {
@@ -48,12 +50,21 @@ class Truck extends Vehicle {
   private breakSchedule: ScheduledBreak[] = []
   private breakActive: ScheduledBreak | null = null
   private finishingWorkday = false
+  private skipQueueUnreachableMarking = false
 
   private isSequentialExperiment(): boolean {
     const fleetExperimentType =
       this.fleet?.settings?.experimentType ||
       (this.fleet as any)?.experimentType
     return fleetExperimentType === 'sequential'
+  }
+
+  private getDeliveryStrategy(): 'capacity_based' | 'end_of_route' {
+    const fleetStrategy = this.fleet?.settings?.deliveryStrategy
+    if (fleetStrategy === 'capacity_based' || fleetStrategy === 'end_of_route') {
+      return fleetStrategy
+    }
+    return CLUSTERING_CONFIG.DELIVERY_STRATEGIES.DEFAULT_DELIVERY_STRATEGY || 'capacity_based'
   }
 
   private createInstruction(
@@ -139,6 +150,23 @@ class Truck extends Vehicle {
     return hasCargo || anyFill
   }
 
+  /** Mark all non-unreachable, non-cargo queue items as unreachable. */
+  private async markRemainingAsUnreachable(): Promise<void> {
+    const cargoSet = new Set(this.cargo || [])
+    const pending = this.queue.filter(
+      (b: any) => b && b.status !== 'Unreachable' && !cargoSet.has(b)
+    )
+    await Promise.all(
+      pending.map(async (b: any) => {
+        if (typeof b.markUnreachable === 'function') {
+          await b.markUnreachable('plan-complete')
+        } else {
+          b.status = 'Unreachable'
+        }
+      })
+    )
+  }
+
   private initializeBreakSchedule() {
     const explicitBreaks = Array.isArray(this.fleet?.settings?.breaks)
       ? this.fleet.settings.breaks
@@ -187,18 +215,23 @@ class Truck extends Vehicle {
     this.shiftEndedForDay = true
     this.finishingWorkday = true
 
+    // Exclude bookings already picked up (in cargo) — they will be
+    // delivered at the depot by finalizeEndOfWorkday → dischargeAllCargo
+    const cargoSet = new Set(this.cargo || [])
+
     const pendingBookings = new Set<any>()
     ;(this.plan || []).forEach((instruction: Instruction) => {
       if (
         instruction?.booking &&
         instruction.action === 'pickup' &&
-        instruction.booking.status !== 'Unreachable'
+        instruction.booking.status !== 'Unreachable' &&
+        !cargoSet.has(instruction.booking)
       ) {
         pendingBookings.add(instruction.booking)
       }
     })
     this.queue.forEach((booking: any) => {
-      if (booking?.status !== 'Unreachable') {
+      if (booking?.status !== 'Unreachable' && !cargoSet.has(booking)) {
         pendingBookings.add(booking)
       }
     })
@@ -450,14 +483,45 @@ class Truck extends Vehicle {
    */
 
   stopped() {
-    const maybePromise = super.stopped()
-    if (maybePromise && typeof maybePromise.then === 'function') {
-      return maybePromise.then(() => this.handlePostStop())
+    try {
+      const maybePromise = super.stopped()
+      if (maybePromise && typeof maybePromise.then === 'function') {
+        return maybePromise
+          .then(() => this.handlePostStop())
+          .catch((err: any) => {
+            logError(
+              `[truck ${this.id}] stopped chain error (after pickup/dropoff):`,
+              err?.message || err
+            )
+            // Recover: try to continue with the next instruction
+            return this.handlePostStop()
+          })
+      }
+      const postStopResult = this.handlePostStop()
+      if (postStopResult && typeof postStopResult.then === 'function') {
+        return postStopResult.catch((err: any) => {
+          logError(
+            `[truck ${this.id}] handlePostStop error:`,
+            err?.message || err
+          )
+          // Don't try to recover from handlePostStop errors to avoid loops
+        })
+      }
+      return postStopResult
+    } catch (err: any) {
+      logError(
+        `[truck ${this.id}] stopped() sync error:`,
+        err?.message || err
+      )
     }
-    return this.handlePostStop()
   }
 
   private async handlePostStop(): Promise<void> {
+    // Guard: Already parked, don't re-process
+    if (this.status === 'parked') {
+      return
+    }
+
     if (this.shiftEndedForDay) {
       if (this.finishingWorkday) {
         await this.finalizeEndOfWorkday()
@@ -481,56 +545,38 @@ class Truck extends Vehicle {
     }
 
     if (this.plan.length === 0) {
-      const hasReachableQueue = this.queue.some(
-        (queued: any) => queued?.status !== 'Unreachable'
-      )
+      // If we still have cargo, insert a delivery stop and continue
+      if (this.cargo.length > 0) {
+        this.plan.unshift(this.createInstruction('delivery'))
+        return this.pickNextInstructionFromPlan()
+      }
+
+      // Planning errors should not rewrite booking status to unreachable.
+      if (this.skipQueueUnreachableMarking) {
+        this.skipQueueUnreachableMarking = false
+        this.queue = []
+      } else {
+        // No cargo, no plan — mark remaining queue items as unreachable
+        await this.markRemainingAsUnreachable()
+      }
+      this.instruction = undefined
+      this.booking = null
+
       const canMeasureDistance =
         this.position &&
         this.startPosition &&
         typeof this.position.distanceTo === 'function'
-      const atStart =
-        canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
+      const atDepot = canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
 
-      if (!hasReachableQueue) {
-        this.queue = this.queue.filter(
-          (queued: any) => queued?.status !== 'Unreachable'
-        )
-        this.instruction = undefined
-        this.booking = null
-
-        if (!atStart) {
-          this.setStatus('returning')
-          await this.navigateTo(this.startPosition)
-          return
-        }
-
-        if (this.hasAnyLoad()) {
-          await this.dropOff()
-        }
-
-        this.position = this.startPosition
-        this.instruction = undefined
-        this.setStatus('parked')
-        this.emitMoved()
+      if (!atDepot) {
+        this.setStatus('returning')
+        await this.navigateTo(this.startPosition)
         return
       }
 
-      if (this.status === 'end' && atStart) {
-        if (this.hasAnyLoad()) {
-          await this.dropOff()
-          return
-        }
-
-        this.position = this.startPosition
-        this.instruction = undefined
-        this.setStatus('parked')
-        this.emitMoved()
-        return
-      }
-
-      this.setStatus('end')
-      await this.navigateTo(this.startPosition)
-      this.instruction = undefined
+      this.position = this.startPosition
+      this.setStatus('parked')
+      this.emitMoved()
       return
     } else {
       await this.pickNextInstructionFromPlan()
@@ -596,7 +642,11 @@ class Truck extends Vehicle {
       }
     }
 
-    await this.virtualTime.wait(20 * 1000)
+    try {
+      await this.virtualTime.wait(20 * 1000)
+    } catch (err: any) {
+      logError(`[truck ${this.id}] pickup wait error, continuing:`, err?.message || err)
+    }
 
     if (this.hasReachedEndOfWorkday()) {
       return this.concludeWorkday()
@@ -611,27 +661,30 @@ class Truck extends Vehicle {
     // Prevent base Vehicle.stopped() from re-triggering pickup on next stop
     this.booking = null
 
-    // Check if we need to deliver based on cargo count
-    const deliveryConfig = CLUSTERING_CONFIG.DELIVERY_STRATEGIES
-    const pickupsBeforeDelivery =
-      this.fleet?.settings?.pickupsBeforeDelivery ||
-      deliveryConfig.PICKUPS_BEFORE_DELIVERY
+    // Check if we need to deliver based on delivery strategy (capacity_based only)
+    // end_of_route is handled in handlePostStop() - truck waits until all bookings are picked up
+    if (this.getDeliveryStrategy() === 'capacity_based') {
+      const deliveryConfig = CLUSTERING_CONFIG.DELIVERY_STRATEGIES
+      const pickupsBeforeDelivery =
+        this.fleet?.settings?.pickupsBeforeDelivery ||
+        deliveryConfig.PICKUPS_BEFORE_DELIVERY
 
-    // Trigger delivery if capacity reached OR fallback to pickup-count strategy
-    if (
-      isAnyCompartmentFull(this.compartments) ||
-      this.cargo.length >= pickupsBeforeDelivery
-    ) {
-      // Only add delivery instruction if the next instruction isn't already a delivery
-      const nextInstruction = this.plan[0]
+      const shouldTriggerDelivery =
+        isAnyCompartmentFull(this.compartments) ||
+        this.cargo.length >= pickupsBeforeDelivery
 
-      if (!nextInstruction || nextInstruction.action !== 'delivery') {
-        this.plan.unshift({
-          action: 'delivery',
-          arrival: 0,
-          departure: 0,
-          booking: null,
-        })
+      if (shouldTriggerDelivery) {
+        // Only add delivery instruction if the next instruction isn't already a delivery
+        const nextInstruction = this.plan[0]
+
+        if (!nextInstruction || nextInstruction.action !== 'delivery') {
+          this.plan.unshift({
+            action: 'delivery',
+            arrival: 0,
+            departure: 0,
+            booking: null,
+          })
+        }
       }
     }
   }
@@ -661,19 +714,15 @@ class Truck extends Vehicle {
   async dropOff() {
     // If this is a delivery action (booking is null), deliver all cargo
     if (!this.booking) {
-      // Deliver all items in cargo
       const deliveredNow = [...this.cargo]
       deliveredNow.forEach((item: any) => {
         if (item.delivered) item.delivered(this.position)
-        // Decrement fills per assigned fack
         this.releaseLoadsForBooking(item)
       })
-      if (this.isSequentialExperiment()) {
-        const deliveredSet = new Set(deliveredNow)
-        this.queue = this.queue.filter(
-          (queued: any) => !deliveredSet.has(queued)
-        )
-      }
+      const deliveredSet = new Set(deliveredNow)
+      this.queue = this.queue.filter(
+        (queued: any) => !deliveredSet.has(queued)
+      )
       this.cargo = []
       this.emitCargo()
 
@@ -687,6 +736,21 @@ class Truck extends Vehicle {
             return this.pickNextInstructionFromPlan()
           }
         }
+
+        // Mark any remaining queue items (e.g. VROOM-excluded bookings) as unreachable
+        await this.markRemainingAsUnreachable()
+
+        const distToStart = this.position?.distanceTo?.(this.startPosition) ?? Infinity
+
+        // If already at depot, park directly instead of navigating (avoids race condition)
+        if (distToStart < 100) {
+          this.position = this.startPosition
+          this.instruction = undefined
+          this.setStatus('parked')
+          this.emitMoved()
+          return
+        }
+
         this.setStatus('end')
         return this.navigateTo(this.startPosition)
       }
@@ -722,10 +786,8 @@ class Truck extends Vehicle {
       this.releaseLoadsForBooking(item)
     })
 
-    if (this.isSequentialExperiment()) {
-      const deliveredSet = new Set(deliveredNow)
-      this.queue = this.queue.filter((queued: any) => !deliveredSet.has(queued))
-    }
+    const deliveredSet = new Set(deliveredNow)
+    this.queue = this.queue.filter((queued: any) => !deliveredSet.has(queued))
 
     this.cargo = []
     this.emitCargo()
@@ -736,8 +798,8 @@ class Truck extends Vehicle {
       this.position &&
       this.startPosition &&
       typeof this.position.distanceTo === 'function'
-    const atStart =
-      canMeasureDistance && this.position.distanceTo(this.startPosition) < 100
+    const distToStart = canMeasureDistance ? this.position.distanceTo(this.startPosition) : -1
+    const atStart = canMeasureDistance && distToStart < 100
 
     if (!atStart) {
       this.setStatus('returning')
@@ -818,6 +880,7 @@ class Truck extends Vehicle {
       Math.random() * CLUSTERING_CONFIG.TRUCK_PLANNING_RANDOM_DELAY_MS
     this._timeout = setTimeout(async () => {
       this.setStatus('planning')
+      this.skipQueueUnreachableMarking = false
 
       if (this.fleet.settings.replayExperiment) {
         this.plan = await useReplayRoute(this, this.queue)
@@ -853,8 +916,10 @@ class Truck extends Vehicle {
           )
 
           if (this.plan) {
+            // Use planGroupId from fleet settings, fallback to experimentId
+            const planGroupId = this.fleet?.settings?.planGroupId || experimentId
             await saveCompletePlanForReplay(
-              experimentId,
+              planGroupId,
               this.id,
               this.fleet?.name || this.id,
               this.plan,
@@ -871,29 +936,24 @@ class Truck extends Vehicle {
             throw new Error('VROOM returned null plan')
           }
         } catch (error: any) {
-          this.plan = [
-            { action: 'start' },
-            ...this.queue.map((b: any) => ({
-              action: 'pickup',
-              booking: b,
-            })),
-            { action: 'delivery' },
-            { action: 'end' },
-          ]
+          const failedBookingCount = this.queue.length
+          this.plan = []
+          this.skipQueueUnreachableMarking = true
+          this.queue = []
+          if (!isVroomPlanningCancelledError(error)) {
+            logError(`VROOM planning failed for truck ${this.id}`, {
+              experimentId,
+              truckId: this.id,
+              error: error.message,
+              bookingCount: failedBookingCount,
+            })
 
-          await saveCompletePlanForReplay(
-            experimentId,
-            this.id,
-            this.fleet?.name || this.id,
-            this.plan,
-            this.queue,
-            this.fleet?.settings?.createReplay ?? true
-          )
-          // Ensure area partitions are saved even when falling back
-          try {
-            createSpatialChunks(this.queue, experimentId, this.id)
-          } catch (e) {
-            // non-fatal
+            await reportDispatchError(
+              experimentId,
+              this.id,
+              this.fleet?.name || this.id,
+              error.message || 'VROOM planning failed'
+            )
           }
         }
       }

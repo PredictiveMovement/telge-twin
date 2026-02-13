@@ -12,6 +12,61 @@ export class SocketController {
     this.ioInstance = io
   }
 
+  private getExpectedTruckPlanCount(experiment: any): number {
+    const rawCount = Number(experiment?.parameters?.expectedTruckPlanCount || 0)
+    if (!Number.isFinite(rawCount) || rawCount < 0) return 0
+    return Math.floor(rawCount)
+  }
+
+  private getSavedTruckPlanIds(experiment: any): string[] {
+    if (!experiment?.parameters) return []
+    if (!Array.isArray(experiment.parameters.savedTruckPlanIds)) {
+      experiment.parameters.savedTruckPlanIds = []
+    }
+    return experiment.parameters.savedTruckPlanIds
+  }
+
+  private recordSavedTruckPlan(experiment: any, planId: string): void {
+    if (!planId) return
+    const savedPlanIds = this.getSavedTruckPlanIds(experiment)
+    if (!savedPlanIds.includes(planId)) {
+      savedPlanIds.push(planId)
+    }
+  }
+
+  private maybeMarkGlobalSimulationReady(experiment: any): void {
+    if (!experiment?.parameters) return
+    if (experiment.parameters.dispatchReady) return
+
+    const expectedTruckPlanCount = this.getExpectedTruckPlanCount(experiment)
+    if (expectedTruckPlanCount === 0) {
+      this.markGlobalSimulationReady(experiment)
+      return
+    }
+
+    const savedTruckPlanIds = this.getSavedTruckPlanIds(experiment)
+    const errorCount = Array.isArray(experiment.parameters.dispatchErrors)
+      ? experiment.parameters.dispatchErrors.length
+      : 0
+
+    if (savedTruckPlanIds.length + errorCount >= expectedTruckPlanCount) {
+      this.markGlobalSimulationReady(experiment)
+    }
+  }
+
+  private markGlobalSimulationReady(experiment: any): void {
+    if (!experiment?.parameters) return
+    if (experiment.parameters.dispatchReady) return
+
+    experiment.parameters.dispatchReady = true
+
+    if (this.ioInstance) {
+      this.ioInstance.emit('simulationReady', {
+        experimentId: experiment.parameters.id,
+      })
+    }
+  }
+
   setupTimeControlsOnly(socket: Socket, experiment: any): void {
     const virtualTimeToUse = experiment.virtualTime
 
@@ -49,9 +104,6 @@ export class SocketController {
       'sessionSpeed',
       ({ sessionId, speed }: { sessionId: string; speed: number }) => {
         if (!sessionController.isSocketInSession(socket.id, sessionId)) {
-          console.warn(
-            `Socket ${socket.id} tried to change speed for session ${sessionId} but is not a member`
-          )
           return
         }
 
@@ -81,9 +133,7 @@ export class SocketController {
       .pipe(throttleTime(1000))
       .subscribe((time: number) => {
         if (this.ioInstance) {
-          this.ioInstance
-            .to(sessionId!)
-            .emit('virtualTime', { sessionId, payload: time })
+          this.ioInstance.to(sessionId!).emit('time', time)
         }
       })
 
@@ -99,23 +149,13 @@ export class SocketController {
     const sessionBroadcastSocket = {
       emit: (event: string, data: any) => {
         if (this.ioInstance) {
-          if (event === 'virtualTime') {
-            this.ioInstance
-              .to(sessionId)
-              .emit('virtualTime', { sessionId, payload: data })
-          } else {
-            this.ioInstance
-              .to(sessionId)
-              .emit(event, { sessionId, payload: data })
-          }
+          this.ioInstance.to(sessionId).emit(event, data)
         }
       },
       volatile: {
         emit: (event: string, data: any) => {
           if (this.ioInstance) {
-            this.ioInstance
-              .to(sessionId)
-              .volatile.emit(event, { sessionId, payload: data })
+            this.ioInstance.to(sessionId).volatile.emit(event, data)
           }
         },
       },
@@ -192,6 +232,15 @@ export class SocketController {
       }
     }
 
+    if (!sessionId) {
+      const hasBookingsEmitter = currentEmitters.includes('bookings')
+      if (!hasBookingsEmitter) {
+        this.markGlobalSimulationReady(experiment)
+      } else {
+        this.maybeMarkGlobalSimulationReady(experiment)
+      }
+    }
+
     return routes.flat().filter(Boolean)
   }
 
@@ -253,18 +302,34 @@ export class SocketController {
         socket.emit('simulationStatus', {
           running: false,
           experimentId: null,
+          dispatchReady: false,
         })
         return
       }
 
       sessionController.addGlobalWatcher(socket.id)
+      const workdaySettings = experiment.parameters?.workdaySettings
+      const workdayBounds =
+        typeof experiment.virtualTime?.getWorkdayBounds === 'function'
+          ? experiment.virtualTime.getWorkdayBounds()
+          : null
       socket.emit('simulationStatus', {
         running: experimentController.isGlobalRunning,
         experimentId: experiment.parameters.id,
-        timeRunning: true,
+        dispatchReady: !!experiment.parameters?.dispatchReady,
+        timeRunning: experiment.virtualTime?.isPlaying?.() ?? false,
         timeSpeed: experiment.virtualTime
           ? experiment.virtualTime.getTimeMultiplier()
           : 60,
+        dispatchErrors: experiment.parameters?.dispatchErrors || [],
+        workdayStartMs:
+          typeof workdayBounds?.startMs === 'number'
+            ? workdayBounds.startMs
+            : null,
+        workdayStartMinutes:
+          typeof workdaySettings?.startMinutes === 'number'
+            ? workdaySettings.startMinutes
+            : null,
       })
 
       socket.data.experiment = experiment
@@ -275,6 +340,7 @@ export class SocketController {
         )
       }
 
+      this.cleanupSocketEventListeners(socket)
       socket.data.subscriptions = this.subscribe(experiment, socket)
     }
 
@@ -308,7 +374,103 @@ export class SocketController {
     socket.removeAllListeners('pause')
     socket.removeAllListeners('speed')
     socket.removeAllListeners('reset')
+
+    socket.data.timeControlsRegistered = false
   }
+
+  broadcastSimulationStarted(data: {
+    experimentId: string
+    isReplay: boolean
+    sourceDatasetId?: string
+    datasetName?: string
+  }): void {
+    if (this.ioInstance) {
+      this.ioInstance.emit('simulationStarted', data)
+
+      sessionController.getGlobalWatchers().forEach((socketId) => {
+        const socket = this.ioInstance!.sockets.sockets.get(socketId)
+        if (socket) {
+          this.connectSocketToExperiment(socket)
+        }
+      })
+    }
+  }
+
+  broadcastSimulationStopped(): void {
+    if (this.ioInstance) {
+      sessionController.notifyGlobalWatchers(this.ioInstance, 'simulationStopped')
+    }
+  }
+
+  emitPlanSaved(
+    experimentId: string,
+    planId: string,
+    sourceDatasetId?: string
+  ): void {
+    const activeExperiment = experimentController.currentGlobalExperiment
+    if (activeExperiment?.parameters?.id === experimentId) {
+      this.recordSavedTruckPlan(activeExperiment, planId)
+      this.maybeMarkGlobalSimulationReady(activeExperiment)
+    }
+
+    if (this.ioInstance && sourceDatasetId) {
+      this.ioInstance.to(`dataset:${sourceDatasetId}`).emit('planSaved', {
+        experimentId,
+        planId,
+        sourceDatasetId,
+      })
+      this.ioInstance.emit('experimentUpdated', { experimentId, sourceDatasetId })
+    }
+  }
+
+  emitDispatchError(
+    experimentId: string,
+    truckId: string,
+    fleetName: string,
+    error: string
+  ): void {
+    const errorEntry = {
+      truckId,
+      fleet: fleetName,
+      error,
+      timestamp: new Date().toISOString(),
+    }
+
+    const activeExperiment = experimentController.currentGlobalExperiment
+    if (activeExperiment?.parameters?.id === experimentId) {
+      if (!Array.isArray(activeExperiment.parameters.dispatchErrors)) {
+        activeExperiment.parameters.dispatchErrors = []
+      }
+      activeExperiment.parameters.dispatchErrors.push(errorEntry)
+
+      this.maybeMarkGlobalSimulationReady(activeExperiment)
+    }
+
+    const sourceDatasetIdForEvent =
+      activeExperiment?.parameters?.id === experimentId
+        ? activeExperiment.parameters?.sourceDatasetId
+        : undefined
+
+    if (this.ioInstance) {
+      const payload: any = {
+        experimentId,
+        truckId,
+        fleet: fleetName,
+        error,
+      }
+      if (sourceDatasetIdForEvent !== undefined) {
+        payload.sourceDatasetId = sourceDatasetIdForEvent
+      }
+      this.ioInstance.emit('dispatchError', payload)
+    }
+
+    const { elasticsearchService: esService } = require('../services/ElasticsearchService')
+    esService
+      .addDispatchErrorToExperiment(experimentId, errorEntry)
+      .catch(() => {
+      })
+  }
+
 }
 
 export const socketController = new SocketController()

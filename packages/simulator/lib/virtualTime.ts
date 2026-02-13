@@ -109,6 +109,10 @@ export class VirtualTime {
     this.internalTimeScale = 0
   }
 
+  isPlaying(): boolean {
+    return this.internalTimeScale > 0
+  }
+
   async waitUntil(time: number): Promise<any> {
     if (this.timeMultiplier === 0) return // don't wait when time is stopped
     if (this.timeMultiplier === Infinity) return // return directly if time is set to infinity
@@ -214,6 +218,10 @@ class VirtualTimeManager {
 
   pause(): void {
     return this.getCurrentVirtualTime().pause()
+  }
+
+  isPlaying(): boolean {
+    return this.getCurrentVirtualTime().isPlaying()
   }
 
   async waitUntil(time: number): Promise<any> {

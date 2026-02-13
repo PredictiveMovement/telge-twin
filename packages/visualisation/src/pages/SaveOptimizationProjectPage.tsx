@@ -4,18 +4,20 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SaveOptimizationForm from '@/components/optimize/SaveOptimizationForm'
-import { toast } from 'sonner'
-import { saveRouteDataset } from '@/api/simulator'
+import { toast } from '@/hooks/use-toast'
+import { saveRouteDataset, startSimulationFromDatasetRest } from '@/api/simulator'
 import {
   buildSingleFleetFromRouteData,
   type Settings,
 } from '@/utils/fleetGenerator'
 import { byId, buildFackInfo, pickDominant, type BilSpec } from '@/utils/shared'
 import type { RouteRecord } from '@/components/routes/FileUpload'
+import { useOptimizationContext } from '@/contexts/OptimizationContext'
 
 const SaveOptimizationProjectPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const { startOptimization } = useOptimizationContext()
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -138,13 +140,58 @@ const SaveOptimizationProjectPage = () => {
         },
       })
 
-      if ((res as any)?.success) {
-        toast.success(`Dataset sparat: ${normalized.name}`)
-        // Visa 3s loader och gå därefter till Sparade Filtreringar
-        navigate('/optimize/processing', {
-          state: { activeTab: 'datasets' },
-          replace: true,
+      const datasetId = (res as any)?.data?.datasetId || (res as any)?.datasetId
+      if ((res as any)?.success && datasetId) {
+        // Calculate expected vehicle count from fleet configuration
+        const expectedVehicleCount = fleetConfiguration.reduce(
+          (sum, fleet) => sum + (fleet.vehicles?.length || 0), 0
+        )
+
+        // Start optimization animation (shows phases and navigates after first phase)
+        startOptimization(datasetId, normalized.name || 'Optimering', {
+          onNavigate: () => {
+            navigate('/routes?tab=optimizations', { replace: true })
+          },
+          onComplete: () => {
+            // Optional: any cleanup after animation completes
+          },
+          expectedVehicleCount,
         })
+
+        // Determine start time from working hours
+        let startHour = 6
+        let startMinute = 0
+        const workingHoursStart = normalized.workingHours?.start
+        if (workingHoursStart) {
+          const parts = workingHoursStart.split(':')
+          if (parts.length >= 2) {
+            startHour = parseInt(parts[0], 10)
+            startMinute = parseInt(parts[1], 10)
+          }
+        }
+
+        // Determine date from filter criteria or default to today
+        let startDate = new Date()
+        if (navigationState?.filters?.dateRange?.from) {
+          startDate = new Date(navigationState.filters.dateRange.from)
+        }
+        startDate.setHours(startHour, startMinute, 0, 0)
+
+        // Start simulation via REST API (runs in background while animation plays)
+        startSimulationFromDatasetRest(
+          datasetId,
+          normalized.name,
+          {
+            startDate: startDate.toISOString(),
+            experimentType: 'vroom',
+          }
+        ).catch(() => {
+          toast.error('Fel vid start av simulering')
+        })
+      } else if ((res as any)?.success) {
+        // Dataset saved but no datasetId returned
+        toast.success(`Dataset sparat: ${normalized.name}`)
+        navigate('/routes?tab=optimizations', { replace: true })
       } else {
         toast.error(`Fel vid sparning: ${(res as any)?.error || 'okänt fel'}`)
       }

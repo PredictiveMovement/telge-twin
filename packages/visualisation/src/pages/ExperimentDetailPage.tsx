@@ -9,8 +9,10 @@ import {
   getOriginalBookings,
   getOriginalBookingsForExperiment,
   getVroomBookingsForExperiment,
+  getRouteDataset,
   Experiment,
   ExperimentStatistics,
+  RouteDataset,
 } from '@/api/simulator'
 import OptimizeHeader from '@/components/optimize/OptimizeHeader'
 import OptimizeMapComparison from '@/components/optimize/OptimizeMapComparison'
@@ -296,6 +298,7 @@ const ExperimentDetailPage = () => {
   const navigate = useNavigate()
 
   const [experiment, setExperiment] = useState<Experiment | null>(null)
+  const [dataset, setDataset] = useState<RouteDataset | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statistics, setStatistics] = useState<ExperimentStatistics | null>(
@@ -344,6 +347,14 @@ const ExperimentDetailPage = () => {
           throw new Error('Kunde inte hitta experimentet.')
         }
         setExperiment(expData)
+
+        // Fetch the source dataset to get current optimizationSettings
+        if (expData.sourceDatasetId) {
+          const datasetData = await getRouteDataset(expData.sourceDatasetId)
+          if (datasetData) {
+            setDataset(datasetData)
+          }
+        }
       } catch (err: any) {
         setError(err.message || 'Ett fel uppstod vid hämtning av data.')
       } finally {
@@ -494,7 +505,22 @@ const ExperimentDetailPage = () => {
     )
   }
 
-  const experimentWorkingHours = (experiment as any)?.optimizationSettings?.workingHours
+  // Get start/end times with explicit fallback chain
+  // This avoids issues with empty workingHours objects where start/end are undefined
+  const getStartTime = () => {
+    const expStart = experiment?.optimizationSettings?.workingHours?.start
+    const datasetStart = dataset?.optimizationSettings?.workingHours?.start
+    return expStart || datasetStart || '06:00'
+  }
+
+  const getEndTime = () => {
+    const expEnd = experiment?.optimizationSettings?.workingHours?.end
+    const datasetEnd = dataset?.optimizationSettings?.workingHours?.end
+    return expEnd || datasetEnd || '15:00'
+  }
+
+  // planGroupId - groups all truck plans for this experiment
+  const planGroupId = experiment.planGroupId
 
   const routeVehicles = Object.keys(routeStopsData)
 
@@ -513,19 +539,20 @@ const ExperimentDetailPage = () => {
 
   const savedProject = {
     id: experiment.id,
-    name: experiment.datasetName || `Experiment ${experiment.id}`,
-    description: experiment.routeDataSource
+    name: experiment.name || experiment.datasetName || dataset?.name || `Experiment ${experiment.id}`,
+    description: experiment.description || dataset?.description || (experiment.routeDataSource
       ? `Datakälla: ${experiment.routeDataSource}`
-      : 'Optimerad körtur',
+      : 'Optimerad körtur'),
     workingHours: {
-      start: experimentWorkingHours?.start || '06:00',
-      end: experimentWorkingHours?.end || '15:00',
+      start: getStartTime(),
+      end: getEndTime(),
     },
     vehicles: routeVehicles.length
       ? routeVehicles
       : Array.isArray((experiment as any)?.vehicles)
       ? ((experiment as any)?.vehicles as string[])
       : experiment.emitters || [],
+    planGroupId,
   }
 
   const handleSaveChanges = () => {
@@ -563,6 +590,22 @@ const ExperimentDetailPage = () => {
           hasChanges={false}
           onSaveChanges={handleSaveChanges}
         />
+
+        {experiment.dispatchErrors && experiment.dispatchErrors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <p className="font-medium mb-1">Ruttplanering misslyckades för följande fordon:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                {experiment.dispatchErrors.map((err, i) => (
+                  <li key={i}>
+                    {err.truckId} ({err.fleet}): {err.error}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <OptimizeMapComparison
           startTime={savedProject.workingHours.start}

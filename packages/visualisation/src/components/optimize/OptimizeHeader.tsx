@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Map } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -21,6 +21,8 @@ interface OptimizeHeaderProps {
     id: string;
     name: string;
     description?: string;
+    version?: number;
+    parentExperimentId?: string;
   };
   hasChanges?: boolean;
   onSaveChanges?: () => Promise<void> | void;
@@ -88,7 +90,7 @@ const OptimizeHeader = ({
     setIsProcessing(true);
     setProgress(0);
 
-    toast('Sparar körturordning...', { duration: 1500 });
+    const savingToast = toast({ title: 'Sparar körturordning...', duration: Infinity });
 
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
@@ -104,18 +106,15 @@ const OptimizeHeader = ({
       if (onSaveChanges) {
         await onSaveChanges();
       }
-
-      setTimeout(() => {
-        toast.success('Körturordning sparad');
-      }, 1500);
     } catch (error) {
       toast.error('Kunde inte spara körturordning');
     }
 
     setTimeout(() => {
+      savingToast.dismiss();
       setIsProcessing(false);
       setProgress(0);
-    }, 2000);
+    }, 1500);
   };
 
   const handleSaveAndBack = async (e?: React.MouseEvent) => {
@@ -124,16 +123,8 @@ const OptimizeHeader = ({
     setIsProcessing(true);
     setProgress(0);
 
-    if (onSaveChanges) {
-      try {
-        await onSaveChanges();
-      } catch (error) {
-        toast.error('Kunde inte spara körturordning');
-      }
-    }
-
-    const toastId = hasChanges
-      ? toast('Sparar optimering', { duration: 2000 })
+    const savingToast = hasChanges
+      ? toast({ title: 'Sparar körturordning...', duration: Infinity })
       : null;
 
     const progressInterval = setInterval(() => {
@@ -146,8 +137,16 @@ const OptimizeHeader = ({
       });
     }, 100);
 
+    if (onSaveChanges) {
+      try {
+        await onSaveChanges();
+      } catch (error) {
+        toast.error('Kunde inte spara körturordning');
+      }
+    }
+
     setTimeout(async () => {
-      if (toastId) toast.dismiss(toastId);
+      if (savingToast) savingToast.dismiss();
       await new Promise((resolve) => setTimeout(resolve, 300));
       navigateToRoutes();
 
@@ -155,7 +154,7 @@ const OptimizeHeader = ({
         setIsProcessing(false);
         setProgress(0);
       }, 100);
-    }, 2000);
+    }, 1500);
   };
 
   return (
@@ -183,12 +182,30 @@ const OptimizeHeader = ({
             <span className="sr-only">Tillbaka</span>
           </Button>
           <div className="min-w-0">
-            <h1 className="text-4xl font-normal break-words hyphens-auto">
-              {savedProject?.name || 'Optimera körtur'}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-4xl font-normal break-words hyphens-auto">
+                {savedProject?.name || 'Optimera körtur'}
+              </h1>
+              {savedProject?.version && (
+                <span className="text-sm px-2 py-1 rounded bg-primary/10 text-primary font-medium">
+                  v{savedProject.version}
+                </span>
+              )}
+            </div>
             {savedProject?.description && (
               <p className="text-muted-foreground mt-1">
                 {savedProject.description}
+              </p>
+            )}
+            {savedProject?.parentExperimentId && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Baserad på{' '}
+                <button
+                  onClick={() => navigate(`/optimize/${savedProject.parentExperimentId}`)}
+                  className="text-primary hover:underline"
+                >
+                  tidigare version
+                </button>
               </p>
             )}
           </div>

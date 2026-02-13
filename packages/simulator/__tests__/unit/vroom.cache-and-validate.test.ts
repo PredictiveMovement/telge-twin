@@ -1,14 +1,21 @@
-jest.mock('../../lib/vroom', () => {
-  const original = jest.requireActual('../../lib/vroom')
-  return {
-    __esModule: true,
-    ...original,
-  }
-})
+jest.mock('node-fetch', () => jest.fn())
 
+const fetchMock = require('node-fetch') as jest.Mock
 const vroomLib = require('../../lib/vroom')
 
 describe('VROOM cache normalization', () => {
+  beforeEach(() => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ code: 0, routes: [{ steps: [] }], unassigned: [] }),
+      text: async () => '',
+    })
+  })
+
+  afterEach(() => {
+    fetchMock.mockReset()
+  })
+
   it('normalizes time windows in cache key so identical geo problems hit cache', async () => {
     const jobs: any[] = []
     const shipments = [

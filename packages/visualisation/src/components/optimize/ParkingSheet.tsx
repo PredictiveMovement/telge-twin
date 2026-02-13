@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Stop } from '@/types/stops';
 import ParkedStopCard from './ParkedStopCard';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 import {
   Sheet,
   SheetContent,

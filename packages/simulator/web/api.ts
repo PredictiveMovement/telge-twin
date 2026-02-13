@@ -1,15 +1,45 @@
 import { Router, Request, Response } from 'express'
 import { virtualTime } from '../lib/virtualTime'
 import { experimentController } from './controllers/ExperimentController'
+import { socketController } from './controllers/SocketController'
 
 const router = Router()
 
 router.post('/simulation/start', async (req: Request, res: Response) => {
   try {
-    const { parameters } = req.body
+    const { sourceDatasetId, datasetName, parameters } = req.body
 
-    const experiment = experimentController.createGlobalExperiment(parameters)
-    virtualTime.reset()
+    let experimentId: string
+    let isReplay = false
+
+    if (sourceDatasetId) {
+      // Start simulation from dataset
+      const result = await experimentController.startSimulationFromData(
+        { sourceDatasetId, datasetName },
+        parameters || {}
+      )
+      experimentId = result.experimentId
+      isReplay = result.isReplay
+
+      // Broadcast to all connected clients
+      socketController.broadcastSimulationStarted({
+        experimentId,
+        isReplay,
+        sourceDatasetId,
+        datasetName,
+      })
+    } else {
+      // Legacy: start without dataset
+      const experiment = experimentController.createGlobalExperiment(parameters)
+      virtualTime.reset()
+      experimentId = experiment.parameters.id
+
+      // Broadcast to all connected clients
+      socketController.broadcastSimulationStarted({
+        experimentId,
+        isReplay: false,
+      })
+    }
 
     Object.assign(module.exports, {
       globalExperiment: experimentController.currentGlobalExperiment,
@@ -20,7 +50,7 @@ router.post('/simulation/start', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        experimentId: experiment.parameters.id,
+        experimentId,
         running: true,
       },
     })
@@ -55,6 +85,44 @@ router.delete('/simulation/stop', async (req: Request, res: Response) => {
     })
   }
 })
+
+router.delete(
+  '/simulation/cancel/:datasetId',
+  async (req: Request, res: Response) => {
+    try {
+      const { datasetId } = req.params
+      if (!datasetId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Dataset ID is required',
+        })
+      }
+
+      const result =
+        await experimentController.cancelGlobalOptimizationByDataset(datasetId)
+
+      if (result.reason === 'cancelled') {
+        socketController.broadcastSimulationStopped()
+      }
+
+      Object.assign(module.exports, {
+        globalExperiment: experimentController.currentGlobalExperiment,
+        isGlobalSimulationRunning: experimentController.isGlobalRunning,
+        sessionExperiments: experimentController.sessions,
+      })
+
+      return res.json({
+        success: true,
+        data: result,
+      })
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to cancel simulation',
+      })
+    }
+  }
+)
 
 router.get('/simulation/status', async (req: Request, res: Response) => {
   try {

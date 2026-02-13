@@ -1,29 +1,43 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { LayoutGrid, Table as TableIcon, Play } from 'lucide-react';
-import SavedOptimizationsTable, { SavedOptimization } from '@/components/optimize/SavedOptimizationsTable';
+import { LayoutGrid, Table as TableIcon } from 'lucide-react';
+import SavedOptimizationsTable, { SavedOptimization, OptimizationVersion } from '@/components/optimize/SavedOptimizationsTable';
 import SavedOptimizationsGrid from '@/components/optimize/SavedOptimizationsGrid';
 import BreaksSection from '@/components/optimize/BreaksSection';
 import {
   RouteDataset,
   getRouteDatasets,
   deleteRouteDataset,
-  updateRouteDataset,
-  startSimulationFromDataset,
+  getExperiments,
+  copyExperiment,
+  cancelSimulationByDataset,
+  deleteExperiment,
+  Experiment,
 } from '@/api/simulator';
+import { toast } from '@/hooks/use-toast';
 import { useMapSocket } from '@/hooks/useMapSocket';
-import { toast } from 'sonner';
+import { useOptimizationContext } from '@/contexts/OptimizationContext';
+import { isExperimentOptimizing, isExperimentComplete, isExperimentFailed } from '@/utils/optimization';
+
+interface ExperimentWithDocId extends Experiment {
+  documentId: string;
+}
 
 export default function SavedDatasetsTab() {
+  const navigate = useNavigate();
   const { socket } = useMapSocket();
+  const { runningOptimizations, completedOptimizations, markAsViewed, cancelOptimization } = useOptimizationContext();
   const [datasets, setDatasets] = useState<RouteDataset[]>([]);
+  const [experiments, setExperiments] = useState<ExperimentWithDocId[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
     const stored = localStorage.getItem('savedDatasetsView');
     return stored === 'grid' || stored === 'table' ? stored as 'table' | 'grid' : 'table';
@@ -31,7 +45,7 @@ export default function SavedDatasetsTab() {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<'name' | 'description' | 'createdAt'>('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [editing, setEditing] = useState<RouteDataset | null>(null);
+  const [editingExperiment, setEditingExperiment] = useState<ExperimentWithDocId | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<{
@@ -43,10 +57,27 @@ export default function SavedDatasetsTab() {
   const [editBreaks, setEditBreaks] = useState<any[]>([]);
   const [editExtraBreaks, setEditExtraBreaks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [startingSimulation, setStartingSimulation] = useState<string | null>(null);
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   const [isAnimating, setIsAnimating] = useState(false);
   const timeoutRef = useRef<number | null>(null);
+
+  // Generate time options for dropdowns (same as WorkerSettingsSection)
+  const generateTimeOptions = (minHour: number, maxHour: number, includeMaxMinutes: boolean = true) => {
+    const options = [];
+    for (let hour = minHour; hour <= maxHour; hour++) {
+      const maxMinute = (hour === maxHour && !includeMaxMinutes) ? 0 : 59;
+      for (let minute = 0; minute <= maxMinute; minute += 15) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        options.push(timeString);
+      }
+    }
+    return options;
+  };
+
+  const startTimeOptions = generateTimeOptions(5, 10);
+  const endTimeOptions = generateTimeOptions(13, 19, false);
 
   const restartAnimation = () => {
     if (timeoutRef.current) {
@@ -73,10 +104,41 @@ export default function SavedDatasetsTab() {
     };
   }, []);
 
+  // Listen for simulation events to reload datasets
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleSimulationStarted = () => {
+      // Reload to get the new experiment in the list
+      loadDatasets();
+    };
+
+    const handleExperimentUpdated = (data: { sourceDatasetId?: string }) => {
+      if (data.sourceDatasetId && !runningOptimizations.has(data.sourceDatasetId)) {
+        loadDatasets();
+      }
+    };
+
+    // Request current simulation status when socket connects
+    socket.emit('joinMap');
+
+    socket.on('simulationStarted', handleSimulationStarted);
+    socket.on('experimentUpdated', handleExperimentUpdated);
+
+    return () => {
+      socket.off('simulationStarted', handleSimulationStarted);
+      socket.off('experimentUpdated', handleExperimentUpdated);
+    };
+  }, [socket, runningOptimizations]);
+
   const loadDatasets = async () => {
     try {
-      const datasetsData = await getRouteDatasets();
+      const [datasetsData, experimentsData] = await Promise.all([
+        getRouteDatasets(),
+        getExperiments(),
+      ]);
       setDatasets(datasetsData);
+      setExperiments(experimentsData as ExperimentWithDocId[]);
     } catch {
       toast.error('Fel vid hämtning av data');
     } finally {
@@ -85,18 +147,24 @@ export default function SavedDatasetsTab() {
   };
 
   const handleOpenEdit = (opt: SavedOptimization) => {
-    const dataset = datasets.find(d => d.id === opt.id);
-    if (!dataset) return;
+    if (opt.isOptimizing || opt.isFailed) {
+      return;
+    }
 
-    setEditing(dataset);
-    setEditName(dataset.name || '');
-    setEditDescription(dataset.description || '');
+    const experiment = experiments.find(e => e.documentId === opt.experimentId);
+    if (!experiment) return;
 
-    // Load working hours
-    const workingHours = dataset.optimizationSettings?.workingHours;
+    const dataset = datasets.find(d => d.datasetId === experiment.sourceDatasetId);
+
+    setEditingExperiment(experiment);
+    setEditName(experiment.name || experiment.datasetName || dataset?.name || '');
+    setEditDescription(experiment.description || dataset?.description || '');
+
+    const workingHours = experiment.optimizationSettings?.workingHours || dataset?.optimizationSettings?.workingHours;
     setEditStartTime(workingHours?.start || '06:00');
     setEditEndTime(workingHours?.end || '15:00');
-    setEditBreaks(dataset.optimizationSettings?.breaks || [{
+    
+    const breaks = experiment.optimizationSettings?.breaks || dataset?.optimizationSettings?.breaks || [{
       id: 'morning',
       name: 'Förmiddagsrast',
       duration: 15,
@@ -114,23 +182,27 @@ export default function SavedDatasetsTab() {
       duration: 15,
       enabled: true,
       desiredTime: '13:00'
-    }]);
-    setEditExtraBreaks(dataset.optimizationSettings?.extraBreaks || []);
+    }];
+    setEditBreaks(breaks);
+    
+    const extraBreaks = experiment.optimizationSettings?.extraBreaks || dataset?.optimizationSettings?.extraBreaks || [];
+    setEditExtraBreaks(extraBreaks);
   };
 
-  const handleCloseEdit = () => setEditing(null);
+  const handleCloseEdit = () => setEditingExperiment(null);
 
   const handleSaveEdit = async () => {
     const name = editName.trim();
     const description = editDescription.trim();
-    if (!name || !editing) return;
+    if (!name || !editingExperiment) return;
 
     try {
-      const result = await updateRouteDataset(editing.datasetId, {
+      // Create a copy of the experiment with updated settings
+      const result = await copyExperiment(editingExperiment.documentId, {
         name,
         description,
         optimizationSettings: {
-          ...editing.optimizationSettings,
+          ...editingExperiment.optimizationSettings,
           workingHours: {
             start: editStartTime,
             end: editEndTime
@@ -140,96 +212,77 @@ export default function SavedDatasetsTab() {
         }
       });
 
-      if (result.success) {
-        toast.success('Dataset uppdaterad');
+      if (result.success && result.experimentId) {
+        toast.success('Ny version skapad');
         await loadDatasets();
-        setEditing(null);
+        setEditingExperiment(null);
       } else {
-        toast.error(`Fel vid uppdatering: ${result.error}`);
+        toast.error(`Fel vid skapande av ny version: ${result.error}`);
       }
     } catch {
-      toast.error('Fel vid uppdatering av dataset');
+      toast.error('Fel vid skapande av ny version');
     }
   };
 
-  const handleOpen = async (opt: SavedOptimization) => {
-    const dataset = datasets.find(d => d.id === opt.id);
-    if (!dataset) return;
+  const handleOpen = (opt: SavedOptimization) => {
+    if (opt.isOptimizing || opt.isFailed) return;
 
-    setStartingSimulation(dataset.id);
+    const experimentId = opt.experimentId || opt.latestExperimentId;
+    if (!experimentId) return;
+
+    setNavigatingId(opt.id);
+
+    const experiment = experiments.find(e => e.documentId === experimentId);
+    navigate(`/optimize/${experimentId}`, {
+      state: { experiment }
+    });
+  };
+
+  const handleDelete = async (datasetId: string) => {
     try {
-      // Determine start time from settings
-      let startHour = 6;
-      let startMinute = 0;
-      
-      const workingHoursStart = dataset.optimizationSettings?.workingHours?.start;
-                               
-      if (workingHoursStart) {
-        const parts = workingHoursStart.split(':');
-        if (parts.length >= 2) {
-          startHour = parseInt(parts[0], 10);
-          startMinute = parseInt(parts[1], 10);
-        }
-      }
-
-      // Determine date from filter criteria or default to today
-      let startDate = new Date();
-      if (dataset.filterCriteria?.dateRange?.from) {
-        startDate = new Date(dataset.filterCriteria.dateRange.from);
-      }
-      
-      // Set the time in local timezone - toISOString() will convert to UTC automatically
-      startDate.setHours(startHour, startMinute, 0, 0);
-
-      const parameters = { 
-        experimentType: 'vroom' as const,
-        startDate: startDate.toISOString()
-      };
-
-      await startSimulationFromDataset(
-        socket,
-        dataset.datasetId,
-        dataset.name,
-        parameters
+      const relatedExperiments = experiments.filter(e => e.sourceDatasetId === datasetId);
+      const deleteResults = await Promise.all(
+        relatedExperiments.map(exp => deleteExperiment(exp.documentId))
       );
-
-      toast.success(`VROOM-optimerad simulering startad för: ${dataset.name}`);
-    } catch {
-      toast.error('Fel vid start av simulering');
-    } finally {
-      setStartingSimulation(null);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const dataset = datasets.find(d => d.id === id);
-    if (!dataset) return;
-
-    try {
-      const result = await deleteRouteDataset(dataset.datasetId);
-      if (result.success) {
-        toast.success('Dataset borttagen');
-        await loadDatasets();
-      } else {
-        toast.error(`Fel vid borttagning: ${result.error}`);
+      if (deleteResults.some(r => !r.success)) {
+        toast.error('Kunde inte ta bort simulering');
+        return;
       }
+
+      const datasetDeleteResult = await deleteRouteDataset(datasetId);
+      if (!datasetDeleteResult.success) {
+        toast.error(datasetDeleteResult.error || 'Kunde inte ta bort optimering');
+        return;
+      }
+
+      setDatasets(prev => prev.filter(d => d.datasetId !== datasetId));
+      setExperiments(prev => prev.filter(e => e.sourceDatasetId !== datasetId));
+
+      toast.success('Optimering borttagen');
     } catch {
-      toast.error('Fel vid borttagning av dataset');
+      toast.error('Fel vid borttagning av optimering');
     }
   };
 
-  const handleRequestDelete = (id: string) => {
-    const dataset = datasets.find(d => d.id === id);
+  const handleRequestDelete = (datasetId: string) => {
+    const dataset = datasets.find(d => d.datasetId === datasetId);
+    const opt = optimizations.find(o => o.sourceDatasetId === datasetId);
+
+    if (opt?.isOptimizing) {
+      return;
+    }
+
     setConfirmDeleteTarget({
-      id,
-      name: dataset?.name || ''
+      id: datasetId,
+      name: opt?.name || dataset?.name || ''
     });
   };
 
   const handleConfirmDelete = async () => {
     if (!confirmDeleteTarget) return;
     await handleDelete(confirmDeleteTarget.id);
-    if (editing?.id === confirmDeleteTarget.id) setEditing(null);
+    // Close edit dialog if we deleted the dataset being edited
+    if (editingExperiment?.sourceDatasetId === confirmDeleteTarget.id) setEditingExperiment(null);
     setConfirmDeleteTarget(null);
   };
 
@@ -242,21 +295,214 @@ export default function SavedDatasetsTab() {
     }
   };
 
-  // Convert RouteDataset to SavedOptimization format
+  const getExpectedVehicleCount = (
+    dataset: RouteDataset | undefined,
+    experiment?: ExperimentWithDocId
+  ) => {
+    if (typeof dataset?.fleetVehicleCount === 'number' && dataset.fleetVehicleCount > 0) {
+      return dataset.fleetVehicleCount;
+    }
+
+    if (
+      typeof experiment?.expectedTruckPlanCount === 'number' &&
+      experiment.expectedTruckPlanCount > 0
+    ) {
+      return experiment.expectedTruckPlanCount;
+    }
+
+    return (
+      dataset?.fleetConfiguration?.reduce(
+        (sum, fleet) => sum + (fleet.vehicles?.length || 0),
+        0
+      ) || 0
+    );
+  };
+
+  const handleShowHistory = (opt: SavedOptimization) => {
+    setExpandedHistoryId(expandedHistoryId === opt.id ? null : opt.id);
+  };
+
+  const handleLoadVersion = (opt: SavedOptimization, version: OptimizationVersion) => {
+    navigate(`/optimize/${version.id}`);
+  };
+
   const optimizations: SavedOptimization[] = useMemo(() => {
-    return datasets.map(dataset => ({
-      id: dataset.id,
-      name: dataset.name,
-      description: dataset.description,
-      selectedRoutes: [], // Not applicable for datasets
-      filters: dataset.filterCriteria,
-      createdAt: dataset.uploadTimestamp,
-      archived: false,
-      breaks: dataset.optimizationSettings?.breaks,
-      extraBreaks: dataset.optimizationSettings?.extraBreaks,
-      vehicles: []
-    }));
-  }, [datasets]);
+    const latestExperimentByDataset = new Map<string, ExperimentWithDocId>();
+    const experimentCountByDataset = new Map<string, number>();
+    const experimentsByDataset = new Map<string, ExperimentWithDocId[]>();
+
+    experiments.forEach(exp => {
+      const datasetId = exp.sourceDatasetId;
+      if (!datasetId) return;
+
+      experimentCountByDataset.set(datasetId, (experimentCountByDataset.get(datasetId) || 0) + 1);
+
+      const list = experimentsByDataset.get(datasetId) || [];
+      list.push(exp);
+      experimentsByDataset.set(datasetId, list);
+
+      const current = latestExperimentByDataset.get(datasetId);
+      if (!current) {
+        latestExperimentByDataset.set(datasetId, exp);
+      } else {
+        const currentDate = new Date(current.createdAt || current.startDate || 0).getTime();
+        const expDate = new Date(exp.createdAt || exp.startDate || 0).getTime();
+        if (expDate > currentDate) {
+          latestExperimentByDataset.set(datasetId, exp);
+        }
+      }
+    });
+
+    const result: SavedOptimization[] = [];
+
+    latestExperimentByDataset.forEach((latestExp, datasetId) => {
+      const dataset = datasets.find(d => d.datasetId === datasetId);
+
+      const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
+
+      const isOwnOptimization = runningOptimizations.has(datasetId) || completedOptimizations.has(datasetId);
+      const completionInfo = completedOptimizations.get(datasetId);
+      const failedFromCompletion = completionInfo && !completionInfo.hadSuccessfulPlans;
+      const failed = isExperimentFailed(latestExp) || !!failedFromCompletion;
+      if (isExperimentOptimizing(latestExp) && !isOwnOptimization) {
+        return;
+      }
+
+      const isComplete = isExperimentComplete(latestExp, expectedVehicleCount);
+
+      if (!isComplete && !failed && !isOwnOptimization) {
+        return;
+      }
+      const experimentCount = experimentCountByDataset.get(datasetId) || 1;
+
+      const versions: OptimizationVersion[] = experimentsByDataset.get(datasetId)
+        ?.sort((a, b) => new Date(b.createdAt || b.startDate || 0).getTime() - new Date(a.createdAt || a.startDate || 0).getTime())
+        .map(exp => {
+          const breaks = exp.optimizationSettings?.breaks || [];
+          const extraBreaks = exp.optimizationSettings?.extraBreaks || [];
+          const enabledBreakCount = [...breaks, ...extraBreaks].filter(b => b.enabled).length;
+
+          return {
+            id: exp.documentId,
+            timestamp: exp.createdAt || exp.startDate || '',
+            label: exp.name || exp.datasetName || 'Version',
+            vehicleCount: exp.vroomTruckPlanIds?.length || 0,
+            isOptimizing: isExperimentOptimizing(exp),
+            bookingCount: exp.baselineStatistics?.bookingCount,
+            breakCount: enabledBreakCount > 0 ? enabledBreakCount : undefined,
+          };
+        }) || [];
+
+      result.push({
+        id: datasetId,
+        name: latestExp.name || latestExp.datasetName || dataset?.name || 'Unnamed',
+        description: latestExp.description || dataset?.description,
+        selectedRoutes: [],
+        filters: dataset?.filterCriteria,
+        createdAt: latestExp.createdAt || latestExp.startDate,
+        archived: false,
+        breaks: latestExp.optimizationSettings?.breaks || dataset?.optimizationSettings?.breaks,
+        extraBreaks: latestExp.optimizationSettings?.extraBreaks || dataset?.optimizationSettings?.extraBreaks,
+        vehicles: latestExp.emitters || [],
+        latestExperimentId: latestExp.documentId,
+        experimentCount,
+        experimentId: latestExp.documentId,
+        sourceDatasetId: datasetId,
+        isLatestVersion: true,
+        versions,
+        vehicleCount: latestExp.vroomTruckPlanIds?.length || 0,
+        isOptimizing: runningOptimizations.has(datasetId),
+        isFailed: failed,
+      });
+    });
+
+    return result;
+  }, [datasets, experiments, runningOptimizations, completedOptimizations]);
+
+  const currentOptimizationId = useMemo(() => {
+    const optimizing = optimizations.find(opt => opt.isOptimizing === true);
+    return optimizing?.id;
+  }, [optimizations]);
+
+  const handleCancelOptimization = async (id: string) => {
+    cancelOptimization(id);
+
+    try {
+      const result = await cancelSimulationByDataset(id);
+      if (!result.success) {
+        toast.error(result.error || 'Kunde inte avbryta optimeringen');
+        await loadDatasets();
+        return;
+      }
+
+      if (result.reason === 'dataset_mismatch') {
+        toast.error('En annan simulering är aktiv');
+      } else {
+        toast.success('Optimering avbruten');
+      }
+
+      await loadDatasets();
+    } catch {
+      toast.error('Kunde inte avbryta optimeringen');
+      await loadDatasets();
+    }
+  };
+
+  useEffect(() => {
+    if (completedOptimizations.size === 0) return;
+
+    const completedIds = Array.from(completedOptimizations.keys());
+
+    const loadWithRetry = async (retriesLeft: number, delay: number) => {
+      try {
+        const [datasetsData, experimentsData] = await Promise.all([
+          getRouteDatasets(),
+          getExperiments(),
+        ]);
+
+        const allFresh = completedIds.every(datasetId => {
+          const dataset = datasetsData.find(d => d.datasetId === datasetId);
+
+          const latestExp = (experimentsData as ExperimentWithDocId[])
+            .filter(e => e.sourceDatasetId === datasetId)
+            .sort((a, b) =>
+              new Date(b.createdAt || b.startDate || 0).getTime() -
+              new Date(a.createdAt || a.startDate || 0).getTime()
+            )[0];
+          const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
+
+          return isExperimentComplete(latestExp, expectedVehicleCount) || isExperimentFailed(latestExp);
+        });
+
+        if (!allFresh && retriesLeft > 0) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return loadWithRetry(retriesLeft - 1, delay * 2);
+        }
+
+        setDatasets(datasetsData);
+        setExperiments(experimentsData as ExperimentWithDocId[]);
+
+        completedIds.forEach(id => {
+          const dataset = datasetsData.find(d => d.datasetId === id);
+          const latestExp = (experimentsData as ExperimentWithDocId[])
+            .filter(e => e.sourceDatasetId === id)
+            .sort((a, b) =>
+              new Date(b.createdAt || b.startDate || 0).getTime() -
+              new Date(a.createdAt || a.startDate || 0).getTime()
+            )[0];
+          const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
+
+          if (isExperimentComplete(latestExp, expectedVehicleCount) || isExperimentFailed(latestExp)) {
+            markAsViewed(id);
+          }
+        });
+      } catch {
+      }
+    };
+
+    loadWithRetry(3, 500);
+  }, [completedOptimizations, markAsViewed]);
+
 
   const query = search.trim().toLowerCase();
   const filtered = optimizations.filter(o => {
@@ -288,7 +534,7 @@ export default function SavedDatasetsTab() {
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Laddar datasets...</p>
+          <p className="mt-2 text-gray-600">Laddar optimeringar...</p>
         </div>
       </div>
     );
@@ -298,14 +544,14 @@ export default function SavedDatasetsTab() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-4">
-          <CardTitle className="text-2xl font-normal">Sparade Datasets</CardTitle>
+          <CardTitle className="text-2xl font-normal">Sparade optimeringar</CardTitle>
           <div className="flex items-center gap-2">
             <Input 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
               placeholder="Sök..." 
               className="h-9 w-[200px] sm:w-[260px]" 
-              aria-label="Sök sparade datasets" 
+              aria-label="Sök sparade optimeringar" 
             />
             <ToggleGroup 
               type="single" 
@@ -356,8 +602,8 @@ export default function SavedDatasetsTab() {
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-medium">Inga sparade datasets</h3>
-                <p className="text-muted-foreground">När du sparat ditt första dataset hittar du det här</p>
+                <h3 className="text-lg font-medium">Inga sparade optimeringar</h3>
+                <p className="text-muted-foreground">När du sparat din första optimering hittar du den här</p>
               </div>
             </div>
           </div>
@@ -379,7 +625,12 @@ export default function SavedDatasetsTab() {
             sortKey={sortKey}
             sortDir={sortDir}
             onRequestSort={handleRequestSort}
-            loadingId={startingSimulation}
+            loadingId={navigatingId}
+            expandedHistoryId={expandedHistoryId}
+            onShowHistory={handleShowHistory}
+            onLoadVersion={handleLoadVersion}
+            currentOptimizationId={currentOptimizationId}
+            onCancelOptimization={handleCancelOptimization}
           />
         ) : (
           <SavedOptimizationsGrid
@@ -387,32 +638,38 @@ export default function SavedDatasetsTab() {
             onOpen={handleOpen}
             onDelete={handleRequestDelete}
             onEditName={handleOpenEdit}
-            loadingId={startingSimulation}
+            loadingId={navigatingId}
+            expandedHistoryId={expandedHistoryId}
+            onShowHistory={handleShowHistory}
+            onLoadVersion={handleLoadVersion}
+            currentOptimizationId={currentOptimizationId}
+            onCancelOptimization={handleCancelOptimization}
           />
         )}
 
-        <Dialog open={!!editing} onOpenChange={open => {
+        <Dialog open={!!editingExperiment} onOpenChange={open => {
           if (!open) handleCloseEdit();
         }}>
           <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-normal">Redigera dataset</DialogTitle>
-              <DialogDescription>Uppdatera inställningar för datasetet.</DialogDescription>
+              <DialogTitle className="text-2xl font-normal">Redigera optimering</DialogTitle>
+              <DialogDescription>
+                Ändra inställningar för denna optimering. En ny version sparas med de nya inställningarna.
+              </DialogDescription>
             </DialogHeader>
             
-            {editing && (
+            {editingExperiment && (
               <div className="space-y-8">
-                  {/* Datasetdetaljer */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium">Datasetdetaljer</h3>
+                    <h3 className="text-lg font-medium">Optimeringsdetaljer</h3>
                     <div className="space-y-2">
-                      <Label htmlFor="edit-name">Datasetnamn</Label>
+                      <Label htmlFor="edit-name">Namn</Label>
                       <Input 
                         id="edit-name" 
                         value={editName} 
                         onChange={e => setEditName(e.target.value)} 
                         autoFocus 
-                        aria-label="Datasetnamn"
+                        aria-label="Namn"
                       />
                     </div>
                     <div className="space-y-2">
@@ -421,36 +678,45 @@ export default function SavedDatasetsTab() {
                         id="edit-description" 
                         value={editDescription} 
                         onChange={e => setEditDescription(e.target.value)} 
-                        aria-label="Datasetbeskrivning" 
+                        aria-label="Beskrivning" 
                         className="min-h-[80px]" 
                       />
                     </div>
                   </div>
 
-                  {/* Arbetsinställningar */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Arbetsinställningar</h3>
                     
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <Label>Starttid</Label>
-                        <Input
-                          type="time"
-                          value={editStartTime}
-                          onChange={(e) => setEditStartTime(e.target.value)}
-                          min="05:00"
-                          max="10:00"
-                        />
+                        <Select value={editStartTime} onValueChange={setEditStartTime}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Välj starttid" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px] overflow-y-auto">
+                            {startTimeOptions.map((time) => (
+                              <SelectItem key={time} value={time}>
+                                {time}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label>Sluttid</Label>
-                        <Input
-                          type="time"
-                          value={editEndTime}
-                          onChange={(e) => setEditEndTime(e.target.value)}
-                          min="13:00"
-                          max="18:00"
-                        />
+                        <Select value={editEndTime} onValueChange={setEditEndTime}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Välj sluttid" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px] overflow-y-auto">
+                            {endTimeOptions.map((time) => (
+                              <SelectItem key={time} value={time}>
+                                {time}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground pt-2">
@@ -458,7 +724,6 @@ export default function SavedDatasetsTab() {
                     </p>
                   </div>
 
-                  {/* Raster */}
                   <BreaksSection
                     breaks={editBreaks}
                     extraBreaks={editExtraBreaks}
@@ -473,12 +738,12 @@ export default function SavedDatasetsTab() {
             <DialogFooter>
               <div className="flex items-center gap-2 mr-auto">
                 <Button 
-                  variant="secondary-destructive" 
+                  variant="secondary-destructive"
                   onClick={() => {
-                    if (!editing) return;
+                    if (!editingExperiment?.sourceDatasetId) return;
                     setConfirmDeleteTarget({
-                      id: editing.id,
-                      name: editName.trim() || editing.name
+                      id: editingExperiment.sourceDatasetId,
+                      name: editName.trim() || editingExperiment.name || editingExperiment.datasetName || ''
                     });
                   }}
                 >
@@ -486,7 +751,7 @@ export default function SavedDatasetsTab() {
                 </Button>
               </div>
               
-              <Button onClick={handleSaveEdit} disabled={!editName.trim()}>Spara</Button>
+              <Button onClick={handleSaveEdit} disabled={!editName.trim()}>Spara som ny version</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

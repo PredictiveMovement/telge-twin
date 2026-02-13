@@ -158,7 +158,12 @@ class Fleet {
           spec.fackDetails.forEach((fack: any) => {
             const types = (fack.avfallstyper || []).map((w: any) => w.avftyp).filter(Boolean)
             types.forEach((typeId: string) => {
-              if (recyclingTypeCoverage.hasOwnProperty(typeId)) {
+              if (
+                Object.prototype.hasOwnProperty.call(
+                  recyclingTypeCoverage,
+                  typeId
+                )
+              ) {
                 recyclingTypeCoverage[typeId]++
               }
             })
@@ -404,7 +409,8 @@ class Fleet {
    * directly onto the truck queue without further optimisation.
    */
   startReplayDispatcher(replayExperimentId: string) {
-    info(`Starting replay dispatcher for fleet ${this.name}`)
+    const vroomPlanIds = this.settings?.vroomTruckPlanIds || []
+    info(`Starting replay dispatcher for fleet ${this.name}, experimentId=${replayExperimentId}, vroomTruckPlanIds=${JSON.stringify(vroomPlanIds)}`)
 
     this.dispatchedBookings = this.unhandledBookings.pipe(
       bufferTime(1000),
@@ -449,29 +455,48 @@ class Fleet {
           .subscribe()
 
         //Get the vehicle saved plans with vroom data from elasticsearch
+        // Use vroomTruckPlanIds from settings if available for direct lookup
+        const vroomTruckPlanIds: string[] = this.settings?.vroomTruckPlanIds || []
+
         return from(cars).pipe(
           mergeMap((truck: any) => {
             return from(
               (async () => {
                 try {
-                  const searchQuery = {
-                    index: 'vroom-truck-plans',
-                    body: {
-                      query: {
-                        bool: {
-                          must: [
-                            {
-                              term: {
-                                experiment: replayExperimentId,
-                              },
-                            },
-                            { term: { truckId: String(truck.id) } },
-                          ],
-                        },
+                  // First, try to find a matching planId from vroomTruckPlanIds
+                  // PlanIds are formatted as: {experimentId}-{truckId}
+                  const matchingPlanId = vroomTruckPlanIds.find(
+                    (planId: string) => planId.endsWith(`-${truck.id}`)
+                  )
+
+                  let searchQuery: any
+                  if (matchingPlanId) {
+                    // Direct lookup by planId (works for copied experiments)
+                    searchQuery = {
+                      index: 'truck-plans',
+                      body: {
+                        query: { term: { _id: matchingPlanId } },
+                        size: 1,
                       },
-                      sort: [{ timestamp: { order: 'desc' } }],
-                      size: 1,
-                    },
+                    }
+                  } else {
+                    // Fallback: search by experimentId and truckId
+                    searchQuery = {
+                      index: 'truck-plans',
+                      body: {
+                        query: {
+                          bool: {
+                            must: [
+                              { term: { experimentId: replayExperimentId } },
+                              { term: { truckId: String(truck.id) } },
+                              { term: { planType: 'complete' } },
+                            ],
+                          },
+                        },
+                        sort: [{ timestamp: { order: 'desc' } }],
+                        size: 1,
+                      },
+                    }
                   }
 
                   const planResult = await require('./elastic').search(

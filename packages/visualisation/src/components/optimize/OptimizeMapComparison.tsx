@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
+import { toast } from '@/hooks/use-toast'
 import {
   Maximize2,
   List,
@@ -45,10 +45,15 @@ type ControlMode = 'synchronized' | 'individual'
 type MapColumn = 'current' | 'optimized'
 
 const speedOptions = [
-  { value: 0.5, label: '0.5x' },
   { value: 1, label: '1x' },
-  { value: 1.5, label: '1.5x' },
-  { value: 2, label: '2x' },
+  { value: 10, label: '10x' },
+  { value: 20, label: '20x' },
+  { value: 30, label: '30x' },
+  { value: 60, label: '60x' },
+  { value: 120, label: '120x' },
+  { value: 300, label: '300x' },
+  { value: 600, label: '600x' },
+  { value: 900, label: '900x' },
 ]
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -74,7 +79,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
   const [controlMode, setControlMode] = useState<ControlMode>('synchronized')
   const [currentProgress, setCurrentProgress] = useState([0])
   const [optimizedProgress, setOptimizedProgress] = useState([0])
-  const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [playbackSpeed, setPlaybackSpeed] = useState(60)
   const [mapZoom, setMapZoom] = useState(12)
 
   // Current map state (left)
@@ -263,13 +268,12 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
 
   const handleSpeedChange = (target: MapColumn, speed: number) => {
     setPlaybackSpeed(speed)
-    const sessionSpeed = Math.max(1, Math.round(speed * 60))
 
     if (isSynchronized || target === 'current') {
-      currentSimulation.setSpeed(sessionSpeed)
+      currentSimulation.setSpeed(speed)
     }
     if (isSynchronized || target === 'optimized') {
-      optimizedSimulation.setSpeed(sessionSpeed)
+      optimizedSimulation.setSpeed(speed)
     }
   }
 
@@ -299,7 +303,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
       target === 'current' ? currentSimulation : optimizedSimulation
 
     if (target === 'current' && !sequentialDatasetId) {
-      toast('Saknar dataset för att starta sekventiell simulering')
+      toast.info('Saknar dataset för att starta sekventiell simulering')
       return false
     }
 
@@ -316,7 +320,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
         }
       } catch (err: any) {
         const message = err?.message || 'Kunde inte starta simuleringen'
-        toast(message)
+        toast.error(message)
         return false
       }
     } else if (!simulation.isTimeRunning) {
@@ -582,15 +586,15 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
 
             {!simulation.isConnected && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-black/70 text-white px-4 py-2 rounded-md text-sm">
+                <div className="bg-black text-white px-4 py-2 rounded-md text-sm">
                   Ingen anslutning till servern
                 </div>
               </div>
             )}
 
             {simulation.error && (
-              <div className="absolute inset-x-4 bottom-4">
-                <div className="bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-md text-sm shadow-lg">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-destructive text-destructive-foreground px-4 py-2 rounded-md text-sm">
                   {simulation.error}
                 </div>
               </div>
@@ -598,7 +602,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
 
             {!simulation.isRunning && !simulation.error && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-black/60 text-white px-4 py-2 rounded-md text-sm">
+                <div className="bg-black text-white px-4 py-2 rounded-md text-sm">
                   Tryck på play för att starta simuleringen
                 </div>
               </div>

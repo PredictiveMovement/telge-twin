@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
+import { toast } from '@/hooks/use-toast'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

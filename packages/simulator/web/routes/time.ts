@@ -8,6 +8,8 @@ export function register(
 ) {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const virtualTime = (experiment as { virtualTime: any }).virtualTime
+  const parameters = (experiment as { parameters?: { dispatchReady?: boolean } })
+    .parameters
 
   if (socket.data.timeControlsRegistered) {
     return []
@@ -20,6 +22,9 @@ export function register(
       virtualTime.reset()
     })
     socket.on('play', () => {
+      if (!parameters?.dispatchReady) {
+        return
+      }
       virtualTime.play()
     })
     socket.on('pause', () => {

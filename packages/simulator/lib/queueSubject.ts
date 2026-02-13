@@ -1,5 +1,4 @@
 import { Subject, mergeMap, catchError, from, delay } from 'rxjs'
-import { error } from './log'
 
 // Configurable settings for API rate limiting
 const API_CALL_LIMIT = parseInt(process.env.VROOM_CONCURRENT_LIMIT || '1')
@@ -26,7 +25,6 @@ queueSubject
             return []
           }),
           catchError((err) => {
-            error('Queue execution error', err)
             reject(err)
             return []
           })

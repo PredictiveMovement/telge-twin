@@ -24,7 +24,7 @@ describe('vroom mapping utilities', () => {
       fleet: booking.fleet,
     })
     const expectedVolume = Math.round(200 * 0.5 * COMPRESSION) // 200L * 50% * compression
-    const expectedWeight = (expectedVolume / 1000) * 100
+    const expectedWeight = Math.round((expectedVolume / 1000) * 100) // vroom.ts uses Math.round() on weight
     expect(shipment).toMatchObject({
       id: 0,
       amount: [expectedVolume, expectedWeight],

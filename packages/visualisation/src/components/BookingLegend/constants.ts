@@ -6,7 +6,7 @@ export const BOOKING_COLORS = {
   organic: [139, 69, 19],
   DELIVERED: [128, 128, 128],
   PICKED_UP: [255, 165, 0],
-  UNREACHABLE: [255, 140, 0],
+  UNREACHABLE: [220, 50, 50],
   ASSIGNED: [100, 150, 255],
   QUEUED: [200, 100, 255],
   default: [254, 254, 254],

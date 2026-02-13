@@ -9,6 +9,17 @@ interface MapSocketState {
   virtualTime: number | null
 }
 
+const normalizeVirtualTime = (value: unknown): number | null => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string' || value instanceof Date) {
+    const parsed = new Date(value).getTime()
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 export const useMapSocket = () => {
   const [state, setState] = useState<MapSocketState>({
     socket: null,
@@ -51,10 +62,14 @@ export const useMapSocket = () => {
       }))
     })
 
-    socket.on('time', (time: number) => {
+    socket.on('time', (time: unknown) => {
+      const normalizedTime = normalizeVirtualTime(time)
+      if (normalizedTime === null) {
+        return
+      }
       setState((prev) => ({
         ...prev,
-        virtualTime: time,
+        virtualTime: normalizedTime,
       }))
     })
 
@@ -121,6 +136,12 @@ export const useMapSocket = () => {
     [state.socket]
   )
 
+  const stopSimulation = useCallback(() => {
+    if (state.socket) {
+      state.socket.emit('stopSimulation')
+    }
+  }, [state.socket])
+
   return {
     ...state,
     joinMap,
@@ -131,5 +152,6 @@ export const useMapSocket = () => {
     pauseTime,
     resetTime,
     setTimeSpeed,
+    stopSimulation,
   }
 }

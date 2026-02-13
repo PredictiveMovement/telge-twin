@@ -13,11 +13,11 @@
  * Maximum number of bookings allowed in a single cluster before forcing subdivision
  * Used in: clustering.ts - splits large clusters to maintain performance
  * Impact: Prevents VROOM timeouts, ensures manageable route planning
- * Value reasoning: 500 allows VROOM to optimize entire truck routes without subdivision.
- * With 2min timeout, VROOM can handle up to ~300 shipments effectively.
- * Set to 500 to match MAX_VROOM_SHIPMENTS and avoid unnecessary geographic splits.
+ * Value reasoning: Must match MAX_VROOM_SHIPMENTS (300) to ensure all bookings
+ * are optimized by VROOM without triggering the "too many shipments" error.
+ * Larger clusters are split geographically via simpleGeographicSplit().
  */
-const MAX_CLUSTER_SIZE = 500
+const MAX_CLUSTER_SIZE = 300
 
 // ========================================================================
 // TIMING CONFIGURATION
@@ -73,7 +73,7 @@ const MAX_VROOM_JOBS = 200
  * Used in: vroom.ts - validates shipment count
  * Impact: Higher values slow down route optimization
  * Technical limit: ~500, Recommended: 200
- * Updated to 500 to handle larger truck routes without fallback
+ * Must match MAX_CLUSTER_SIZE to avoid fallback to sequential
  */
 const MAX_VROOM_SHIPMENTS = 300
 
@@ -207,10 +207,26 @@ const VOLUME_COMPRESSION_FACTOR = 0.25
 // ========================================================================
 
 /**
+ * Delivery strategy type
+ * - 'capacity_based': Deliver when compartment is full or cargo count reaches threshold
+ * - 'end_of_route': Only deliver after all pickups are completed
+ */
+type DeliveryStrategy = 'capacity_based' | 'end_of_route'
+
+/**
+ * Default delivery strategy for vehicles
+ * Used in: truck.ts - determines when to trigger delivery trips
+ * Impact: 'capacity_based' = multiple delivery trips during route,
+ *         'end_of_route' = single delivery at route completion
+ */
+const DEFAULT_DELIVERY_STRATEGY: DeliveryStrategy = 'end_of_route'
+
+/**
  * Number of pickups before forcing a delivery trip
  * Used in: truck.ts - controls cargo management strategy
  * Impact: Higher values = more efficient routes but longer customer wait times
  * Recommended range: 10-100 depending on truck capacity
+ * Only applies when using 'capacity_based' delivery strategy
  */
 const PICKUPS_BEFORE_DELIVERY = 150
 
@@ -263,6 +279,7 @@ export const CLUSTERING_CONFIG = {
 
   // Delivery configuration
   DELIVERY_STRATEGIES: {
+    DEFAULT_DELIVERY_STRATEGY,
     PICKUPS_BEFORE_DELIVERY,
   },
 

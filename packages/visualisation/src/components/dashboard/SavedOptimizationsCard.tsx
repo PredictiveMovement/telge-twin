@@ -6,12 +6,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { FolderOpen, ArrowRight } from 'lucide-react'
+import { FileText, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { getRouteDatasets, type RouteDataset } from '@/api/simulator'
-import { toast } from 'sonner'
+import { toast } from '@/hooks/use-toast'
 
 const PaperIcon: React.FC<{ className?: string }> = ({ className }) => {
   const [isAnimating, setIsAnimating] = useState(false)
@@ -292,7 +292,7 @@ const SavedOptimizationsCard: React.FC = () => {
 
   const handleOptimizationClick = (_opt: SavedOptimization) => {
     // Navigate to datasets tab where user can start simulation
-    navigate('/routes?tab=datasets')
+    navigate('/routes?tab=optimizations')
   }
 
   if (loading) {
@@ -344,39 +344,38 @@ const SavedOptimizationsCard: React.FC = () => {
           Sparade optimeringar
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-1">
-        {optimizations.map((opt) => (
-          <button
-            key={opt.id}
-            onClick={() => handleOptimizationClick(opt)}
-            className="w-full flex items-center justify-between p-4 rounded-lg hover:bg-muted/50 transition-colors text-left group"
-          >
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <FolderOpen
-                size={18}
-                className="text-muted-foreground shrink-0"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium truncate group-hover:text-secondary transition-colors">
-                  {opt.name}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(opt.createdAt), 'dd MMM yyyy', {
-                    locale: sv,
-                  })}
-                </p>
+      <CardContent className="flex flex-col min-h-[320px] pb-0">
+        <div className="space-y-1 flex-1">
+          {optimizations.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => handleOptimizationClick(opt)}
+              className="w-full flex items-center justify-between p-4 rounded-lg hover:bg-muted/50 transition-colors text-left group relative after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:bg-border after:transition-all after:duration-200 hover:after:opacity-0"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <FileText size={18} className="shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate group-hover:text-secondary transition-colors">
+                    {opt.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(opt.createdAt), 'dd MMM yyyy', {
+                      locale: sv,
+                    })}
+                  </p>
+                </div>
               </div>
-            </div>
-            <ArrowRight size={16} className="text-muted-foreground shrink-0" />
-          </button>
-        ))}
-
-        <div className="flex justify-center">
+              <ArrowRight size={16} className="text-muted-foreground shrink-0" />
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex justify-center mt-auto">
           <Button
             variant="ghost"
             size="lg"
-            className="mt-2 text-sm text-muted-foreground hover:text-foreground"
-            onClick={() => navigate('/routes?tab=datasets')}
+            className="mt-2 text-sm text-muted-foreground hover:text-secondary"
+            onClick={() => navigate('/routes?tab=optimizations')}
           >
             Se alla optimeringar
           </Button>

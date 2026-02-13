@@ -229,6 +229,10 @@ export class Booking<TPassenger = unknown> {
     reason?: string,
     date = virtualTime.getTimeInMillisecondsAsPromise()
   ): Promise<void> {
+    // Never overwrite terminal statuses — picked-up bookings will be
+    // delivered at the depot, and delivered bookings are already done
+    if (this.status === 'Delivered' || this.status === 'Picked up') return
+
     this.deliveryTime = await date
     if (reason) {
       ;(this as any).unreachableReason = reason
