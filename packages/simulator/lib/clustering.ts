@@ -4,6 +4,7 @@ import { error, info } from './log'
 import { update as esUpdate } from './elastic'
 import { CLUSTERING_CONFIG } from './config'
 import { extractCoordinates } from './utils/coordinates'
+import { shouldLogExperimentCancellation } from './cancelledExperiments'
 
 // Using Turf's distance function for consistency
 const haversineDistance = (
@@ -597,7 +598,11 @@ async function saveAreaPartitionsToElastic(
       } partitions for trucks [${savingTruckIds.join(', ')}]`
     )
   } catch (e: any) {
+    // Check if experiment was deleted (e.g., cancelled by user)
     if (e?.meta?.body?.error?.type === 'document_missing_exception') {
+      if (shouldLogExperimentCancellation(experimentId)) {
+        info(`   ⚠️ Experiment ${experimentId} was deleted - optimization cancelled`)
+      }
       return
     }
     error('Unexpected error saving area partitions (atomic update):', e)

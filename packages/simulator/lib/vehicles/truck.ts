@@ -3,9 +3,9 @@ import {
   useReplayRoute,
   saveCompletePlanForReplay,
   reportDispatchError,
-} from '../dispatch/truckDispatch'
-import { isVroomPlanningCancelledError } from '../vroom'
-import { warn, error as logError, info } from '../log'
+} = require('../dispatch/truckDispatch')
+const { isVroomPlanningCancelledError } = require('../vroom')
+const { warn, error: logError } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
 import {
@@ -716,11 +716,7 @@ class Truck extends Vehicle {
     if (this.plan.length === 0) {
       // If we still have cargo, insert a delivery stop and continue
       if (this.cargo.length > 0) {
-        const osrm = require('../osrm')
-        const depotRoute = await this.runWithoutAdvancing(() =>
-          osrm.route(this.position, this.startPosition)
-        )
-        this.plan.unshift(this.createInstruction('delivery', null, { route: depotRoute }))
+        this.plan.unshift(this.createInstruction('delivery'))
         return this.pickNextInstructionFromPlan()
       }
 
@@ -743,7 +739,7 @@ class Truck extends Vehicle {
 
       if (!atDepot) {
         this.setStatus('returning')
-        await this.navigateToDepot()
+        await this.navigateTo(this.startPosition)
         return
       }
 
@@ -816,7 +812,7 @@ class Truck extends Vehicle {
     }
 
     try {
-      await this.virtualTime.wait(CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS * 1000)
+      await this.virtualTime.wait(20 * 1000)
     } catch (err: any) {
       logError(`[truck ${this.id}] pickup wait error, continuing:`, err?.message || err)
     }
@@ -851,26 +847,12 @@ class Truck extends Vehicle {
         const nextInstruction = this.plan[0]
 
         if (!nextInstruction || nextInstruction.action !== 'delivery') {
-          // Compute routes for the unplanned depot trip:
-          // 1. Current position → depot (delivery)
-          // 2. Depot → next pickup (return from depot)
-          const osrm = require('../osrm')
-          const depotRoute = await this.runWithoutAdvancing(async () => {
-            const toDepot = await osrm.route(this.position, this.startPosition)
-            // Fix next pickup's route: it was precomputed from previous pickup,
-            // but now the truck will be at depot after delivery
-            if (nextInstruction) {
-              const nextTarget = this.getInstructionTarget(nextInstruction)
-              if (nextTarget) {
-                nextInstruction.route = await osrm.route(this.startPosition, nextTarget)
-              }
-            }
-            return toDepot
+          this.plan.unshift({
+            action: 'delivery',
+            arrival: 0,
+            departure: 0,
+            booking: null,
           })
-
-          this.plan.unshift(
-            this.createInstruction('delivery', null, { route: depotRoute })
-          )
         }
       }
     }
@@ -1080,11 +1062,62 @@ class Truck extends Vehicle {
         if (this.fleet.settings.replayExperiment) {
           this.plan = await useReplayRoute(this, this.queue)
 
-          // Ensure area partitions are saved for this truck in replay as well
-          try {
-            createSpatialChunks(this.queue, experimentId, this.id)
-          } catch (e) {
-            // non-fatal
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(
+                new Error(
+                  `VROOM planning timeout after ${CLUSTERING_CONFIG.VROOM_TIMEOUT_MS}ms`
+                )
+              )
+            }, CLUSTERING_CONFIG.VROOM_TIMEOUT_MS)
+          })
+
+          this.plan = await Promise.race([vroomPromise, timeoutPromise])
+
+          // Remove any bookings that could not be scheduled within the shift
+          this.queue = this.queue.filter(
+            (queued: any) => queued?.status !== 'Unreachable'
+          )
+
+          if (this.plan) {
+            // Use planGroupId from fleet settings, fallback to experimentId
+            const planGroupId = this.fleet?.settings?.planGroupId || experimentId
+            await saveCompletePlanForReplay(
+              planGroupId,
+              this.id,
+              this.fleet?.name || this.id,
+              this.plan,
+              this.queue,
+              this.fleet?.settings?.createReplay ?? true
+            )
+            // Ensure area partitions are saved for this truck as well
+            try {
+              createSpatialChunks(this.queue, experimentId, this.id)
+            } catch (e) {
+              // non-fatal
+            }
+          } else {
+            throw new Error('VROOM returned null plan')
+          }
+        } catch (error: any) {
+          const failedBookingCount = this.queue.length
+          this.plan = []
+          this.skipQueueUnreachableMarking = true
+          this.queue = []
+          if (!isVroomPlanningCancelledError(error)) {
+            logError(`VROOM planning failed for truck ${this.id}`, {
+              experimentId,
+              truckId: this.id,
+              error: error.message,
+              bookingCount: failedBookingCount,
+            })
+
+            await reportDispatchError(
+              experimentId,
+              this.id,
+              this.fleet?.name || this.id,
+              error.message || 'VROOM planning failed'
+            )
           }
         } else {
           try {

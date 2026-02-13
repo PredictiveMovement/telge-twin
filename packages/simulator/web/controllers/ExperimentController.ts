@@ -9,10 +9,6 @@ import {
   clearExperimentCancelled,
   markExperimentCancelled,
 } from '../../lib/cancelledExperiments'
-import {
-  buildBreakSettings,
-  buildWorkdaySettings,
-} from '../../lib/optimizationSettings'
 import engine from '../../index'
 
 export class ExperimentController {
@@ -473,19 +469,19 @@ export class ExperimentController {
 
     // Use experiment's optimizationSettings first (source of truth), then fall back to dataset
     const workdaySettings =
-      buildWorkdaySettings(
+      this.buildWorkdaySettings(
         experimentData?.optimizationSettings?.workingHours
       ) ||
-      buildWorkdaySettings(
+      this.buildWorkdaySettings(
         datasetData?.optimizationSettings?.workingHours
       ) ||
-      buildWorkdaySettings(experimentData?.settings?.workday)
+      this.buildWorkdaySettings(experimentData?.settings?.workday)
     const breakSettings =
-      buildBreakSettings(
+      this.buildBreakSettings(
         experimentData?.optimizationSettings?.breaks,
         experimentData?.optimizationSettings?.extraBreaks
       ) ||
-      buildBreakSettings(
+      this.buildBreakSettings(
         datasetData?.optimizationSettings?.breaks,
         datasetData?.optimizationSettings?.extraBreaks
       ) ||
@@ -560,6 +556,20 @@ export class ExperimentController {
     if (!datasetData) {
       throw new Error('Dataset not found for sequential session')
     }
+
+    const datasetOriginalSettings =
+      (datasetData?.originalSettings as Record<string, unknown>) || {}
+    const clientFleetSettings =
+      (parameters?.fleets?.['Södertälje kommun']?.settings as
+        | Record<string, unknown>
+        | undefined) || {}
+    const clientFleetConfiguration = parameters?.fleets?.['Södertälje kommun']
+      ?.fleets
+    const fleetConfiguration =
+      Array.isArray(clientFleetConfiguration) &&
+      clientFleetConfiguration.length > 0
+        ? clientFleetConfiguration
+        : datasetData?.fleetConfiguration || []
 
     const datasetOriginalSettings =
       (datasetData?.originalSettings as Record<string, unknown>) || {}

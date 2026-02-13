@@ -22,15 +22,31 @@ export interface SavedOptimization {
   name: string;
   description?: string;
   createdAt: string;
+  archived?: boolean;
+  breaks?: Array<{
+    id: string;
+    name: string;
+    duration: number;
+    enabled: boolean;
+    desiredTime?: string;
+  }>;
+  extraBreaks?: Array<{
+    id: string;
+    name: string;
+    duration: number;
+    enabled: boolean;
+    desiredTime?: string;
+  }>;
+  vehicles?: string[];
   latestExperimentId?: string;
   experimentCount?: number;
   experimentId?: string;
   sourceDatasetId?: string;
   isLatestVersion?: boolean;
   versions?: OptimizationVersion[];
-  vehicleCount?: number;
-  isOptimizing?: boolean;
-  isFailed?: boolean;
+  vehicleCount?: number;  // Antal fordon med planer
+  isOptimizing?: boolean; // True om optimering pågår (vroomTruckPlanIds är tom array)
+  isFailed?: boolean; // True om alla truckar fick dispatch errors
 }
 
 interface SavedOptimizationsTableProps {

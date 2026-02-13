@@ -5,18 +5,6 @@ import { handleError, successResponse, DEFAULT_SIM_PARAMS } from './helpers'
 
 const router = Router()
 
-export function buildReplayPreparationParameters(experiment: {
-  startDate?: string
-}) {
-  return {
-    id: null,
-    startDate: experiment?.startDate || DEFAULT_SIM_PARAMS.startDate(),
-    fixedRoute: DEFAULT_SIM_PARAMS.fixedRoute,
-    emitters: DEFAULT_SIM_PARAMS.emitters,
-    initMapState: DEFAULT_SIM_PARAMS.initMapState,
-  }
-}
-
 router.post('/simulation/start-from-dataset', async (req, res) => {
   try {
     const { datasetId, datasetName, parameters = {} } = req.body
@@ -67,8 +55,11 @@ router.post('/simulation/prepare-replay', async (req, res) => {
 
     const sessionId = safeId()
     const parameters = {
-      ...buildReplayPreparationParameters(experimentResponse),
       id: experimentId,
+      startDate: DEFAULT_SIM_PARAMS.startDate(),
+      fixedRoute: DEFAULT_SIM_PARAMS.fixedRoute,
+      emitters: DEFAULT_SIM_PARAMS.emitters,
+      initMapState: DEFAULT_SIM_PARAMS.initMapState,
     }
 
     res.json(successResponse({ sessionId, parameters }))

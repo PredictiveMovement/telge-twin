@@ -1,26 +1,56 @@
 /* Truck-level optimisation with spatial clustering and VROOM */
 
-import {
+const {
   plan,
   truckToVehicle,
   bookingToShipment,
   isVroomPlanningCancelledError,
   VROOM_PLANNING_CANCELLED_MESSAGE,
-} from '../vroom'
-import {
+} = require('../vroom')
+const {
   isExperimentCancelled,
-} from '../cancelledExperiments'
-import { error, info } from '../log'
+  shouldLogExperimentCancellation,
+} = require('../cancelledExperiments')
+const { error, info } = require('../log')
 import { CLUSTERING_CONFIG } from '../config'
-import { createSpatialChunks, calculateCenter, calculateBoundingBox, AreaPartition } from '../clustering'
-import { Position } from '../models/position'
+const { createSpatialChunks, calculateCenter, calculateBoundingBox } = require('../clustering')
+const Position = require('../models/position')
 import Booking from '../models/booking'
-import { save, search } from '../elastic'
+const { save, search } = require('../elastic')
 import { elasticsearchService } from '../../web/services/ElasticsearchService'
 import { socketController } from '../../web/controllers/SocketController'
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'
 import { haversine } from '../distance'
+import { AreaPartition } from '../clustering'
+
+/**
+ * Find the chunk whose nearest booking is closest to the given orphan.
+ * Uses haversine distance to actual bookings (not chunk center) for
+ * better geographic locality — VROOM produces better routes this way.
+ */
+function findNearestChunk(booking: any, chunks: AreaPartition[]): AreaPartition | null {
+  if (!chunks.length) return null
+  const { lat, lng } = extractCoordinates(booking)
+  if (!lat || !lng) return null
+
+  let nearest: AreaPartition | null = null
+  let minDist = Infinity
+
+  for (const chunk of chunks) {
+    for (const cb of chunk.bookings) {
+      const coords = extractCoordinates(cb)
+      if (!coords.lat || !coords.lng) continue
+      const dist = haversine({ lat, lng }, { lat: coords.lat, lng: coords.lng })
+      if (dist < minDist) {
+        minDist = dist
+        nearest = chunk
+      }
+    }
+  }
+
+  return nearest
+}
 
 /**
  * Find the chunk whose nearest booking is closest to the given orphan.
@@ -302,10 +332,6 @@ export async function findBestRouteToPickupBookings(
   } = {}
 ): Promise<Instruction[] | undefined> {
   const shouldAbort = async () => {
-    if (options.skipExperimentValidation || !experimentId) {
-      return false
-    }
-
     if (isExperimentCancelled(experimentId)) {
       return true
     }
@@ -323,6 +349,9 @@ export async function findBestRouteToPickupBookings(
 
   const throwIfCancelled = async () => {
     if (await shouldAbort()) {
+      if (shouldLogExperimentCancellation(experimentId)) {
+        info(`   ⚠️ Experiment ${experimentId} was deleted - optimization cancelled`)
+      }
       throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
     }
   }

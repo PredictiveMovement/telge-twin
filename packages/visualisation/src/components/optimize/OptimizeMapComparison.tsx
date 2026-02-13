@@ -80,10 +80,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
   const [currentProgress, setCurrentProgress] = useState([0])
   const [optimizedProgress, setOptimizedProgress] = useState([0])
   const [playbackSpeed, setPlaybackSpeed] = useState(60)
-  const [currentMapControls, setCurrentMapControls] =
-    useState<MapControls | null>(null)
-  const [optimizedMapControls, setOptimizedMapControls] =
-    useState<MapControls | null>(null)
+  const [mapZoom, setMapZoom] = useState(12)
 
   // Current map state (left)
   const [currentMapStyle, setCurrentMapStyle] = useState(

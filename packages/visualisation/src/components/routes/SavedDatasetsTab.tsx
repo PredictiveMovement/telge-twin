@@ -165,57 +165,42 @@ export default function SavedDatasetsTab() {
     const experiment = experiments.find(e => e.documentId === opt.experimentId);
     if (!experiment) return;
 
-    setEditingExperiment(experiment);
-    setEditName(experiment.name || experiment.datasetName || '');
-    setEditDescription(experiment.description || '');
+    const dataset = datasets.find(d => d.datasetId === experiment.sourceDatasetId);
 
-    const workingHours = experiment.optimizationSettings?.workingHours;
+    setEditingExperiment(experiment);
+    setEditName(experiment.name || experiment.datasetName || dataset?.name || '');
+    setEditDescription(experiment.description || dataset?.description || '');
+
+    const workingHours = experiment.optimizationSettings?.workingHours || dataset?.optimizationSettings?.workingHours;
     setEditStartTime(workingHours?.start || '06:00');
     setEditEndTime(workingHours?.end || '15:00');
-
-    const breaks = experiment.optimizationSettings?.breaks || DEFAULT_BREAKS.map(b => ({ ...b }));
+    
+    const breaks = experiment.optimizationSettings?.breaks || dataset?.optimizationSettings?.breaks || [{
+      id: 'morning',
+      name: 'Förmiddagsrast',
+      duration: 15,
+      enabled: true,
+      desiredTime: '08:00'
+    }, {
+      id: 'lunch',
+      name: 'Lunch',
+      duration: 45,
+      enabled: true,
+      desiredTime: '10:00'
+    }, {
+      id: 'afternoon',
+      name: 'Eftermiddagsrast',
+      duration: 15,
+      enabled: true,
+      desiredTime: '13:00'
+    }];
     setEditBreaks(breaks);
-
-    const extraBreaks = experiment.optimizationSettings?.extraBreaks || [];
+    
+    const extraBreaks = experiment.optimizationSettings?.extraBreaks || dataset?.optimizationSettings?.extraBreaks || [];
     setEditExtraBreaks(extraBreaks);
-
-    setEditOriginalBreaks(breaks.map((b: any) => ({ ...b })));
-    setEditOriginalExtraBreaks(extraBreaks.map((b: any) => ({ ...b })));
-
-    originalEditRef.current = {
-      name: experiment.name || experiment.datasetName || '',
-      description: experiment.description || '',
-      startTime: workingHours?.start || '06:00',
-      endTime: workingHours?.end || '15:00',
-      breaks: breaks.map((b: any) => ({ ...b })),
-      extraBreaks: extraBreaks.map((b: any) => ({ ...b })),
-    };
   };
 
-  const handleCloseEdit = () => {
-    originalEditRef.current = null;
-    setEditingExperiment(null);
-  };
-
-  const hasEditChanges = useMemo(() => {
-    const orig = originalEditRef.current;
-    if (!orig) return false;
-    if (editName.trim() !== orig.name) return true;
-    if (editDescription.trim() !== orig.description) return true;
-    if (editStartTime !== orig.startTime) return true;
-    if (editEndTime !== orig.endTime) return true;
-    if (editBreaks.length !== orig.breaks.length) return true;
-    if (editExtraBreaks.length !== orig.extraBreaks.length) return true;
-    if (editBreaks.some((b, i) => {
-      const o = orig.breaks[i];
-      return !o || b.id !== o.id || b.duration !== o.duration || b.name !== o.name || b.desiredTime !== o.desiredTime || (b.location || '') !== (o.location || '');
-    })) return true;
-    if (editExtraBreaks.some((b, i) => {
-      const o = orig.extraBreaks[i];
-      return !o || b.id !== o.id || b.duration !== o.duration || b.name !== o.name || b.desiredTime !== o.desiredTime || (b.location || '') !== (o.location || '');
-    })) return true;
-    return false;
-  }, [editName, editDescription, editStartTime, editEndTime, editBreaks, editExtraBreaks]);
+  const handleCloseEdit = () => setEditingExperiment(null);
 
   const handleSaveEdit = async () => {
     const name = editName.trim();
@@ -223,6 +208,7 @@ export default function SavedDatasetsTab() {
     if (!name || !editingExperiment) return;
 
     try {
+      // Create a copy of the experiment with updated settings
       const result = await copyExperiment(editingExperiment.documentId, {
         name,
         description,
@@ -240,7 +226,7 @@ export default function SavedDatasetsTab() {
       if (result.success && result.experimentId) {
         toast.success('Ny version skapad');
         await loadDatasets();
-        handleCloseEdit();
+        setEditingExperiment(null);
       } else {
         toast.error(`Fel vid skapande av ny version: ${result.error}`);
       }
@@ -420,9 +406,15 @@ export default function SavedDatasetsTab() {
 
       result.push({
         id: datasetId,
-        name: latestExp.name || latestExp.datasetName || 'Unnamed',
-        description: latestExp.description,
+        name: latestExp.name || latestExp.datasetName || dataset?.name || 'Unnamed',
+        description: latestExp.description || dataset?.description,
+        selectedRoutes: [],
+        filters: dataset?.filterCriteria,
         createdAt: latestExp.createdAt || latestExp.startDate,
+        archived: false,
+        breaks: latestExp.optimizationSettings?.breaks || dataset?.optimizationSettings?.breaks,
+        extraBreaks: latestExp.optimizationSettings?.extraBreaks || dataset?.optimizationSettings?.extraBreaks,
+        vehicles: latestExp.emitters || [],
         latestExperimentId: latestExp.documentId,
         experimentCount,
         experimentId: latestExp.documentId,
@@ -755,8 +747,22 @@ export default function SavedDatasetsTab() {
             )}
             
             <DialogFooter>
-              <Button variant="outline" onClick={handleCloseEdit}>Avbryt</Button>
-              <Button onClick={handleSaveEdit} disabled={!editName.trim() || !hasEditChanges}>Spara som ny version</Button>
+              <div className="flex items-center gap-2 mr-auto">
+                <Button 
+                  variant="secondary-destructive"
+                  onClick={() => {
+                    if (!editingExperiment?.sourceDatasetId) return;
+                    setConfirmDeleteTarget({
+                      id: editingExperiment.sourceDatasetId,
+                      name: editName.trim() || editingExperiment.name || editingExperiment.datasetName || ''
+                    });
+                  }}
+                >
+                  Radera
+                </Button>
+              </div>
+              
+              <Button onClick={handleSaveEdit} disabled={!editName.trim()}>Spara som ny version</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

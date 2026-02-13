@@ -199,7 +199,7 @@ function resolveWorkdayWindow(
   }
 }
 
-export async function plan(
+async function plan(
   { jobs = [], shipments = [], vehicles, shouldAbort }: PlanInput,
   retryCount = 0
 ): Promise<any> {

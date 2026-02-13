@@ -3,11 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Minus, Trash2, Pen, MapPin } from 'lucide-react';
+import { Plus, Minus, Trash2, Pen } from 'lucide-react';
 import TimeInput from './TimeInput';
-import BreakLocationModal from './BreakLocationModal';
-import { PELIAS_URL } from '@/lib/pelias';
-import type { BreakConfig } from '@/types/breaks';
 
 interface PeliasResult {
   label: string;

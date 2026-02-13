@@ -11,7 +11,6 @@ import experimentsRouter from './routes/http/experiments'
 import datasetsRouter from './routes/http/datasets'
 import simulationRouter from './routes/http/simulation'
 import telgeRouter from './routes/http/telge'
-import optimizationRouter from './routes/http/optimization'
 import { createIndices } from '../lib/elastic'
 
 const PORT = env.PORT || 4000
@@ -28,7 +27,6 @@ app.use('/api', experimentsRouter)
 app.use('/api', datasetsRouter)
 app.use('/api', simulationRouter)
 app.use('/api', telgeRouter)
-app.use('/api', optimizationRouter)
 
 app.get('/', (_req, res) => {
   res.status(200).send('PM Digital Twin Engine. Status: OK')

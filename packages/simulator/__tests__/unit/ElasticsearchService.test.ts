@@ -392,49 +392,6 @@ describe('ElasticsearchService', () => {
     })
   })
 
-  describe('findDocumentById', () => {
-    it('returns the document when found', async () => {
-      mockClient.get.mockResolvedValue({
-        body: {
-          _id: 'doc-1',
-          _source: { name: 'Test Document' },
-        },
-      })
-
-      const result = await service.findDocumentById('my-index', 'doc-1')
-
-      expect(mockClient.get).toHaveBeenCalledWith({
-        index: 'my-index',
-        id: 'doc-1',
-      })
-      expect(result).toEqual({
-        _id: 'doc-1',
-        _source: { name: 'Test Document' },
-      })
-    })
-
-    it('returns null when document is not found (404)', async () => {
-      mockClient.get.mockRejectedValue({
-        meta: { statusCode: 404 },
-      })
-
-      const result = await service.findDocumentById('my-index', 'missing-id')
-
-      expect(result).toBeNull()
-    })
-
-    it('throws on non-404 errors', async () => {
-      mockClient.get.mockRejectedValue({
-        meta: { statusCode: 500 },
-        message: 'Internal Server Error',
-      })
-
-      await expect(
-        service.findDocumentById('my-index', 'doc-1')
-      ).rejects.toMatchObject({ meta: { statusCode: 500 } })
-    })
-  })
-
   describe('deleteExperiment', () => {
     it('deletes experiment and unreferenced plans', async () => {
       // Mock getting the experiment
