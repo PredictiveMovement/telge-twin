@@ -51,7 +51,7 @@ spec:
               memory: "4Gi"
       initContainers:
         - name: elastic-init
-          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.65 # {"$imagepolicy": "flux-system:simulator"}
+          image: ghcr.io/predictivemovement/telge-twin-simulator:2.6.67 # {"$imagepolicy": "flux-system:simulator"}
           imagePullPolicy: Always
           env:
             - name: ELASTICSEARCH_URL
