@@ -1,11 +1,11 @@
-const {
+import {
   findBestRouteToPickupBookings,
   useReplayRoute,
   saveCompletePlanForReplay,
   reportDispatchError,
-} = require('../dispatch/truckDispatch')
-const { isVroomPlanningCancelledError } = require('../vroom')
-const { warn, error: logError } = require('../log')
+} from '../dispatch/truckDispatch'
+import { isVroomPlanningCancelledError } from '../vroom'
+import { warn, error as logError } from '../log'
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
 import {
@@ -17,21 +17,26 @@ import {
   selectBestCompartment,
 } from '../capacity'
 import type { Compartment, LoadEstimate } from '../capacity'
-const Vehicle = require('./vehicle').default
-const { createSpatialChunks } = require('../clustering')
+import Vehicle from './vehicle'
+import { Position } from '../models/position'
+import { createSpatialChunks } from '../clustering'
 import type { Instruction } from '../dispatch/truckDispatch'
 import { buildBreakSchedule, ScheduledBreak } from './breaks'
 
 interface TruckConstructorArgs {
   id?: string
-  position: any // Position type
+  position: any
   destination?: any
-  startPosition?: any // Position type
+  startPosition?: any
   parcelCapacity?: number
   recyclingTypes?: string[]
   weight?: number
   fackDetails?: any[]
   virtualTime?: any
+  fleet?: any
+  vehicleType?: string
+  realDescription?: string
+  class?: new (...args: any[]) => any
 }
 
 class Truck extends Vehicle {
@@ -444,7 +449,6 @@ class Truck extends Vehicle {
         if (this.booking?.pickup?.position) {
           pickupPosition = this.booking.pickup.position
         } else if (this.instruction?.booking?.pickup) {
-          const Position = require('../models/position')
           pickupPosition = new Position({
             lat: this.instruction.booking.pickup.lat,
             lng: this.instruction.booking.pickup.lon,
@@ -864,6 +868,7 @@ class Truck extends Vehicle {
    * @returns A promise that resolves when the booking is handled.
    */
 
+  // @ts-expect-error Truck extends the base signature with experimentId
   async handleBooking(experimentId: string, booking: any) {
     if (this.isSequentialExperiment()) {
       return this.handleStandardBooking(booking)
@@ -908,7 +913,7 @@ class Truck extends Vehicle {
             }, CLUSTERING_CONFIG.VROOM_TIMEOUT_MS)
           })
 
-          this.plan = await Promise.race([vroomPromise, timeoutPromise])
+          this.plan = await Promise.race([vroomPromise, timeoutPromise]) as any[]
 
           // Remove any bookings that could not be scheduled within the shift
           this.queue = this.queue.filter(
