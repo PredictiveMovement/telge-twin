@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
@@ -7,7 +7,10 @@ import { useForm } from 'react-hook-form';
 import WorkerSettingsSection from './WorkerSettingsSection';
 import BreaksSection from './BreaksSection';
 import ProjectDetailsSection from './ProjectDetailsSection';
+import FeasibilityIndicator from './FeasibilityIndicator';
 import { getRouteDatasets } from '@/api/simulator';
+import type { RouteEstimate } from '@/api/simulator';
+import { computeFeasibility } from '@/utils/feasibilityEstimate';
 
 interface SaveOptimizationFormProps {
   onSave: (optimization: any) => void;
@@ -16,6 +19,8 @@ interface SaveOptimizationFormProps {
   viewMode?: 'turid' | 'flottor';
   selectedItems?: any[];
   onFormDirtyChange?: (isDirty: boolean) => void;
+  routeEstimates?: RouteEstimate[];
+  estimatesLoading?: boolean;
 }
 
 interface BreakConfig {
@@ -32,7 +37,9 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
   filters = {},
   viewMode,
   selectedItems = [],
-  onFormDirtyChange
+  onFormDirtyChange,
+  routeEstimates,
+  estimatesLoading,
 }) => {
   const form = useForm({
     defaultValues: {
@@ -206,6 +213,14 @@ useEffect(() => {
   }
 }, [breaks, extraBreaks, onFormDirtyChange]);
 
+const startTime = form.watch('startTime');
+const endTime = form.watch('endTime');
+
+const feasibilityResult = useMemo(() => {
+  if (!routeEstimates?.length) return null;
+  return computeFeasibility(routeEstimates, startTime, endTime, breaks, extraBreaks);
+}, [routeEstimates, startTime, endTime, breaks, extraBreaks]);
+
 const onSubmit = async (data: any) => {
   const ensuredName = data?.name && data.name.trim() ? data.name.trim() : await getNextOptimizationName();
 
@@ -254,6 +269,11 @@ const onSubmit = async (data: any) => {
             onBreaksChange={setBreaks}
             onExtraBreaksChange={setExtraBreaks}
             disableHover
+          />
+
+          <FeasibilityIndicator
+            result={feasibilityResult}
+            loading={estimatesLoading}
           />
 
           <div className="flex gap-2 justify-end pt-6">

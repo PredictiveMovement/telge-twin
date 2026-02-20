@@ -686,4 +686,22 @@ export async function startSimulationFromDatasetRest(
   }
 }
 
+// --- Route feasibility estimation ---
+
+export interface RouteEstimate {
+  vehicleId: string
+  durationSeconds: number
+  distanceMeters: number
+  stopCount: number
+}
+
+export async function estimateRouteFeasibility(
+  vehicles: { vehicleId: string; coordinates: [number, number][] }[]
+): Promise<RouteEstimate[]> {
+  const response = await simulatorApi.post('/api/routing/estimate', {
+    vehicles,
+  })
+  return response.data?.data?.estimates || []
+}
+
 export default simulatorApi

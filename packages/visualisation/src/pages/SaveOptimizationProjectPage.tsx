@@ -1,11 +1,16 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import Layout from '@/components/layout/Layout'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SaveOptimizationForm from '@/components/optimize/SaveOptimizationForm'
 import { toast } from '@/hooks/use-toast'
-import { saveRouteDataset, startSimulationFromDatasetRest } from '@/api/simulator'
+import {
+  saveRouteDataset,
+  startSimulationFromDatasetRest,
+  estimateRouteFeasibility,
+  type RouteEstimate,
+} from '@/api/simulator'
 import {
   buildSingleFleetFromRouteData,
   type Settings,
@@ -18,6 +23,9 @@ const SaveOptimizationProjectPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { startOptimization } = useOptimizationContext()
+
+  const [routeEstimates, setRouteEstimates] = useState<RouteEstimate[]>([])
+  const [estimatesLoading, setEstimatesLoading] = useState(false)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -33,6 +41,61 @@ const SaveOptimizationProjectPage = () => {
     originalFilename?: string
     previewSettings?: Settings
   } | null
+
+  // Fetch OSRM-based route estimates on mount
+  useEffect(() => {
+    const uploadedData = navigationState?.uploadedData
+    const selectedRoutes = navigationState?.selectedRoutes
+    if (!uploadedData?.length || !selectedRoutes?.length) return
+
+    const DEPOT: [number, number] = [17.571239, 59.135449]
+    const selectedTurids = new Set(selectedRoutes)
+    const selected = uploadedData.filter((r) => selectedTurids.has(r.Turid))
+
+    // Group by vehicle (Bil)
+    const byVehicle = new Map<string, RouteRecord[]>()
+    for (const r of selected) {
+      const bil = r.Bil || 'unknown'
+      if (!byVehicle.has(bil)) byVehicle.set(bil, [])
+      byVehicle.get(bil)!.push(r)
+    }
+
+    // Build coordinate chains per vehicle: depot → stops (by Turordningsnr) → depot
+    const vehicles = Array.from(byVehicle.entries()).map(
+      ([vehicleId, records]) => {
+        const sorted = [...records].sort((a, b) => {
+          const aOrd = parseInt(String(a.Turordningsnr ?? 0), 10) || 0
+          const bOrd = parseInt(String(b.Turordningsnr ?? 0), 10) || 0
+          return aOrd - bOrd
+        })
+
+        const stopCoords: [number, number][] = sorted
+          .filter(
+            (r) =>
+              typeof r.Lat === 'number' &&
+              typeof r.Lng === 'number' &&
+              r.Lat !== 0 &&
+              r.Lng !== 0
+          )
+          .map((r) => [r.Lng, r.Lat] as [number, number])
+
+        return {
+          vehicleId,
+          coordinates: [DEPOT, ...stopCoords, DEPOT] as [number, number][],
+        }
+      }
+    )
+
+    if (vehicles.length === 0) return
+
+    setEstimatesLoading(true)
+    estimateRouteFeasibility(vehicles)
+      .then((estimates) => setRouteEstimates(estimates))
+      .catch(() => {
+        // Silently fail — indicator just won't show
+      })
+      .finally(() => setEstimatesLoading(false))
+  }, [navigationState?.uploadedData, navigationState?.selectedRoutes])
 
   const handleSaveOptimization = async (optimization: any) => {
     // Ensure archived flag exists
@@ -228,6 +291,8 @@ const SaveOptimizationProjectPage = () => {
               navigationState?.viewMode as 'turid' | 'flottor' | undefined
             }
             selectedItems={navigationState?.selectedItems || []}
+            routeEstimates={routeEstimates}
+            estimatesLoading={estimatesLoading}
           />
         </div>
       </div>

@@ -136,6 +136,58 @@ const osrm = {
     )
   },
 
+  /**
+   * Route through multiple waypoints and return total duration/distance.
+   * Coordinates are [lon, lat] pairs. No geometry decoding — only summary.
+   */
+  async routeMultiWaypoint(
+    coordinates: [number, number][]
+  ): Promise<{ duration: number; distance: number }> {
+    if (coordinates.length < 2) {
+      return { duration: 0, distance: 0 }
+    }
+
+    return cachedFetch('routeMulti', { coordinates }, async () => {
+      // Split into chunks to avoid 414 Request-URI Too Large.
+      // Last coord of each chunk overlaps as first coord of the next
+      // to keep the route continuous.
+      const MAX_WAYPOINTS = 80
+      const chunks: [number, number][][] = []
+      for (let i = 0; i < coordinates.length; i += MAX_WAYPOINTS - 1) {
+        chunks.push(coordinates.slice(i, i + MAX_WAYPOINTS))
+      }
+
+      let totalDuration = 0
+      let totalDistance = 0
+
+      for (const chunk of chunks) {
+        if (chunk.length < 2) continue
+
+        const coordString = chunk
+          .map(([lon, lat]) => `${lon},${lat}`)
+          .join(';')
+
+        const result = await queue(() =>
+          nodeFetch(
+            `${osrmUrl}/route/v1/driving/${coordString}?overview=false&alternatives=false`
+          ).then((res: any) =>
+            res.ok
+              ? res.json()
+              : res.text().then((text: any) => Promise.reject(text))
+          )
+        )
+
+        const route = result?.routes?.[0]
+        if (route) {
+          totalDuration += route.duration || 0
+          totalDistance += route.distance || 0
+        }
+      }
+
+      return { duration: totalDuration, distance: totalDistance }
+    })
+  },
+
   decodePolyline,
   encodePolyline,
 }

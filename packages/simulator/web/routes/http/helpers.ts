@@ -3,7 +3,7 @@ export const handleError = (
   defaultMessage = 'Unknown error occurred'
 ) => ({
   success: false,
-  error: error instanceof Error ? error.message : defaultMessage,
+  error: error instanceof Error ? error.message : typeof error === 'string' ? error : defaultMessage,
 })
 
 export const successResponse = (data: any, message?: string) => ({
