@@ -5,19 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Minus, Trash2, Pen } from 'lucide-react';
 import TimeInput from './TimeInput';
-
-interface BreakConfig {
-  id: string;
-  name: string;
-  duration: number;
-  enabled: boolean;
-  desiredTime?: string;
-}
+import type { BreakConfig } from '@/utils/feasibilityEstimate';
 
 interface BreakCardProps {
   breakItem: BreakConfig;
   isExtra?: boolean;
-  timeOptions: string[];
   onUpdateDuration: (id: string, change: number, isExtra: boolean) => void;
   onUpdateName: (id: string, newName: string, isExtra: boolean) => void;
   onUpdateTime: (id: string, newTime: string, isExtra: boolean) => void;
@@ -28,7 +20,6 @@ interface BreakCardProps {
 const BreakCard: React.FC<BreakCardProps> = ({
   breakItem,
   isExtra = false,
-  timeOptions,
   onUpdateDuration,
   onUpdateName,
   onUpdateTime,

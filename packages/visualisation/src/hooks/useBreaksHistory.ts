@@ -1,12 +1,5 @@
 import { useState, useCallback } from 'react';
-
-interface BreakConfig {
-  id: string;
-  name: string;
-  duration: number;
-  enabled: boolean;
-  desiredTime?: string;
-}
+import type { BreakConfig } from '@/utils/feasibilityEstimate';
 
 export const useBreaksHistory = (
   breaks: BreakConfig[],

@@ -189,11 +189,13 @@ export class ElasticsearchService {
   }
 
   async findDocumentById(index: string, id: string) {
-    const result = await search({
-      index,
-      body: { query: { term: { _id: id } } },
-    })
-    return result?.body?.hits?.hits?.[0]
+    try {
+      const result = await this.client.get({ index, id })
+      return result?.body?._source ? result.body : null
+    } catch (err: any) {
+      if (err?.meta?.statusCode === 404) return null
+      throw err
+    }
   }
 
   async getExperimentWithDataset(experimentId: string) {

@@ -30,7 +30,7 @@ describe('vroom mapping utilities', () => {
       amount: [expectedVolume, expectedWeight],
       pickup: { id: 0, location: [18.0, 59.0] },
       delivery: { id: 1, location: [18.2, 59.2] },
-      service: 60,
+      service: CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS,
     })
     expect(Array.isArray(shipment.pickup.time_windows)).toBe(true)
     expect(Array.isArray(shipment.delivery.time_windows)).toBe(true)

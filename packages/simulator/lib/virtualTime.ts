@@ -113,6 +113,16 @@ export class VirtualTime {
     return this.internalTimeScale > 0
   }
 
+  async runWithoutAdvancing<T>(fn: () => Promise<T>): Promise<T> {
+    const wasPlaying = this.isPlaying()
+    if (wasPlaying) this.pause()
+    try {
+      return await fn()
+    } finally {
+      if (wasPlaying) this.play()
+    }
+  }
+
   async waitUntil(time: number): Promise<any> {
     if (this.timeMultiplier === 0) return // don't wait when time is stopped
     if (this.timeMultiplier === Infinity) return // return directly if time is set to infinity
@@ -222,6 +232,10 @@ class VirtualTimeManager {
 
   isPlaying(): boolean {
     return this.getCurrentVirtualTime().isPlaying()
+  }
+
+  async runWithoutAdvancing<T>(fn: () => Promise<T>): Promise<T> {
+    return this.getCurrentVirtualTime().runWithoutAdvancing(fn)
   }
 
   async waitUntil(time: number): Promise<any> {

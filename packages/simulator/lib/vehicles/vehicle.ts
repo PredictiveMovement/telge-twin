@@ -182,7 +182,15 @@ class Vehicle {
       })
   }
 
-  navigateTo(destination: any /* Position */) {
+  async runWithoutAdvancing<T>(fn: () => Promise<T>): Promise<T> {
+    if (typeof this.virtualTime?.runWithoutAdvancing === 'function') {
+      return this.virtualTime.runWithoutAdvancing(fn)
+    }
+
+    return fn()
+  }
+
+  navigateTo(destination: any /* Position */): Promise<any> | any {
     this.destination = destination
 
     if (this.position.distanceTo(destination) < 5) {
@@ -192,8 +200,9 @@ class Vehicle {
       return destination
     }
 
-    return osrm
-      .route(this.position, this.destination)
+    return this.runWithoutAdvancing(() =>
+      osrm.route(this.position, this.destination)
+    )
       .then(async (route: any) => {
         route.started = await this.time()
         this.route = route
@@ -211,7 +220,9 @@ class Vehicle {
       .catch(
         (err: any) =>
           error('Route error, retrying in 1s...', err) ||
-          wait(1000).then(() => this.navigateTo(destination))
+          this.runWithoutAdvancing(() => wait(1000)).then(() =>
+            this.navigateTo(destination)
+          )
       )
   }
 

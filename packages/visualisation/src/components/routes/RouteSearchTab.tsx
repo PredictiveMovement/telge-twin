@@ -272,20 +272,8 @@ const RouteSearchTab: React.FC = () => {
     return filtered
   }, [rawSearchResults, routeFiltersHook.searchFilters, searchQuery, hasSearched])
 
-  // Handle file upload
   const handleFileUpload = () => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.xlsx,.xls,.csv'
-    input.onchange = (e: Event) => {
-      const target = e.target as HTMLInputElement
-      if (target.files && target.files[0]) {
-        // Navigate to file upload tab with the file
-        navigate('/routes?tab=upload')
-        // You could also pass file in state if needed
-      }
-    }
-    input.click()
+    navigate('/routes?tab=upload')
   }
 
   // Handle optimization

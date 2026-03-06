@@ -263,8 +263,10 @@ class Fleet {
     info(
       `Fleet ${this.name}: Starting VROOM dispatcher with round-robin dispatch`
     )
+    const tm = this.virtualTime?.getTimeMultiplier() || 1
+    const scaledBufferTime = Math.max(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS / tm, 50)
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
+      bufferTime(scaledBufferTime),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
 
@@ -295,8 +297,10 @@ class Fleet {
     info(
       `Fleet ${this.name}: Starting standard dispatcher (round-robin, no clustering)`
     )
+    const tm = this.virtualTime?.getTimeMultiplier() || 1
+    const scaledBufferTime = Math.max(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS / tm, 50)
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
+      bufferTime(scaledBufferTime),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
 
@@ -413,8 +417,10 @@ class Fleet {
     const vroomPlanIds = this.settings?.vroomTruckPlanIds || []
     info(`Starting replay dispatcher for fleet ${this.name}, experimentId=${replayExperimentId}, vroomTruckPlanIds=${JSON.stringify(vroomPlanIds)}`)
 
+    const tm = this.virtualTime?.getTimeMultiplier() || 1
+    const scaledBufferTime = Math.max(1000 / tm, 50)
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(1000),
+      bufferTime(scaledBufferTime),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
       mergeMap(([bookings, cars]: any) => {
