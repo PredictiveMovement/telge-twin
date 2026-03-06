@@ -647,7 +647,7 @@ class Truck extends Vehicle {
     }
 
     try {
-      await this.virtualTime.wait(20 * 1000)
+      await this.virtualTime.wait(CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS * 1000)
     } catch (err: any) {
       logError(`[truck ${this.id}] pickup wait error, continuing:`, err?.message || err)
     }
