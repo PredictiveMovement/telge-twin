@@ -14,7 +14,7 @@ function isTuple(
   return Array.isArray(pos)
 }
 
-function convertPosition(pos: PositionLike | [number, number]): {
+export function convertPosition(pos: PositionLike | [number, number]): {
   lon: number
   lat: number
 } {
@@ -98,39 +98,12 @@ export function addMeters(
   return { lon, lat }
 }
 
-export function getNrOfPointsBetween(
-  p1: { lon: number; lat: number },
-  p2: { lon: number; lat: number },
-  quantity: number
-): { lon: number; lat: number }[] {
-  const points: { lon: number; lat: number }[] = []
-  const latDiff = p2.lat - p1.lat
-  const lonDiff = p2.lon - p1.lon
-  const slope = latDiff / lonDiff
-  let lon: number
-  let lat: number
-
-  for (let i = 0; i <= quantity; i++) {
-    if (slope === 0) {
-      lat = 0
-      lon = lonDiff * (i / quantity)
-    } else {
-      lat = latDiff * (i / quantity)
-      lon = lat / slope
-    }
-    points.push({ lon: lon + p1.lon, lat: lat + p1.lat })
-  }
-
-  return points
-}
-
 export default {
   pythagoras,
   haversine,
   bearing,
   convertPosition,
   addMeters,
-  getNrOfPointsBetween,
 }
 
 // CommonJS compatibility
@@ -143,6 +116,5 @@ if (typeof module !== 'undefined') {
     bearing,
     convertPosition,
     addMeters,
-    getNrOfPointsBetween,
   }
 }

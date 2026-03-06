@@ -9,6 +9,8 @@ import {
   estimateBookingLoad,
   getCapacityDimensions,
 } from './capacity'
+import { convertPosition } from './distance'
+import { parseTimeToMinutes } from './utils/time'
 
 // eslint-disable-next-line no-undef
 const vroomUrl: string =
@@ -197,7 +199,7 @@ function resolveWorkdayWindow(
   }
 }
 
-async function plan(
+export async function plan(
   { jobs = [], shipments = [], vehicles, shouldAbort }: PlanInput,
   retryCount = 0
 ): Promise<any> {
@@ -283,9 +285,9 @@ async function plan(
   }
 }
 
-type CapacityKey = 'volumeLiters' | 'weightKg' | 'count'
+export type CapacityKey = 'volumeLiters' | 'weightKg' | 'count'
 
-function bookingToShipment(
+export function bookingToShipment(
   booking: any,
   i: number,
   options: {
@@ -296,10 +298,8 @@ function bookingToShipment(
   const { id, pickup, destination, groupedBookings } = booking
   const fleet = options.fleet || booking.fleet
 
-  const pickupLon = pickup.position.lon || pickup.position.lng
-  const pickupLat = pickup.position.lat
-  const deliveryLon = destination.position.lon || destination.position.lng
-  const deliveryLat = destination.position.lat
+  const { lon: pickupLon, lat: pickupLat } = convertPosition(pickup.position)
+  const { lon: deliveryLon, lat: deliveryLat } = convertPosition(destination.position)
 
   if (!pickupLon || !pickupLat || isNaN(pickupLon) || isNaN(pickupLat)) {
     error(`Invalid pickup coordinates for booking ${id}:`, {
@@ -370,7 +370,7 @@ function bookingToShipment(
   }
 }
 
-function truckToVehicle(
+export function truckToVehicle(
   truck: any,
   i: number,
   options: { start?: [number, number] } = {}
@@ -393,9 +393,10 @@ function truckToVehicle(
   const { keys: capacityDimensions, values: capacityValues } =
     getCapacityDimensions(truck)
 
+  const posCoords = convertPosition(position)
   const startCoords: [number, number] = options.start
     ? options.start
-    : [position.lon || position.lng, position.lat]
+    : [posCoords.lon, posCoords.lat]
 
   const rawBreaks = Array.isArray(fleet?.settings?.breaks)
     ? fleet.settings.breaks
@@ -441,14 +442,14 @@ function truckToVehicle(
     })
     .filter(Boolean)
 
+  const endCoords = destination ? convertPosition(destination) : posCoords
+
   const vehicle: Vehicle = {
     id: i,
     time_window: [workStart, workEnd],
     capacity: capacityValues,
     start: startCoords,
-    end: destination
-      ? [destination.lon || destination.lng, destination.lat]
-      : [position.lon || position.lng, position.lat],
+    end: [endCoords.lon, endCoords.lat],
     ...(breaks.length ? { breaks } : {}),
   }
 
@@ -459,28 +460,6 @@ function truckToVehicle(
   })
 
   return vehicle
-}
-
-/**
- * Parse time string (HH:MM) to minutes since midnight
- */
-function parseTimeToMinutes(timeStr?: string | null): number | null {
-  if (typeof timeStr !== 'string') return null
-  const match = timeStr.trim().match(/^([0-9]{1,2}):([0-9]{2})$/)
-  if (!match) return null
-  const hours = parseInt(match[1], 10)
-  const minutes = parseInt(match[2], 10)
-  if (
-    Number.isFinite(hours) &&
-    Number.isFinite(minutes) &&
-    hours >= 0 &&
-    hours < 24 &&
-    minutes >= 0 &&
-    minutes < 60
-  ) {
-    return hours * 60 + minutes
-  }
-  return null
 }
 
 export default {

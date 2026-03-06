@@ -9,6 +9,7 @@ import {
   clearExperimentCancelled,
   markExperimentCancelled,
 } from '../../lib/cancelledExperiments'
+import { parseTimeToMinutes } from '../../lib/utils/time'
 import engine from '../../index'
 
 export class ExperimentController {
@@ -16,17 +17,6 @@ export class ExperimentController {
   private isGlobalSimulationRunning = false
   private sessionExperiments = new Map<string, any>()
   private sessionVirtualTimes = new Map<string, VirtualTime>()
-
-  private parseTimeToMinutes(value?: string): number | null {
-    if (typeof value !== 'string') return null
-    const match = value.trim().match(/^([0-9]{1,2}):([0-9]{2})$/)
-    if (!match) return null
-    const hours = parseInt(match[1], 10)
-    const minutes = parseInt(match[2], 10)
-    if (hours < 0 || hours > 23) return null
-    if (minutes < 0 || minutes > 59) return null
-    return hours * 60 + minutes
-  }
 
   private buildWorkdaySettings(workingHours?: {
     start?: string
@@ -41,8 +31,8 @@ export class ExperimentController {
     | null {
     if (!workingHours) return null
 
-    const startMinutes = this.parseTimeToMinutes(workingHours.start)
-    const endMinutes = this.parseTimeToMinutes(workingHours.end)
+    const startMinutes = parseTimeToMinutes(workingHours.start)
+    const endMinutes = parseTimeToMinutes(workingHours.end)
 
     if (startMinutes == null && endMinutes == null) {
       return null
@@ -82,7 +72,7 @@ export class ExperimentController {
 
     candidates.forEach((candidate, index) => {
       if (!candidate || candidate.enabled === false) return
-      const startMinutes = this.parseTimeToMinutes(candidate.desiredTime)
+      const startMinutes = parseTimeToMinutes(candidate.desiredTime)
       if (startMinutes == null) return
       const durationMinutes =
         typeof candidate.duration === 'number' ? candidate.duration : 0

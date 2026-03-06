@@ -1,28 +1,27 @@
 /* Truck-level optimisation with spatial clustering and VROOM */
 
-const {
+import {
   plan,
   truckToVehicle,
   bookingToShipment,
   isVroomPlanningCancelledError,
   VROOM_PLANNING_CANCELLED_MESSAGE,
-} = require('../vroom')
-const {
+} from '../vroom'
+import {
   isExperimentCancelled,
   shouldLogExperimentCancellation,
-} = require('../cancelledExperiments')
-const { error, info } = require('../log')
+} from '../cancelledExperiments'
+import { error, info } from '../log'
 import { CLUSTERING_CONFIG } from '../config'
-const { createSpatialChunks, calculateCenter, calculateBoundingBox } = require('../clustering')
-const Position = require('../models/position')
+import { createSpatialChunks, calculateCenter, calculateBoundingBox, AreaPartition } from '../clustering'
+import { Position } from '../models/position'
 import Booking from '../models/booking'
-const { save, search } = require('../elastic')
+import { save, search } from '../elastic'
 import { elasticsearchService } from '../../web/services/ElasticsearchService'
 import { socketController } from '../../web/controllers/SocketController'
 import { extractOriginalData } from '../types/originalBookingData'
 import { extractCoordinates } from '../utils/coordinates'
 import { haversine } from '../distance'
-import { AreaPartition } from '../clustering'
 
 /**
  * Find the chunk whose nearest booking is closest to the given orphan.
@@ -273,7 +272,7 @@ async function orderChunksWithVroom(
       start: truckStart,
       end: truckStart,
       capacity: [9999],
-      time_window: [0, 24 * 3600],
+      time_window: [0, 24 * 3600] as [number, number],
     },
   ]
 

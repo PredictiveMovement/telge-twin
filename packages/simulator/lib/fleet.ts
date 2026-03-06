@@ -1,5 +1,5 @@
-const { from, of, ReplaySubject } = require('rxjs')
-const {
+import { from, of, ReplaySubject } from 'rxjs'
+import {
   shareReplay,
   mergeMap,
   catchError,
@@ -8,11 +8,12 @@ const {
   withLatestFrom,
   map,
   filter,
-} = require('rxjs/operators')
-const Truck = require('./vehicles/truck')
-const Position = require('./models/position')
-const { error, info } = require('./log')
-const { addMeters } = require('./distance')
+} from 'rxjs/operators'
+import Truck from './vehicles/truck'
+import { Position } from './models/position'
+import { error, info } from './log'
+import { addMeters } from './distance'
+import { search as elasticSearch } from './elastic'
 import { CLUSTERING_CONFIG } from './config'
 import { logVehicleCapacity } from './capacity'
 
@@ -499,7 +500,7 @@ class Fleet {
                     }
                   }
 
-                  const planResult = await require('./elastic').search(
+                  const planResult = await elasticSearch(
                     searchQuery
                   )
 

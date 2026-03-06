@@ -1,3 +1,5 @@
+import { parseTimeToMinutes as parseMinutes } from '../utils/time'
+
 const MS_PER_MINUTE = 60 * 1000
 
 const DEFAULT_SHIFT_MINUTES = 8 * 60
@@ -34,25 +36,6 @@ type BreakCandidate = {
   durationMinutes?: number
   desiredTime?: string
   duration?: number
-}
-
-const parseMinutes = (value?: string | null): number | null => {
-  if (typeof value !== 'string') return null
-  const match = value.trim().match(/^([0-9]{1,2}):([0-9]{2})$/)
-  if (!match) return null
-  const hours = parseInt(match[1], 10)
-  const minutes = parseInt(match[2], 10)
-  if (
-    Number.isFinite(hours) &&
-    Number.isFinite(minutes) &&
-    hours >= 0 &&
-    hours < 24 &&
-    minutes >= 0 &&
-    minutes < 60
-  ) {
-    return hours * 60 + minutes
-  }
-  return null
 }
 
 const resolveWorkdayStartMinutes = (

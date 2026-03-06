@@ -49,7 +49,7 @@ export const debug = (message: string, data?: unknown, ...rest: unknown[]) => {
   }
 }
 
-export const error = (title: string, err: unknown, ...rest: unknown[]) => {
+export const error = (title: string, err?: unknown, ...rest: unknown[]) => {
   print(
     console.error,
     chalk.redBright.bold,

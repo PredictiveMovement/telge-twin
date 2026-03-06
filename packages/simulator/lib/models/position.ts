@@ -66,4 +66,7 @@ export default Position
 // CommonJS fallback
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-if (typeof module !== 'undefined') module.exports = Position
+if (typeof module !== 'undefined') {
+  module.exports = Position
+  module.exports.Position = Position
+}
