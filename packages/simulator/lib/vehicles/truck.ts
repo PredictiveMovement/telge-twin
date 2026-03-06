@@ -3,9 +3,9 @@ import {
   useReplayRoute,
   saveCompletePlanForReplay,
   reportDispatchError,
-} = require('../dispatch/truckDispatch')
-const { isVroomPlanningCancelledError } = require('../vroom')
-const { warn, error: logError } = require('../log')
+} from '../dispatch/truckDispatch'
+import { isVroomPlanningCancelledError } from '../vroom'
+import { warn, error as logError } from '../log'
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
 import {
@@ -812,7 +812,7 @@ class Truck extends Vehicle {
     }
 
     try {
-      await this.virtualTime.wait(20 * 1000)
+      await this.virtualTime.wait(CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS * 1000)
     } catch (err: any) {
       logError(`[truck ${this.id}] pickup wait error, continuing:`, err?.message || err)
     }
@@ -1072,7 +1072,7 @@ class Truck extends Vehicle {
             }, CLUSTERING_CONFIG.VROOM_TIMEOUT_MS)
           })
 
-          this.plan = await Promise.race([vroomPromise, timeoutPromise])
+          this.plan = await Promise.race([vroomPromise, timeoutPromise]) as any[]
 
           // Remove any bookings that could not be scheduled within the shift
           this.queue = this.queue.filter(

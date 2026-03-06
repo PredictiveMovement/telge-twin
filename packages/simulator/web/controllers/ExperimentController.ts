@@ -9,6 +9,7 @@ import {
   clearExperimentCancelled,
   markExperimentCancelled,
 } from '../../lib/cancelledExperiments'
+import { parseTimeToMinutes } from '../../lib/utils/time'
 import engine from '../../index'
 
 export class ExperimentController {
@@ -16,6 +17,72 @@ export class ExperimentController {
   private isGlobalSimulationRunning = false
   private sessionExperiments = new Map<string, any>()
   private sessionVirtualTimes = new Map<string, VirtualTime>()
+
+  private buildWorkdaySettings(workingHours?: {
+    start?: string
+    end?: string
+  }):
+    | ({
+        start?: string
+        end?: string
+        startMinutes?: number
+        endMinutes?: number
+      } & Record<string, unknown>)
+    | null {
+    if (!workingHours) return null
+
+    const startMinutes = parseTimeToMinutes(workingHours.start)
+    const endMinutes = parseTimeToMinutes(workingHours.end)
+
+    if (startMinutes == null && endMinutes == null) {
+      return null
+    }
+
+    return {
+      ...workingHours,
+      ...(startMinutes != null ? { startMinutes } : {}),
+      ...(endMinutes != null ? { endMinutes } : {}),
+    }
+  }
+
+  private buildBreakSettings(
+    breaks?: Array<{
+      id?: string
+      enabled?: boolean
+      duration?: number
+      desiredTime?: string
+    }>,
+    extraBreaks?: Array<{
+      id?: string
+      enabled?: boolean
+      duration?: number
+      desiredTime?: string
+    }>
+  ): Array<{ id: string; startMinutes: number; durationMinutes: number }> {
+    const candidates = [
+      ...(Array.isArray(breaks) ? breaks : []),
+      ...(Array.isArray(extraBreaks) ? extraBreaks : []),
+    ]
+
+    const parsed: Array<{
+      id: string
+      startMinutes: number
+      durationMinutes: number
+    }> = []
+
+    candidates.forEach((candidate, index) => {
+      if (!candidate || candidate.enabled === false) return
+      const startMinutes = parseTimeToMinutes(candidate.desiredTime)
+      if (startMinutes == null) return
+      const durationMinutes =
+        typeof candidate.duration === 'number' ? candidate.duration : 0
+      if (!isFinite(durationMinutes) || durationMinutes <= 0) return
+      const id = candidate.id || `break-${index}`
+      parsed.push({ id, startMinutes, durationMinutes })
+    })
+
+    return parsed
+  }
 
   get currentGlobalExperiment() {
     return this.globalExperiment
