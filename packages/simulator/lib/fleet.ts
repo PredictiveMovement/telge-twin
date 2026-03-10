@@ -17,6 +17,11 @@ import { search as elasticSearch } from './elastic'
 import { CLUSTERING_CONFIG } from './config'
 import { logVehicleCapacity } from './capacity'
 
+function scaledBufferTime(baseMs: number, timeMultiplier: number, minMs = 50): number {
+  const tm = timeMultiplier || 1
+  return Math.max(baseMs / tm, minMs)
+}
+
 /**
  * Fleet represents a group of trucks that share the same hub and recycling-type capabilities.
  *
@@ -264,7 +269,7 @@ class Fleet {
       `Fleet ${this.name}: Starting VROOM dispatcher with round-robin dispatch`
     )
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
+      bufferTime(scaledBufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS, this.virtualTime?.getTimeMultiplier())),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
 
@@ -296,7 +301,7 @@ class Fleet {
       `Fleet ${this.name}: Starting standard dispatcher (round-robin, no clustering)`
     )
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS),
+      bufferTime(scaledBufferTime(CLUSTERING_CONFIG.FLEET_BUFFER_TIME_MS, this.virtualTime?.getTimeMultiplier())),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
 
@@ -414,7 +419,7 @@ class Fleet {
     info(`Starting replay dispatcher for fleet ${this.name}, experimentId=${replayExperimentId}, vroomTruckPlanIds=${JSON.stringify(vroomPlanIds)}`)
 
     this.dispatchedBookings = this.unhandledBookings.pipe(
-      bufferTime(1000),
+      bufferTime(scaledBufferTime(1000, this.virtualTime?.getTimeMultiplier())),
       filter((bookings: any[]) => bookings.length > 0),
       withLatestFrom(this.cars.pipe(toArray())),
       mergeMap(([bookings, cars]: any) => {

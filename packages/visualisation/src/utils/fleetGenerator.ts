@@ -3,6 +3,7 @@
 // Dessutom exporterar vi hjälpfunktioner för att bygga "flotta-kort" till UI:t.
 
 import { OriginalBookingData } from '../../../simulator/lib/types/originalBookingData'
+import { DEPOT_COORDINATE } from './shared'
 
 export interface VehicleSpec {
   originalId: string
@@ -320,8 +321,8 @@ function transformToStandardizedBookings(
         recyclingType: record.Avftyp,
         position: { lat: record.Lat, lng: record.Lng },
         destination: {
-          lat: 59.135449,
-          lng: 17.571239,
+          lat: DEPOT_COORDINATE[1],
+          lng: DEPOT_COORDINATE[0],
           name: 'LERHAGA 50, 151 66 Södertälje',
         },
         pickup: {

@@ -9,7 +9,6 @@ import {
 } from '../vroom'
 import {
   isExperimentCancelled,
-  shouldLogExperimentCancellation,
 } from '../cancelledExperiments'
 import { error, info } from '../log'
 import { CLUSTERING_CONFIG } from '../config'
@@ -293,12 +292,19 @@ async function orderChunksWithVroom(
 
 /* ----------------------------------------------------------- */
 export async function findBestRouteToPickupBookings(
-  experimentId: string,
+  experimentId: string | undefined,
   truck: any,
   bookings: any[],
-  instructions?: ('pickup' | 'delivery' | 'start')[]
+  instructions?: ('pickup' | 'delivery' | 'start')[],
+  options: {
+    skipExperimentValidation?: boolean
+  } = {}
 ): Promise<Instruction[] | undefined> {
   const shouldAbort = async () => {
+    if (options.skipExperimentValidation || !experimentId) {
+      return false
+    }
+
     if (isExperimentCancelled(experimentId)) {
       return true
     }
@@ -316,9 +322,6 @@ export async function findBestRouteToPickupBookings(
 
   const throwIfCancelled = async () => {
     if (await shouldAbort()) {
-      if (shouldLogExperimentCancellation(experimentId)) {
-        info(`   ⚠️ Experiment ${experimentId} was deleted - optimization cancelled`)
-      }
       throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
     }
   }

@@ -93,7 +93,7 @@ const nearest = (position: any, layers = 'address,venue') => {
                 label,
                 postalcode,
               },
-            } = {},
+            } = {} as Record<string, any>,
           ] = [],
         }: any) => ({
           name,

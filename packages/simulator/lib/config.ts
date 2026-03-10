@@ -231,6 +231,12 @@ const DEFAULT_DELIVERY_STRATEGY: DeliveryStrategy = 'end_of_route'
 const PICKUPS_BEFORE_DELIVERY = 150
 
 /**
+ * Service time at each pickup stop (seconds).
+ * Used in: truck.ts, vroom.ts, optimizationEstimate.ts
+ */
+const SERVICE_TIME_PER_STOP_SECONDS = 30
+
+/**
  * Maximum number of merge rounds to perform
  * Used in: clustering.ts - ensures efficient cluster merging
  * Impact: Higher values = more aggressive merging
@@ -282,6 +288,12 @@ export const CLUSTERING_CONFIG = {
     DEFAULT_DELIVERY_STRATEGY,
     PICKUPS_BEFORE_DELIVERY,
   },
+
+  // Depot (Lerhaga 50, 151 66 Södertälje)
+  DEPOT_COORDINATE: { lat: 59.135449, lng: 17.571239 },
+
+  // Service time
+  SERVICE_TIME_PER_STOP_SECONDS,
 
   // Merge rounds
   MAX_MERGE_ROUNDS,
