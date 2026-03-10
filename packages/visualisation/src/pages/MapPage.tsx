@@ -334,10 +334,18 @@ const MapPage = () => {
     }
   }, [socket, isMapActive, status.running, status.experimentId])
 
-  const handlePlayTime = () => {
+  const handlePlayTime = async () => {
     if (!vehiclesReady || !status.running || hasRoutingFailure) return
     setTimeState(true, status.timeSpeed)
-    playTime()
+    try {
+      const playing = await Promise.race([
+        playTime(),
+        new Promise<boolean>((r) => setTimeout(() => r(true), 2000)),
+      ])
+      if (!playing) setTimeState(false, status.timeSpeed)
+    } catch {
+      // Behåll optimistisk state vid fel
+    }
   }
 
   const handlePauseTime = () => {

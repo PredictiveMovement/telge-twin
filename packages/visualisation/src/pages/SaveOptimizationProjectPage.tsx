@@ -1,18 +1,21 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Layout from '@/components/layout/Layout'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SaveOptimizationForm from '@/components/optimize/SaveOptimizationForm'
 import { toast } from '@/hooks/use-toast'
-import { saveRouteDataset, startSimulationFromDatasetRest } from '@/api/simulator'
 import {
-  buildSingleFleetFromRouteData,
-  type Settings,
-} from '@/utils/fleetGenerator'
-import { byId, buildFackInfo, pickDominant, type BilSpec } from '@/utils/shared'
+  saveRouteDataset,
+  startSimulationFromDatasetRest,
+} from '@/api/simulator'
+import { type Settings } from '@/utils/fleetGenerator'
 import type { RouteRecord } from '@/components/routes/FileUpload'
 import { useOptimizationContext } from '@/contexts/OptimizationContext'
+import {
+  buildOptimizationStartDate,
+  prepareOptimizationData,
+} from '@/utils/optimizationPreparation'
 
 const SaveOptimizationProjectPage = () => {
   const navigate = useNavigate()
@@ -34,6 +37,32 @@ const SaveOptimizationProjectPage = () => {
     previewSettings?: Settings
   } | null
 
+  const selectedVehicles = useMemo(
+    () =>
+      new Set(
+        (navigationState?.selectedItems || [])
+          .map((item: any) => item?.fordon)
+          .filter(Boolean)
+      ),
+    [navigationState?.selectedItems]
+  )
+
+  const preparedOptimizationData = useMemo(
+    () =>
+      prepareOptimizationData({
+        uploadedData: navigationState?.uploadedData,
+        selectedRoutes: navigationState?.selectedRoutes,
+        selectedVehicles,
+        previewSettings: navigationState?.previewSettings,
+      }),
+    [
+      navigationState?.previewSettings,
+      navigationState?.selectedRoutes,
+      navigationState?.uploadedData,
+      selectedVehicles,
+    ]
+  )
+
   const handleSaveOptimization = async (optimization: any) => {
     // Ensure archived flag exists
     const normalized = {
@@ -53,58 +82,11 @@ const SaveOptimizationProjectPage = () => {
       }
 
       const uploadedData = navigationState.uploadedData
-      const selectedTurids = new Set(navigationState.selectedRoutes)
       const previewSettings = navigationState.previewSettings as Settings
       const originalFilename = navigationState.originalFilename || 'routes.json'
-
-      // Build selected route data with strict fack-matching per TurID
-      const allSelected = uploadedData.filter((r) => selectedTurids.has(r.Turid))
-      const byTur = new Map<string, RouteRecord[]>()
-      for (const r of allSelected) {
-        if (!byTur.has(r.Turid)) byTur.set(r.Turid, [])
-        byTur.get(r.Turid)!.push(r)
-      }
-
-      const matchesFack = (
-        avftyp: string | undefined,
-        fack: Array<{ number: number; allowedWasteTypes: string[] }>
-      ) => {
-        if (!avftyp) return false
-        // If no fack defined or all fack have no waste types, accept all
-        if (!Array.isArray(fack) || fack.length === 0) return true
-        
-        // Check if any fack has allowedWasteTypes defined
-        const hasAnyWasteTypes = fack.some(fx => 
-          Array.isArray(fx.allowedWasteTypes) && fx.allowedWasteTypes.length > 0
-        )
-        
-        // If no waste types defined in any fack, accept all
-        if (!hasAnyWasteTypes) return true
-        
-        // Otherwise, check if waste type matches any fack
-        for (const fx of fack) {
-          if (
-            Array.isArray(fx.allowedWasteTypes) &&
-            fx.allowedWasteTypes.includes(avftyp)
-          ) {
-            return true
-          }
-        }
-        return false
-      }
-
-      let removedCount = 0
-      const selectedRouteData: RouteRecord[] = []
-      for (const [, records] of Array.from(byTur.entries())) {
-        const dominantBil = pickDominant(records.map((b) => b.Bil)) || records[0].Bil
-        const bil = (byId(previewSettings?.bilar || []) as Record<string, BilSpec>)[
-          dominantBil
-        ]
-        const fack = buildFackInfo(bil)
-        const groupMatched = records.filter((r) => matchesFack(r.Avftyp, fack))
-        removedCount += records.length - groupMatched.length
-        selectedRouteData.push(...groupMatched)
-      }
+      const selectedRouteData = preparedOptimizationData?.routeData || []
+      const fleetConfiguration = preparedOptimizationData?.fleetConfiguration || []
+      const removedCount = preparedOptimizationData?.removedCount || 0
 
       if (removedCount > 0) {
         toast.info(`Filtrerat bort ${removedCount} bokningar utan passande fack`)
@@ -116,14 +98,6 @@ const SaveOptimizationProjectPage = () => {
       }
 
       // Build fleet configuration and save dataset
-      const selectionLabel = `${navigationState.selectedRoutes.length}turer`
-
-      const fleetConfiguration = buildSingleFleetFromRouteData(
-        selectedRouteData as any,
-        previewSettings,
-        `Flotta – ${selectionLabel}`
-      )
-
       const res = await saveRouteDataset({
         name: normalized.name || 'Optimering',
         description: normalized.description || 'Sparad optimering',
@@ -132,7 +106,9 @@ const SaveOptimizationProjectPage = () => {
         routeData: selectedRouteData as unknown as Record<string, unknown>[],
         originalRecordCount: uploadedData.length,
         fleetConfiguration: fleetConfiguration as unknown as Record<string, unknown>[],
-        originalSettings: previewSettings as unknown as Record<string, unknown>,
+        originalSettings:
+          preparedOptimizationData?.originalSettings ||
+          (previewSettings as unknown as Record<string, unknown>),
         optimizationSettings: {
           workingHours: normalized.workingHours,
           breaks: normalized.breaks,
@@ -152,37 +128,18 @@ const SaveOptimizationProjectPage = () => {
           onNavigate: () => {
             navigate('/routes?tab=optimizations', { replace: true })
           },
-          onComplete: () => {
-            // Optional: any cleanup after animation completes
-          },
           expectedVehicleCount,
         })
-
-        // Determine start time from working hours
-        let startHour = 6
-        let startMinute = 0
-        const workingHoursStart = normalized.workingHours?.start
-        if (workingHoursStart) {
-          const parts = workingHoursStart.split(':')
-          if (parts.length >= 2) {
-            startHour = parseInt(parts[0], 10)
-            startMinute = parseInt(parts[1], 10)
-          }
-        }
-
-        // Determine date from filter criteria or default to today
-        let startDate = new Date()
-        if (navigationState?.filters?.dateRange?.from) {
-          startDate = new Date(navigationState.filters.dateRange.from)
-        }
-        startDate.setHours(startHour, startMinute, 0, 0)
 
         // Start simulation via REST API (runs in background while animation plays)
         startSimulationFromDatasetRest(
           datasetId,
           normalized.name,
           {
-            startDate: startDate.toISOString(),
+            startDate: buildOptimizationStartDate(
+              navigationState?.filters,
+              normalized.workingHours
+            ),
             experimentType: 'vroom',
           }
         ).catch(() => {
@@ -228,6 +185,19 @@ const SaveOptimizationProjectPage = () => {
               navigationState?.viewMode as 'turid' | 'flottor' | undefined
             }
             selectedItems={navigationState?.selectedItems || []}
+            estimateInputBase={
+              preparedOptimizationData
+                ? {
+                    routeData:
+                      preparedOptimizationData.routeData as unknown as Record<
+                        string,
+                        unknown
+                      >[],
+                    fleetConfiguration: preparedOptimizationData.fleetConfiguration,
+                    originalSettings: preparedOptimizationData.originalSettings,
+                  }
+                : undefined
+            }
           />
         </div>
       </div>

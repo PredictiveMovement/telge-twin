@@ -3,19 +3,11 @@ import BreakCard from './BreakCard';
 import BreaksHeader from './BreaksHeader';
 import { useBreaksHistory } from '@/hooks/useBreaksHistory';
 import { useBreaksOperations } from '@/hooks/useBreaksOperations';
-
-interface BreakConfig {
-  id: string;
-  name: string;
-  duration: number;
-  enabled: boolean;
-  desiredTime?: string;
-}
+import type { BreakConfig } from '@/types/breaks';
 
 interface BreaksSectionProps {
   breaks: BreakConfig[];
   extraBreaks: BreakConfig[];
-  timeOptions: string[];
   onBreaksChange: (breaks: BreakConfig[]) => void;
   onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void;
   disableHover?: boolean;
@@ -24,7 +16,6 @@ interface BreaksSectionProps {
 const BreaksSection: React.FC<BreaksSectionProps> = ({
   breaks,
   extraBreaks,
-  timeOptions,
   onBreaksChange,
   onExtraBreaksChange,
   disableHover
@@ -68,7 +59,6 @@ const BreaksSection: React.FC<BreaksSectionProps> = ({
             <BreakCard 
               breakItem={breakItem} 
               isExtra={false} 
-              timeOptions={timeOptions} 
               onUpdateDuration={updateBreakDuration} 
               onUpdateName={updateBreakName} 
               onUpdateTime={updateBreakTime} 
@@ -83,7 +73,6 @@ const BreaksSection: React.FC<BreaksSectionProps> = ({
             <BreakCard 
               breakItem={breakItem} 
               isExtra={true} 
-              timeOptions={timeOptions} 
               onUpdateDuration={updateBreakDuration} 
               onUpdateName={updateBreakName} 
               onUpdateTime={updateBreakTime} 
