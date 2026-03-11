@@ -356,21 +356,6 @@ function applyBookingLoadToCompartments(
   })
 }
 
-async function routeLeg(
-  from: Position,
-  to: Position
-): Promise<RouteLegSummary> {
-  if (from.distanceTo(to) < 5) {
-    return { durationSeconds: 0, distanceMeters: 0 }
-  }
-
-  const route = await osrm.route(from, to)
-  return {
-    durationSeconds: Math.ceil(route?.duration || 0),
-    distanceMeters: Math.ceil(route?.distance || 0),
-  }
-}
-
 async function routeWaypointLegs(
   positions: Position[]
 ): Promise<RouteLegSummary[]> {
@@ -378,34 +363,21 @@ async function routeWaypointLegs(
     return []
   }
 
-  const hasMovement = positions.some((position, index) => {
-    if (index === 0) return false
-    return positions[index - 1].distanceTo(position) >= 5
-  })
+  const legs = await Promise.all(
+    positions.slice(1).map(async (to, index) => {
+      const from = positions[index]
+      if (from.distanceTo(to) < 5) {
+        return { durationSeconds: 0, distanceMeters: 0 }
+      }
+      const route = await osrm.route(from, to)
+      return {
+        durationSeconds: Math.round(route?.duration || 0),
+        distanceMeters: Math.round(route?.distance || 0),
+      }
+    })
+  )
 
-  if (!hasMovement) {
-    return Array.from({ length: positions.length - 1 }, () => ({
-      durationSeconds: 0,
-      distanceMeters: 0,
-    }))
-  }
-
-  const coordinates = positions.map((position) => [position.lon, position.lat] as [number, number])
-  const route = await osrm.routeMultiWaypoint(coordinates)
-  const legs = Array.isArray(route?.legs) ? route.legs : []
-
-  if (legs.length === positions.length - 1) {
-    return legs.map((leg) => ({
-      durationSeconds: Math.ceil(leg?.duration || 0),
-      distanceMeters: Math.ceil(leg?.distance || 0),
-    }))
-  }
-
-  const fallbackLegs: RouteLegSummary[] = []
-  for (let index = 1; index < positions.length; index += 1) {
-    fallbackLegs.push(await routeLeg(positions[index - 1], positions[index]))
-  }
-  return fallbackLegs
+  return legs
 }
 
 function cloneCompartments(
@@ -521,9 +493,11 @@ export async function estimateTruckRuntime(
   }
 
   const returnToDepot = async () => {
-    const leg = await routeLeg(currentPosition, truck.startPosition)
-    currentTimeMs += leg.durationSeconds * 1000
-    distanceMeters += leg.distanceMeters
+    const [leg] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
+    if (leg) {
+      currentTimeMs += leg.durationSeconds * 1000
+      distanceMeters += leg.distanceMeters
+    }
     currentPosition = toPosition(truck.startPosition)
     resetCompartments(truck.compartments)
   }
@@ -560,7 +534,7 @@ export async function estimateTruckRuntime(
       const pickupPosition = booking.pickup?.position
         ? toPosition(booking.pickup.position)
         : toPosition(DEFAULT_DEPOT_COORDINATE)
-      const pickupLeg = legs[index] || (await routeLeg(currentPosition, pickupPosition))
+      const pickupLeg = legs[index] || { durationSeconds: 0, distanceMeters: 0 }
       currentTimeMs += pickupLeg.durationSeconds * 1000
       distanceMeters += pickupLeg.distanceMeters
       currentPosition = pickupPosition
@@ -596,7 +570,7 @@ export async function estimateTruckRuntime(
     consumeBreaks()
 
     const returnLeg =
-      legs[tour.length] || (await routeLeg(currentPosition, truck.startPosition))
+      legs[tour.length] || { durationSeconds: 0, distanceMeters: 0 }
     currentTimeMs += returnLeg.durationSeconds * 1000
     distanceMeters += returnLeg.distanceMeters
     currentPosition = toPosition(truck.startPosition)
@@ -606,9 +580,11 @@ export async function estimateTruckRuntime(
   consumeBreaks()
 
   if (currentPosition.distanceTo(truck.startPosition) >= 5) {
-    const leg = await routeLeg(currentPosition, truck.startPosition)
-    currentTimeMs += leg.durationSeconds * 1000
-    distanceMeters += leg.distanceMeters
+    const [leg] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
+    if (leg) {
+      currentTimeMs += leg.durationSeconds * 1000
+      distanceMeters += leg.distanceMeters
+    }
   }
 
   const totalUnreachable = activePlan.filter(

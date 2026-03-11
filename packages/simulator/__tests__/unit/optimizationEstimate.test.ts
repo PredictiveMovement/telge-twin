@@ -2,7 +2,6 @@ jest.mock('../../lib/osrm', () => ({
   __esModule: true,
   default: {
     route: jest.fn(),
-    routeMultiWaypoint: jest.fn(),
   },
 }))
 
@@ -17,9 +16,6 @@ import {
 } from '../../lib/optimizationEstimate'
 
 const mockedRoute = osrm.route as jest.MockedFunction<typeof osrm.route>
-const mockedRouteMultiWaypoint = osrm.routeMultiWaypoint as jest.MockedFunction<
-  typeof osrm.routeMultiWaypoint
->
 
 const startMs = Date.parse('2024-01-15T08:00:00.000Z')
 const alignedStartDateIso = new Date('2024-01-15T08:00:00').toISOString()
@@ -83,17 +79,6 @@ describe('optimizationEstimate dry-run', () => {
       distance: 1000,
       geometry: '',
     } as any)
-    mockedRouteMultiWaypoint.mockImplementation(async (coordinates: [number, number][]) => {
-      const legCount = Math.max(0, coordinates.length - 1)
-      return {
-        duration: legCount * 60,
-        distance: legCount * 1000,
-        legs: Array.from({ length: legCount }, () => ({
-          duration: 60,
-          distance: 1000,
-        })),
-      } as any
-    })
   })
 
   it('returns pickup sequence plus one final depot return for end_of_route', async () => {
@@ -117,8 +102,8 @@ describe('optimizationEstimate dry-run', () => {
     )
     expect(result.distanceMeters).toBe(3000)
     expect(result.unreachableStopCount).toBe(0)
-    expect(mockedRouteMultiWaypoint).toHaveBeenCalledTimes(1)
-    expect(mockedRoute).not.toHaveBeenCalled()
+    // osrm.route per leg: [depot→A, A→B, B→depot] = 3 calls
+    expect(mockedRoute).toHaveBeenCalledTimes(3)
   })
 
   it('adds depot trips during the route for capacity_based delivery', async () => {
@@ -142,8 +127,8 @@ describe('optimizationEstimate dry-run', () => {
     )
     expect(result.distanceMeters).toBe(4000)
     expect(result.unreachableStopCount).toBe(0)
-    expect(mockedRouteMultiWaypoint).toHaveBeenCalledTimes(2)
-    expect(mockedRoute).not.toHaveBeenCalled()
+    // capacity_based with pickupsBeforeDelivery=1: 2 tours × 2 legs each = 4 calls
+    expect(mockedRoute).toHaveBeenCalledTimes(4)
   })
 
   it('includes configured breaks in the optimization estimate', async () => {
