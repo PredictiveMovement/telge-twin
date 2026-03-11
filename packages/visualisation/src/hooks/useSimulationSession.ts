@@ -24,7 +24,7 @@ interface SimulationSessionState {
   hasSession: boolean
   start: () => Promise<void>
   stop: () => void
-  play: () => void
+  play: () => Promise<boolean>
   pause: () => void
   setSpeed: (speed: number) => void
   resetError: () => void
@@ -233,16 +233,27 @@ export const useSimulationSession = ({
     socket.emit('stopSession', { sessionId: session.sessionId })
   }, [socket, session?.sessionId])
 
-  const play = useCallback(() => {
-    if (!socket || !session?.sessionId) return
-    socket.emit('sessionPlay', { sessionId: session.sessionId })
+  const play = useCallback((): Promise<boolean> => {
+    if (!socket || !session?.sessionId) return Promise.resolve(false)
     setTimeRunning(true)
+    return Promise.race([
+      new Promise<boolean>((resolve) => {
+        socket.emit('sessionPlay', { sessionId: session.sessionId }, (playing: boolean) => {
+          setTimeRunning(playing)
+          resolve(playing)
+        })
+      }),
+      new Promise<boolean>((r) => setTimeout(() => r(true), 2000)),
+    ]).then((playing) => {
+      if (!playing) setTimeRunning(false)
+      return playing
+    })
   }, [socket, session?.sessionId])
 
   const pause = useCallback(() => {
     if (!socket || !session?.sessionId) return
-    socket.emit('sessionPause', { sessionId: session.sessionId })
     setTimeRunning(false)
+    socket.emit('sessionPause', { sessionId: session.sessionId })
   }, [socket, session?.sessionId])
 
   const setSpeed = useCallback(

@@ -21,14 +21,17 @@ export function register(
     socket.on('reset', () => {
       virtualTime.reset()
     })
-    socket.on('play', () => {
+    socket.on('play', (ack?: (playing: boolean) => void) => {
       if (!parameters?.dispatchReady) {
+        ack?.(virtualTime.isPlaying())
         return
       }
       virtualTime.play()
+      ack?.(virtualTime.isPlaying())
     })
-    socket.on('pause', () => {
+    socket.on('pause', (ack?: (playing: boolean) => void) => {
       virtualTime.pause()
+      ack?.(virtualTime.isPlaying())
     })
     socket.on('speed', (speed: number) => {
       const currentSpeed = virtualTime.getTimeMultiplier

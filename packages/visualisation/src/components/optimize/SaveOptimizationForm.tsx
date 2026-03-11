@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
@@ -7,7 +6,15 @@ import { useForm } from 'react-hook-form';
 import WorkerSettingsSection from './WorkerSettingsSection';
 import BreaksSection from './BreaksSection';
 import ProjectDetailsSection from './ProjectDetailsSection';
-import { getRouteDatasets } from '@/api/simulator';
+import FeasibilityIndicator from './FeasibilityIndicator';
+import {
+  estimateOptimizationFeasibility,
+  getRouteDatasets,
+} from '@/api/simulator';
+import type { RouteEstimate } from '@/api/simulator';
+import { computeFeasibility } from '@/utils/feasibilityEstimate';
+import type { BreakConfig } from '@/types/breaks';
+import { buildOptimizationStartDate } from '@/utils/optimizationPreparation';
 
 interface SaveOptimizationFormProps {
   onSave: (optimization: any) => void;
@@ -15,15 +22,11 @@ interface SaveOptimizationFormProps {
   filters?: any;
   viewMode?: 'turid' | 'flottor';
   selectedItems?: any[];
-  onFormDirtyChange?: (isDirty: boolean) => void;
-}
-
-interface BreakConfig {
-  id: string;
-  name: string;
-  duration: number;
-  enabled: boolean;
-  desiredTime?: string;
+  estimateInputBase?: {
+    routeData: Record<string, unknown>[];
+    fleetConfiguration: Record<string, unknown>[];
+    originalSettings?: Record<string, unknown> | null;
+  };
 }
 
 const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
@@ -32,7 +35,7 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
   filters = {},
   viewMode,
   selectedItems = [],
-  onFormDirtyChange
+  estimateInputBase,
 }) => {
   const form = useForm({
     defaultValues: {
@@ -67,20 +70,6 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
 
   const [isNameAutofilled, setIsNameAutofilled] = useState(false);
   const [isDescriptionAutofilled, setIsDescriptionAutofilled] = useState(false);
-
-  // Generate time options for dropdown
-  const generateTimeOptions = () => {
-    const options = [];
-    for (let hour = 6; hour <= 18; hour++) {
-      for (let minute = 0; minute < 60; minute += 15) {
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        options.push(timeString);
-      }
-    }
-    return options;
-  };
-
-const timeOptions = generateTimeOptions();
 
 // Generate next auto-increment name: "Optimering 01", "Optimering 02", ...
 const getNextOptimizationName = useCallback(async (): Promise<string> => {
@@ -172,39 +161,78 @@ useEffect(() => {
   prefillForm();
 }, [form, getNextOptimizationName, buildAutoDescription]);
 
-// Track form dirty state and breaks changes
-useEffect(() => {
-  const subscription = form.watch((values) => {
-    if (onFormDirtyChange) {
-      // Check if any form field has been manually edited (not autofilled)
-      const hasManualChanges = 
-        !isNameAutofilled ||
-        !isDescriptionAutofilled ||
-        values.startTime !== '06:00' ||
-        values.endTime !== '15:00';
-      
-      onFormDirtyChange(hasManualChanges);
-    }
-  });
-  
-  return () => subscription.unsubscribe();
-}, [
-  form,
-  onFormDirtyChange,
-  isNameAutofilled,
-  isDescriptionAutofilled,
-]);
+const startTime = form.watch('startTime');
+const endTime = form.watch('endTime');
+const [routeEstimates, setRouteEstimates] = useState<RouteEstimate[]>([]);
+const [estimatesLoading, setEstimatesLoading] = useState(false);
+const estimateStartDate = useMemo(
+  () => buildOptimizationStartDate(filters, { start: startTime }),
+  [filters?.dateRange?.from, startTime]
+);
 
-// Track breaks changes
 useEffect(() => {
-  if (onFormDirtyChange) {
-    const hasBreakChanges = 
-      breaks.some(b => !b.enabled || b.desiredTime !== '08:00' && b.id === 'morning' || b.desiredTime !== '10:00' && b.id === 'lunch' || b.desiredTime !== '13:00' && b.id === 'afternoon') ||
-      extraBreaks.length > 0;
-    
-    onFormDirtyChange(hasBreakChanges);
+  if (!estimateInputBase?.fleetConfiguration?.length) {
+    setRouteEstimates([]);
+    setEstimatesLoading(false);
+    return;
   }
-}, [breaks, extraBreaks, onFormDirtyChange]);
+
+  let cancelled = false;
+  const controller = new AbortController();
+  const debounceId = window.setTimeout(() => {
+    setEstimatesLoading(true);
+
+    estimateOptimizationFeasibility(
+      {
+        ...estimateInputBase,
+        optimizationSettings: {
+          workingHours: {
+            start: startTime,
+            end: endTime,
+          },
+          breaks: breaks.filter((breakItem) => breakItem.enabled),
+          extraBreaks: extraBreaks.filter((breakItem) => breakItem.enabled),
+        },
+        startDate: estimateStartDate,
+      },
+      {
+        signal: controller.signal,
+        timeoutMs: 30000,
+      }
+    )
+      .then(({ estimates }) => {
+        if (!cancelled) {
+          setRouteEstimates(estimates);
+        }
+      })
+      .catch((err) => {
+        if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') {
+          return;
+        }
+
+        console.warn('Optimization feasibility estimation failed:', err);
+        if (!cancelled) {
+          setRouteEstimates([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setEstimatesLoading(false);
+        }
+      });
+  }, 600);
+
+  return () => {
+    cancelled = true;
+    window.clearTimeout(debounceId);
+    controller.abort();
+  };
+}, [estimateInputBase, startTime, endTime, breaks, extraBreaks, estimateStartDate]);
+
+const feasibilityResult = useMemo(() => {
+  if (!routeEstimates?.length) return null;
+  return computeFeasibility(routeEstimates, startTime, endTime);
+}, [routeEstimates, startTime, endTime]);
 
 const onSubmit = async (data: any) => {
   const ensuredName = data?.name && data.name.trim() ? data.name.trim() : await getNextOptimizationName();
@@ -244,16 +272,19 @@ const onSubmit = async (data: any) => {
 
           <Separator />
 
-          <WorkerSettingsSection form={form} timeOptions={timeOptions} />
-
+          <WorkerSettingsSection form={form} />
 
           <BreaksSection
             breaks={breaks}
             extraBreaks={extraBreaks}
-            timeOptions={timeOptions}
             onBreaksChange={setBreaks}
             onExtraBreaksChange={setExtraBreaks}
             disableHover
+          />
+
+          <FeasibilityIndicator
+            result={feasibilityResult}
+            loading={estimatesLoading}
           />
 
           <div className="flex gap-2 justify-end pt-6">

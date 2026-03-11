@@ -1,5 +1,8 @@
 // Common helpers shared across UI modules
 
+/** Lerhaga 50, 151 66 Södertälje — [lon, lat] */
+export const DEPOT_COORDINATE: [number, number] = [17.571239, 59.135449]
+
 export const byId = <T extends { ID: string }>(arr: T[] = []) =>
   Object.fromEntries(arr.map((x) => [x.ID, x])) as Record<string, T>
 

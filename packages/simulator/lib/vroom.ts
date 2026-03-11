@@ -366,7 +366,7 @@ export function bookingToShipment(
       location: [deliveryLon, deliveryLat],
       time_windows: [[deliveryStart, deliveryEnd]],
     },
-    service: 60,
+    service: CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS,
   }
 }
 

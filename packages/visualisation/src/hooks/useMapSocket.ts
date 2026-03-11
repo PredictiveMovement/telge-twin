@@ -109,16 +109,24 @@ export const useMapSocket = () => {
     [state.socket]
   )
 
-  const playTime = useCallback(() => {
-    if (state.socket) {
-      state.socket.emit('play')
-    }
+  const playTime = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (state.socket) {
+        state.socket.emit('play', (playing: boolean) => resolve(playing))
+      } else {
+        resolve(false)
+      }
+    })
   }, [state.socket])
 
-  const pauseTime = useCallback(() => {
-    if (state.socket) {
-      state.socket.emit('pause')
-    }
+  const pauseTime = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (state.socket) {
+        state.socket.emit('pause', (playing: boolean) => resolve(playing))
+      } else {
+        resolve(false)
+      }
+    })
   }, [state.socket])
 
   const resetTime = useCallback(() => {

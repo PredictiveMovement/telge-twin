@@ -1,5 +1,4 @@
 const cancelledExperimentIds = new Set<string>()
-const loggedCancellationExperimentIds = new Set<string>()
 
 export function markExperimentCancelled(experimentId?: string | null): void {
   if (typeof experimentId !== 'string' || !experimentId) return
@@ -9,7 +8,6 @@ export function markExperimentCancelled(experimentId?: string | null): void {
 export function clearExperimentCancelled(experimentId?: string | null): void {
   if (typeof experimentId !== 'string' || !experimentId) return
   cancelledExperimentIds.delete(experimentId)
-  loggedCancellationExperimentIds.delete(experimentId)
 }
 
 export function isExperimentCancelled(experimentId?: string | null): boolean {
@@ -19,18 +17,6 @@ export function isExperimentCancelled(experimentId?: string | null): boolean {
 
 export function resetCancelledExperiments(): void {
   cancelledExperimentIds.clear()
-  loggedCancellationExperimentIds.clear()
-}
-
-export function shouldLogExperimentCancellation(
-  experimentId?: string | null
-): boolean {
-  if (typeof experimentId !== 'string' || !experimentId) return true
-  if (loggedCancellationExperimentIds.has(experimentId)) {
-    return false
-  }
-  loggedCancellationExperimentIds.add(experimentId)
-  return true
 }
 
 export default {
@@ -38,7 +24,6 @@ export default {
   clearExperimentCancelled,
   isExperimentCancelled,
   resetCancelledExperiments,
-  shouldLogExperimentCancellation,
 }
 
 // CommonJS compatibility
@@ -50,6 +35,5 @@ if (typeof module !== 'undefined') {
     clearExperimentCancelled,
     isExperimentCancelled,
     resetCancelledExperiments,
-    shouldLogExperimentCancellation,
   }
 }

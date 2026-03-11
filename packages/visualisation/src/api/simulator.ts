@@ -1,20 +1,13 @@
 import axios from 'axios'
 import { SIMULATOR_CONFIG } from '../config/simulator'
 import { Socket } from 'socket.io-client'
+import type { BreakConfig } from '@/types/breaks'
 
 const simulatorApi = axios.create({
   baseURL: SIMULATOR_CONFIG.url,
   timeout: SIMULATOR_CONFIG.requestConfig.timeout,
   headers: SIMULATOR_CONFIG.requestConfig.headers,
 })
-
-export interface OptimizationBreakSetting {
-  id: string
-  name: string
-  duration: number
-  enabled: boolean
-  desiredTime?: string
-}
 
 export interface OptimizationSettings {
   workingHours?: {
@@ -30,8 +23,8 @@ export interface OptimizationSettings {
     saturday?: { enabled: boolean; startTime: string; endTime: string }
     sunday?: { enabled: boolean; startTime: string; endTime: string }
   }
-  breaks?: OptimizationBreakSetting[]
-  extraBreaks?: OptimizationBreakSetting[]
+  breaks?: BreakConfig[]
+  extraBreaks?: BreakConfig[]
 }
 
 export interface RouteDataset {
@@ -683,6 +676,45 @@ export async function startSimulationFromDatasetRest(
       error:
         _error instanceof Error ? _error.message : 'Failed to start simulation',
     }
+  }
+}
+
+// --- Optimization feasibility estimation ---
+
+export interface RouteEstimate {
+  vehicleId: string
+  durationSeconds: number
+  distanceMeters: number
+  stopCount: number
+  unreachableStopCount: number
+}
+
+export interface OptimizationEstimateRequest {
+  routeData: Record<string, unknown>[]
+  fleetConfiguration: Record<string, unknown>[]
+  originalSettings?: Record<string, unknown> | null
+  optimizationSettings?: OptimizationSettings | null
+  startDate?: string
+}
+
+export interface OptimizationFeasibilityResponse {
+  estimates: RouteEstimate[]
+}
+
+export async function estimateOptimizationFeasibility(
+  payload: OptimizationEstimateRequest,
+  options: {
+    signal?: AbortSignal
+    timeoutMs?: number
+  } = {}
+): Promise<OptimizationFeasibilityResponse> {
+  const response = await simulatorApi.post('/api/optimization/estimate', payload, {
+    signal: options.signal,
+    timeout: options.timeoutMs ?? 30000,
+  })
+  const data = response.data?.data
+  return {
+    estimates: data?.estimates || [],
   }
 }
 
