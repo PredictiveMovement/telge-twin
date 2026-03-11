@@ -287,7 +287,7 @@ const onSubmit = async (data: any) => {
             loading={estimatesLoading}
           />
 
-          <div className="flex gap-2 justify-end pt-6">
+          <div className="flex gap-2 justify-end pt-6 pb-6">
             <Button type="submit" className="bg-[#BBD197] hover:bg-[#BBD197]/90">
               Spara och fortsätt
             </Button>
