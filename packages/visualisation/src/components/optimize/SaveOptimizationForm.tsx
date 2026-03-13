@@ -161,6 +161,14 @@ useEffect(() => {
   prefillForm();
 }, [form, getNextOptimizationName, buildAutoDescription]);
 
+const bookingCoordinates = useMemo(() => {
+  const data = estimateInputBase?.routeData;
+  if (!data?.length) return [];
+  return data
+    .filter((r: any) => typeof r.Lat === 'number' && typeof r.Lng === 'number' && r.Lat !== 0 && r.Lng !== 0)
+    .map((r: any) => ({ lat: r.Lat as number, lng: r.Lng as number }));
+}, [estimateInputBase?.routeData]);
+
 const startTime = form.watch('startTime');
 const endTime = form.watch('endTime');
 const [routeEstimates, setRouteEstimates] = useState<RouteEstimate[]>([]);
@@ -280,6 +288,7 @@ const onSubmit = async (data: any) => {
             onBreaksChange={setBreaks}
             onExtraBreaksChange={setExtraBreaks}
             disableHover
+            bookingCoordinates={bookingCoordinates}
           />
 
           <FeasibilityIndicator

@@ -40,6 +40,7 @@ export const COLORS = {
 
 export const ICON_MAPPING = {
   ready: { x: 40, y: 0, width: 40, height: 40, mask: false },
+  toBreak: { x: 0, y: 0, width: 40, height: 40, mask: false },
   default: { x: 0, y: 0, width: 40, height: 40, mask: false },
 }
 
@@ -52,7 +53,7 @@ export const getPartitionColor = (partitionId: string): number[] => {
 
 export const getVehicleColor = ({ status }: { status: string }): number[] => {
   const opacity = Math.round((4 / 5) * 255)
-  if (status === 'break') {
+  if (status === 'break' || status === 'toBreak') {
     return [...COLORS.vehicle.break, opacity]
   }
   if (status === 'planning') {

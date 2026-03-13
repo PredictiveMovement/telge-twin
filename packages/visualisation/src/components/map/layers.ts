@@ -191,6 +191,52 @@ export const createTransitionEndpointsLayer = (points: any[]) =>
       d.kind === 'first' ? [0, 220, 120, 255] : [230, 60, 60, 255],
   })
 
+let _breakIconUrl: string | null = null
+function getBreakIconUrl(): string {
+  if (!_breakIconUrl) {
+    const size = 64
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.font = '48px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('\u2615', size / 2, size / 2 + 2)
+    _breakIconUrl = canvas.toDataURL()
+  }
+  return _breakIconUrl
+}
+
+export const createBreakLocationLayer = (cars: Car[]) => {
+  const seen = new Set<string>()
+  const data: [number, number][] = []
+  for (const car of cars) {
+    for (const loc of car.breakLocations || []) {
+      const key = `${loc[0].toFixed(5)},${loc[1].toFixed(5)}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        data.push(loc)
+      }
+    }
+  }
+  if (!data.length) return null
+  return new IconLayer({
+    id: 'break-location-layer',
+    data,
+    getPosition: (d: [number, number]) => d,
+    getIcon: () => ({
+      url: getBreakIconUrl(),
+      width: 64,
+      height: 64,
+      mask: false,
+    }),
+    getSize: 32,
+    sizeScale: 1,
+    pickable: false,
+  })
+}
+
 export const createRoutesLayer = (routesData: any[]) =>
   new ArcLayer({
     id: 'routesLayer',

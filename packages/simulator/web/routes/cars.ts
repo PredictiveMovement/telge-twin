@@ -28,6 +28,7 @@ type CarInput = {
   vehicleType: string
   recyclingTypes?: string[]
   delivered: unknown[]
+  breakLocations?: { lat: number; lng: number }[]
   compartments?: Array<{
     fackNumber: number
     allowedWasteTypes: string[]
@@ -78,6 +79,7 @@ export function cleanCars(car: CarInput) {
     vehicleType,
     recyclingTypes,
     delivered: delivered.length,
+    ...(car.breakLocations?.length ? { breakLocations: car.breakLocations.map((bl) => [bl.lng, bl.lat]) } : {}),
     compartments: car.compartments || [],
   }
 }

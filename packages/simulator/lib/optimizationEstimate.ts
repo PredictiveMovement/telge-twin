@@ -430,26 +430,43 @@ function buildPickupTours(
   return tours
 }
 
-function consumeDueBreaks(
+async function consumeDueBreaks(
   currentTimeMs: number,
   breaks: ScheduledBreak[],
-  breakIndex: number
+  breakIndex: number,
+  currentPosition: Position
 ) {
   let nextTimeMs = currentTimeMs
   let nextBreakIndex = breakIndex
+  let extraDistanceMeters = 0
+  let position = currentPosition
 
   while (
     nextBreakIndex < breaks.length &&
     breaks[nextBreakIndex] &&
     nextTimeMs >= breaks[nextBreakIndex].startMs
   ) {
-    nextTimeMs += breaks[nextBreakIndex].durationMs
+    const scheduledBreak = breaks[nextBreakIndex]
+
+    if (scheduledBreak.locationCoordinates) {
+      const breakPosition = toPosition(scheduledBreak.locationCoordinates)
+      if (position.distanceTo(breakPosition) > 50) {
+        const [toBreak] = await routeWaypointLegs([position, breakPosition])
+        nextTimeMs += (toBreak?.durationSeconds ?? 0) * 1000
+        extraDistanceMeters += toBreak?.distanceMeters ?? 0
+        position = breakPosition
+      }
+    }
+
+    nextTimeMs += scheduledBreak.durationMs
     nextBreakIndex += 1
   }
 
   return {
     currentTimeMs: nextTimeMs,
     breakIndex: nextBreakIndex,
+    extraDistanceMeters,
+    currentPosition: position,
   }
 }
 
@@ -486,10 +503,12 @@ export async function estimateTruckRuntime(
     truck.fleet.settings
   )
 
-  const consumeBreaks = () => {
-    const result = consumeDueBreaks(currentTimeMs, breaks, breakIndex)
+  const consumeBreaks = async () => {
+    const result = await consumeDueBreaks(currentTimeMs, breaks, breakIndex, currentPosition)
     breakIndex = result.breakIndex
     currentTimeMs = result.currentTimeMs
+    distanceMeters += result.extraDistanceMeters
+    currentPosition = result.currentPosition
   }
 
   const returnToDepot = async () => {
@@ -522,7 +541,7 @@ export async function estimateTruckRuntime(
     for (let index = 0; index < tour.length; index += 1) {
       const booking = tour[index]
 
-      consumeBreaks()
+      await consumeBreaks()
 
       if (currentTimeMs >= workdayEndMs) {
         markBookingsUnreachable(activePlan.slice(processedBookings + index))
@@ -534,7 +553,12 @@ export async function estimateTruckRuntime(
       const pickupPosition = booking.pickup?.position
         ? toPosition(booking.pickup.position)
         : toPosition(DEFAULT_DEPOT_COORDINATE)
-      const pickupLeg = legs[index] || { durationSeconds: 0, distanceMeters: 0 }
+      // If a break moved the truck, the pre-computed leg is stale — recompute
+      let pickupLeg = legs[index] || { durationSeconds: 0, distanceMeters: 0 }
+      if (currentPosition.distanceTo(positions[index]) > 50) {
+        const [recomputed] = await routeWaypointLegs([currentPosition, pickupPosition])
+        if (recomputed) pickupLeg = recomputed
+      }
       currentTimeMs += pickupLeg.durationSeconds * 1000
       distanceMeters += pickupLeg.distanceMeters
       currentPosition = pickupPosition
@@ -567,17 +591,31 @@ export async function estimateTruckRuntime(
       break
     }
 
-    consumeBreaks()
+    await consumeBreaks()
 
-    const returnLeg =
+    // If a break moved the truck, recompute return-to-depot leg
+    let returnLeg =
       legs[tour.length] || { durationSeconds: 0, distanceMeters: 0 }
+    if (currentPosition.distanceTo(positions[tour.length]) > 50) {
+      const [recomputed] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
+      if (recomputed) returnLeg = recomputed
+    }
     currentTimeMs += returnLeg.durationSeconds * 1000
     distanceMeters += returnLeg.distanceMeters
     currentPosition = toPosition(truck.startPosition)
     resetCompartments(truck.compartments)
   }
 
-  consumeBreaks()
+  await consumeBreaks()
+
+  // Handle remaining breaks not yet consumed (scheduled after route finished)
+  while (breakIndex < breaks.length) {
+    if (breaks[breakIndex].startMs >= workdayEndMs) break
+    if (currentTimeMs < breaks[breakIndex].startMs) {
+      currentTimeMs = breaks[breakIndex].startMs
+    }
+    await consumeBreaks()
+  }
 
   if (currentPosition.distanceTo(truck.startPosition) >= 5) {
     const [leg] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
