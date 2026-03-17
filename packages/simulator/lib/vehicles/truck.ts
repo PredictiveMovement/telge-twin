@@ -54,6 +54,8 @@ class Truck extends Vehicle {
   private shiftEndedForDay = false
   private breakSchedule: ScheduledBreak[] = []
   private breakActive: ScheduledBreak | null = null
+  private breakNavigatingToLocation = false
+  private breakPreviousStatus: string | null = null
   private finishingWorkday = false
   private skipQueueUnreachableMarking = false
 
@@ -347,6 +349,9 @@ class Truck extends Vehicle {
     this.breakSchedule.forEach((b) => {
       b.taken = true
     })
+    this.breakActive = null
+    this.breakNavigatingToLocation = false
+    this.breakPreviousStatus = null
 
     this.setStatus('returning')
 
@@ -370,20 +375,79 @@ class Truck extends Vehicle {
       return false
     }
 
-    const previousStatus = this.status
     this.breakActive = upcoming
+    this.breakPreviousStatus = this.status
+
+    // If break has a location, navigate there first
+    if (upcoming.locationCoordinates) {
+      const breakPosition = new Position({
+        lat: upcoming.locationCoordinates.lat,
+        lng: upcoming.locationCoordinates.lng,
+      })
+
+      const distToBreak = this.position?.distanceTo?.(breakPosition) ?? 0
+      if (distToBreak > 50) {
+        this.breakNavigatingToLocation = true
+        this.setStatus('toBreak')
+        this.emitMoved()
+
+        const osrm = require('../osrm')
+        const breakRoute = await this.runWithoutAdvancing(() =>
+          osrm.route(this.position, breakPosition)
+        )
+        this.instruction = this.createInstruction('break', null, { route: breakRoute })
+        this.navigateTo(breakPosition)
+        // Truck is now driving to break location.
+        // When it arrives, stopped() → handlePostStop() → takeActiveBreak() will complete the break.
+        return true
+      }
+    }
+
+    // No location or already at location — take break immediately
+    await this.takeActiveBreak()
+    return true
+  }
+
+  private async takeActiveBreak(): Promise<void> {
+    const active = this.breakActive
+    if (!active) return
+
+    this.breakNavigatingToLocation = false
     this.speed = 0
     this.setStatus('break')
     this.emitMoved()
 
-    await this.virtualTime.wait(upcoming.durationMs)
+    await this.virtualTime.wait(active.durationMs)
 
-    upcoming.taken = true
+    active.taken = true
     this.breakActive = null
-    this.setStatus(previousStatus || 'ready')
-    this.emitMoved()
 
-    return true
+    // Recompute route for next plan instruction since the truck
+    // may now be at a break location, not where it was before
+    if (active.locationCoordinates) {
+      const nextInstruction = this.plan[0]
+      if (nextInstruction) {
+        const nextTarget = this.getInstructionTarget(nextInstruction)
+        if (nextTarget) {
+          const osrm = require('../osrm')
+          const newRoute = await this.runWithoutAdvancing(() =>
+            osrm.route(this.position, nextTarget)
+          )
+          nextInstruction.route = newRoute
+        }
+      }
+    }
+
+    const restoredStatus = this.breakPreviousStatus || 'ready'
+    this.breakPreviousStatus = null
+    this.setStatus(restoredStatus)
+    this.emitMoved()
+  }
+
+  get breakLocations(): { lat: number; lng: number }[] {
+    return this.breakSchedule
+      .filter((b) => b.locationCoordinates)
+      .map((b) => b.locationCoordinates!)
   }
 
   /** Compute expected pickup volume (liters) and weight (kg) for a booking using dataset settings. */
@@ -471,12 +535,18 @@ class Truck extends Vehicle {
     }
 
     if (this.breakActive) {
+      if (this.breakNavigatingToLocation) {
+        // Navigating to break location — arrival handled by handlePostStop
+        return
+      }
       this.speed = 0
       this.setStatus('break')
       return
     }
 
     if (await this.maybeTakeBreak()) {
+      // If navigating to break location, don't recurse — arrival will continue the flow
+      if (this.breakNavigatingToLocation) return
       return this.pickNextInstructionFromPlan()
     }
 
@@ -621,12 +691,20 @@ class Truck extends Vehicle {
     }
 
     if (this.breakActive) {
+      if (this.breakNavigatingToLocation) {
+        // Arrived at break location — now take the actual break
+        await this.takeActiveBreak()
+        return this.handlePostStop()
+      }
+      // Break is in progress (virtualTime.wait) — do nothing
       this.speed = 0
       this.setStatus('break')
       return
     }
 
     if (await this.maybeTakeBreak()) {
+      // If navigating to break location, don't recurse — arrival will re-enter handlePostStop
+      if (this.breakNavigatingToLocation) return
       return this.handlePostStop()
     }
 

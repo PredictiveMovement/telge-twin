@@ -63,7 +63,7 @@ export const createCarLayer = (
   })
 }
 
-export const createBookingLayer = (bookings: Booking[], onHover: any) =>
+export const createBookingLayer = (bookings: Booking[], onHover: any, mapStyle?: string) =>
   new ScatterplotLayer({
     id: 'booking-layer',
     data: bookings,
@@ -74,9 +74,10 @@ export const createBookingLayer = (bookings: Booking[], onHover: any) =>
     radiusUnits: 'pixels',
     getPosition: (c: Booking) => c.pickup,
     getRadius: () => 4,
-    getFillColor: getBookingColor,
+    getFillColor: (b: Booking) => getBookingColor({ ...b, mapStyle }),
     pickable: true,
     onHover,
+    updateTriggers: { getFillColor: mapStyle },
   })
 
 export const createDestinationLayer = (bookings: Booking[], onHover: any) =>
@@ -190,6 +191,61 @@ export const createTransitionEndpointsLayer = (points: any[]) =>
     getFillColor: (d: any) =>
       d.kind === 'first' ? [0, 220, 120, 255] : [230, 60, 60, 255],
   })
+
+let _mapPinIconUrl: string | null = null
+export function getMapPinIconUrl(): string {
+  if (!_mapPinIconUrl) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" fill="#1a1a1a" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="10" r="3" fill="#fff"/></svg>`
+    _mapPinIconUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  }
+  return _mapPinIconUrl
+}
+
+let _breakIconUrl: string | null = null
+export function getBreakIconUrl(): string {
+  if (!_breakIconUrl) {
+    const size = 64
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.font = '48px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('\u2615', size / 2, size / 2 + 2)
+    _breakIconUrl = canvas.toDataURL()
+  }
+  return _breakIconUrl
+}
+
+export const createBreakLocationLayer = (cars: Car[]) => {
+  const seen = new Set<string>()
+  const data: [number, number][] = []
+  for (const car of cars) {
+    for (const loc of car.breakLocations || []) {
+      const key = `${loc[0].toFixed(5)},${loc[1].toFixed(5)}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        data.push(loc)
+      }
+    }
+  }
+  if (!data.length) return null
+  return new IconLayer({
+    id: 'break-location-layer',
+    data,
+    getPosition: (d: [number, number]) => d,
+    getIcon: () => ({
+      url: getBreakIconUrl(),
+      width: 64,
+      height: 64,
+      mask: false,
+    }),
+    getSize: 32,
+    sizeScale: 1,
+    pickable: false,
+  })
+}
 
 export const createRoutesLayer = (routesData: any[]) =>
   new ArcLayer({

@@ -4,4 +4,6 @@ export interface BreakConfig {
   duration: number
   enabled: boolean
   desiredTime?: string
+  location?: string
+  locationCoordinates?: { lat: number; lng: number }
 }

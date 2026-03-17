@@ -430,36 +430,46 @@ function buildPickupTours(
   return tours
 }
 
-function consumeDueBreaks(
+async function consumeDueBreaks(
   currentTimeMs: number,
   breaks: ScheduledBreak[],
-  breakIndex: number
+  breakIndex: number,
+  currentPosition: Position
 ) {
   let nextTimeMs = currentTimeMs
   let nextBreakIndex = breakIndex
+  let extraDistanceMeters = 0
+  let position = currentPosition
 
   while (
     nextBreakIndex < breaks.length &&
     breaks[nextBreakIndex] &&
     nextTimeMs >= breaks[nextBreakIndex].startMs
   ) {
-    nextTimeMs += breaks[nextBreakIndex].durationMs
+    const scheduledBreak = breaks[nextBreakIndex]
+
+    if (scheduledBreak.locationCoordinates) {
+      const breakPosition = toPosition(scheduledBreak.locationCoordinates)
+      const dist = position.distanceTo(breakPosition)
+      if (dist > 50) {
+        const [toBreak] = await routeWaypointLegs([position, breakPosition])
+        const addedMs = (toBreak?.durationSeconds ?? 0) * 1000
+        nextTimeMs += addedMs
+        extraDistanceMeters += toBreak?.distanceMeters ?? 0
+        position = breakPosition
+      }
+    }
+
+    nextTimeMs += scheduledBreak.durationMs
     nextBreakIndex += 1
   }
 
   return {
     currentTimeMs: nextTimeMs,
     breakIndex: nextBreakIndex,
+    extraDistanceMeters,
+    currentPosition: position,
   }
-}
-
-function markBookingsUnreachable(bookings: Booking[]) {
-  bookings.forEach((booking) => {
-    if (booking.status !== 'Picked up' && booking.status !== 'Delivered') {
-      booking.status = 'Unreachable'
-      ;(booking as any).unreachableReason = 'workday-limit'
-    }
-  })
 }
 
 export async function estimateTruckRuntime(
@@ -486,24 +496,15 @@ export async function estimateTruckRuntime(
     truck.fleet.settings
   )
 
-  const consumeBreaks = () => {
-    const result = consumeDueBreaks(currentTimeMs, breaks, breakIndex)
+  const consumeBreaks = async () => {
+    const result = await consumeDueBreaks(currentTimeMs, breaks, breakIndex, currentPosition)
     breakIndex = result.breakIndex
     currentTimeMs = result.currentTimeMs
-  }
-
-  const returnToDepot = async () => {
-    const [leg] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
-    if (leg) {
-      currentTimeMs += leg.durationSeconds * 1000
-      distanceMeters += leg.distanceMeters
-    }
-    currentPosition = toPosition(truck.startPosition)
-    resetCompartments(truck.compartments)
+    distanceMeters += result.extraDistanceMeters
+    currentPosition = result.currentPosition
   }
 
   let processedBookings = 0
-  let routeEndedEarly = false
 
   for (let tourIndex = 0; tourIndex < pickupTours.length; tourIndex += 1) {
     const tour = pickupTours[tourIndex]
@@ -522,62 +523,60 @@ export async function estimateTruckRuntime(
     for (let index = 0; index < tour.length; index += 1) {
       const booking = tour[index]
 
-      consumeBreaks()
-
-      if (currentTimeMs >= workdayEndMs) {
-        markBookingsUnreachable(activePlan.slice(processedBookings + index))
-        await returnToDepot()
-        routeEndedEarly = true
-        break
-      }
+      await consumeBreaks()
 
       const pickupPosition = booking.pickup?.position
         ? toPosition(booking.pickup.position)
         : toPosition(DEFAULT_DEPOT_COORDINATE)
-      const pickupLeg = legs[index] || { durationSeconds: 0, distanceMeters: 0 }
+      // If a break moved the truck, the pre-computed leg is stale — recompute
+      let pickupLeg = legs[index] || { durationSeconds: 0, distanceMeters: 0 }
+      if (currentPosition.distanceTo(positions[index]) > 50) {
+        const [recomputed] = await routeWaypointLegs([currentPosition, pickupPosition])
+        if (recomputed) pickupLeg = recomputed
+      }
       currentTimeMs += pickupLeg.durationSeconds * 1000
       distanceMeters += pickupLeg.distanceMeters
       currentPosition = pickupPosition
 
+      const serviceMs = CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS * 1000
+      currentTimeMs += serviceMs
+
       if (currentTimeMs >= workdayEndMs) {
         booking.status = 'Unreachable'
         ;(booking as any).unreachableReason = 'workday-limit'
-        markBookingsUnreachable(activePlan.slice(processedBookings + index + 1))
-        await returnToDepot()
-        routeEndedEarly = true
-        break
+      } else {
+        booking.status = 'Picked up'
       }
-
-      const serviceMs = CLUSTERING_CONFIG.SERVICE_TIME_PER_STOP_SECONDS * 1000
-      currentTimeMs += serviceMs
-      booking.status = 'Picked up'
       applyBookingLoadToCompartments(booking, truck.compartments, settings)
-
-      if (currentTimeMs >= workdayEndMs) {
-        markBookingsUnreachable(activePlan.slice(processedBookings + index + 1))
-        await returnToDepot()
-        routeEndedEarly = true
-        break
-      }
     }
 
     processedBookings += tour.length
 
-    if (routeEndedEarly) {
-      break
-    }
+    await consumeBreaks()
 
-    consumeBreaks()
-
-    const returnLeg =
+    // If a break moved the truck, recompute return-to-depot leg
+    let returnLeg =
       legs[tour.length] || { durationSeconds: 0, distanceMeters: 0 }
+    if (currentPosition.distanceTo(positions[tour.length]) > 50) {
+      const [recomputed] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
+      if (recomputed) returnLeg = recomputed
+    }
     currentTimeMs += returnLeg.durationSeconds * 1000
     distanceMeters += returnLeg.distanceMeters
     currentPosition = toPosition(truck.startPosition)
     resetCompartments(truck.compartments)
   }
 
-  consumeBreaks()
+  await consumeBreaks()
+
+  // Handle remaining breaks not yet consumed (scheduled after route finished)
+  while (breakIndex < breaks.length) {
+    if (breaks[breakIndex].startMs >= workdayEndMs) break
+    if (currentTimeMs < breaks[breakIndex].startMs) {
+      currentTimeMs = breaks[breakIndex].startMs
+    }
+    await consumeBreaks()
+  }
 
   if (currentPosition.distanceTo(truck.startPosition) >= 5) {
     const [leg] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])

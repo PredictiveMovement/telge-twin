@@ -17,12 +17,16 @@ export interface BreakInput {
   enabled?: boolean
   duration?: number
   desiredTime?: string
+  location?: string
+  locationCoordinates?: { lat: number; lng: number }
 }
 
 export interface BreakSetting {
   id: string
   startMinutes: number
   durationMinutes: number
+  location?: string
+  locationCoordinates?: { lat: number; lng: number }
 }
 
 export function buildWorkdaySettings(
@@ -69,6 +73,8 @@ export function buildBreakSettings(
       id: candidate.id || `break-${index}`,
       startMinutes,
       durationMinutes,
+      ...(candidate.location ? { location: candidate.location } : {}),
+      ...(candidate.locationCoordinates ? { locationCoordinates: candidate.locationCoordinates } : {}),
     })
   })
 
