@@ -69,6 +69,23 @@ export const useBreaksOperations = ({
     }
   }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
 
+  const updateBreakLocation = useCallback((id: string, newLocation: string, isExtra = false, coordinates?: { lat: number; lng: number }) => {
+    const update = (breakItem: BreakConfig) =>
+      breakItem.id === id
+        ? {
+            ...breakItem,
+            location: newLocation,
+            locationCoordinates: coordinates ?? undefined,
+          }
+        : breakItem;
+
+    if (isExtra) {
+      onExtraBreaksChange(extraBreaks.map(update));
+    } else {
+      onBreaksChange(breaks.map(update));
+    }
+  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
+
   const deleteBreak = useCallback((id: string, isExtra = false) => {
     if (isExtra) {
       onExtraBreaksChange(extraBreaks.filter(breakItem => breakItem.id !== id));
@@ -103,6 +120,7 @@ export const useBreaksOperations = ({
     updateBreakDuration,
     updateBreakName,
     updateBreakTime,
+    updateBreakLocation,
     deleteBreak,
     addExtraBreak
   };

@@ -29,6 +29,7 @@ export default function LayersMenu(props: LayersMenuProps) {
     iconClassName = 'h-4 w-4',
     triggerTooltip = 'Kartinställningar',
     contentClassName = 'bg-white/95 backdrop-blur',
+    show3DToggle = true,
   } = props
 
   const button = (
@@ -81,18 +82,20 @@ export default function LayersMenu(props: LayersMenuProps) {
             </div>
 
             {/* 3D Toggle */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">3D-visning</Label>
-                <p className="text-xs text-muted-foreground">
-                  Visa byggnader i 3D
-                </p>
+            {show3DToggle && (
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">3D-visning</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Visa byggnader i 3D
+                  </p>
+                </div>
+                <Switch
+                  checked={enable3D}
+                  onCheckedChange={(checked) => setEnable3D(() => checked)}
+                />
               </div>
-              <Switch
-                checked={enable3D}
-                onCheckedChange={(checked) => setEnable3D(() => checked)}
-              />
-            </div>
+            )}
           </div>
         </div>
       </DropdownMenuContent>

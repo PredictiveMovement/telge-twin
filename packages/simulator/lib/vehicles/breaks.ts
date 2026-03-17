@@ -9,6 +9,8 @@ export type ScheduledBreak = {
   startMs: number
   durationMs: number
   taken: boolean
+  location?: string
+  locationCoordinates?: { lat: number; lng: number }
 }
 
 export interface WorkdaySettingsLike {
@@ -36,6 +38,8 @@ type BreakCandidate = {
   durationMinutes?: number
   desiredTime?: string
   duration?: number
+  location?: string
+  locationCoordinates?: { lat: number; lng: number }
 }
 
 const resolveWorkdayStartMinutes = (
@@ -188,6 +192,8 @@ export function buildBreakSchedule({
         startMs: clampedStartMs,
         durationMs,
         taken: false,
+        ...(candidate.location ? { location: candidate.location } : {}),
+        ...(candidate.locationCoordinates ? { locationCoordinates: candidate.locationCoordinates } : {}),
       }
     })
     .filter(

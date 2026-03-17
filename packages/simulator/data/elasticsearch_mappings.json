@@ -403,6 +403,15 @@
                 },
                 "desiredTime": {
                   "type": "keyword"
+                },
+                "location": {
+                  "type": "keyword"
+                },
+                "locationCoordinates": {
+                  "properties": {
+                    "lat": { "type": "float" },
+                    "lng": { "type": "float" }
+                  }
                 }
               }
             },
@@ -429,6 +438,15 @@
                 },
                 "desiredTime": {
                   "type": "keyword"
+                },
+                "location": {
+                  "type": "keyword"
+                },
+                "locationCoordinates": {
+                  "properties": {
+                    "lat": { "type": "float" },
+                    "lng": { "type": "float" }
+                  }
                 }
               }
             }
@@ -656,6 +674,15 @@
                 },
                 "desiredTime": {
                   "type": "keyword"
+                },
+                "location": {
+                  "type": "keyword"
+                },
+                "locationCoordinates": {
+                  "properties": {
+                    "lat": { "type": "float" },
+                    "lng": { "type": "float" }
+                  }
                 }
               }
             },
@@ -676,6 +703,15 @@
                 },
                 "desiredTime": {
                   "type": "keyword"
+                },
+                "location": {
+                  "type": "keyword"
+                },
+                "locationCoordinates": {
+                  "properties": {
+                    "lat": { "type": "float" },
+                    "lng": { "type": "float" }
+                  }
                 }
               }
             }
