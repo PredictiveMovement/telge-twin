@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import WorkerSettingsSection from './WorkerSettingsSection';
 import BreaksSection from './BreaksSection';
 import ProjectDetailsSection from './ProjectDetailsSection';
+import VehicleSettingsSection from './VehicleSettingsSection';
 import FeasibilityIndicator from './FeasibilityIndicator';
 import {
   estimateOptimizationFeasibility,
@@ -16,12 +17,19 @@ import { computeFeasibility } from '@/utils/feasibilityEstimate';
 import type { BreakConfig } from '@/types/breaks';
 import { buildOptimizationStartDate } from '@/utils/optimizationPreparation';
 
+interface FackOverride {
+  vehicleId: string;
+  fackNumber: number;
+  allowedWasteTypes: string[];
+}
+
 interface SaveOptimizationFormProps {
   onSave: (optimization: any) => void;
   selectedRoutes?: string[];
   filters?: any;
   viewMode?: 'turid' | 'flottor';
   selectedItems?: any[];
+  avftyper?: Array<{ ID: string; BESKRIVNING?: string }>;
   estimateInputBase?: {
     routeData: Record<string, unknown>[];
     fleetConfiguration: Record<string, unknown>[];
@@ -35,6 +43,7 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
   filters = {},
   viewMode,
   selectedItems = [],
+  avftyper = [],
   estimateInputBase,
 }) => {
   const form = useForm({
@@ -67,6 +76,81 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
   }]);
 
   const [extraBreaks, setExtraBreaks] = useState<BreakConfig[]>([]);
+  const [fackOverrides, setFackOverrides] = useState<FackOverride[]>([]);
+
+  const vehiclesWithFack = useMemo(() => {
+    const fleets = estimateInputBase?.fleetConfiguration || [];
+    const vehicles: Array<{
+      originalId: string;
+      description: string;
+      fackDetails: Array<{
+        fackNumber: number;
+        avfallstyper: Array<{ avftyp: string; beskrivning?: string | null }>;
+      }>;
+    }> = [];
+    for (const fleet of fleets) {
+      const fleetVehicles = (fleet as any)?.vehicles || [];
+      for (const v of fleetVehicles) {
+        if (v.fackDetails?.length) {
+          vehicles.push({
+            originalId: v.originalId,
+            description: v.description || `Bil ${v.originalId}`,
+            fackDetails: v.fackDetails,
+          });
+        }
+      }
+    }
+    return vehicles;
+  }, [estimateInputBase?.fleetConfiguration]);
+
+  // Unique waste types per vehicle from the filtered route data
+  const wasteTypesPerVehicle = useMemo(() => {
+    const routeData = estimateInputBase?.routeData || [];
+    const avfIndex = Object.fromEntries(
+      avftyper.map((a) => [a.ID, a.BESKRIVNING || a.ID])
+    );
+    const map = new Map<string, Array<{ ID: string; BESKRIVNING: string }>>();
+    for (const record of routeData as any[]) {
+      const bil = record?.Bil;
+      const avftyp = record?.Avftyp;
+      if (!bil || !avftyp) continue;
+      if (!map.has(bil)) map.set(bil, []);
+      const list = map.get(bil)!;
+      if (!list.some((item) => item.ID === avftyp)) {
+        list.push({ ID: avftyp, BESKRIVNING: avfIndex[avftyp] || avftyp });
+      }
+    }
+    return map;
+  }, [estimateInputBase?.routeData, avftyper]);
+
+  const effectiveEstimateInput = useMemo(() => {
+    if (!estimateInputBase || !fackOverrides.length) return estimateInputBase;
+    const fleets = (estimateInputBase.fleetConfiguration || []).map(
+      (fleet: any) => {
+        const vehicles = (fleet.vehicles || []).map((v: any) => {
+          if (!v.fackDetails?.length) return v;
+          const updatedFack = v.fackDetails.map((fack: any) => {
+            const override = fackOverrides.find(
+              (o) =>
+                o.vehicleId === v.originalId &&
+                o.fackNumber === fack.fackNumber
+            );
+            if (!override) return fack;
+            return {
+              ...fack,
+              avfallstyper: override.allowedWasteTypes.map((avftyp) => {
+                const spec = avftyper.find((a) => a.ID === avftyp);
+                return { avftyp, beskrivning: spec?.BESKRIVNING || null };
+              }),
+            };
+          });
+          return { ...v, fackDetails: updatedFack };
+        });
+        return { ...fleet, vehicles };
+      }
+    );
+    return { ...estimateInputBase, fleetConfiguration: fleets };
+  }, [estimateInputBase, fackOverrides, avftyper]);
 
   const [isNameAutofilled, setIsNameAutofilled] = useState(false);
   const [isDescriptionAutofilled, setIsDescriptionAutofilled] = useState(false);
@@ -179,7 +263,7 @@ const estimateStartDate = useMemo(
 );
 
 useEffect(() => {
-  if (!estimateInputBase?.fleetConfiguration?.length) {
+  if (!effectiveEstimateInput?.fleetConfiguration?.length) {
     setRouteEstimates([]);
     setEstimatesLoading(false);
     return;
@@ -192,7 +276,7 @@ useEffect(() => {
 
     estimateOptimizationFeasibility(
       {
-        ...estimateInputBase,
+        ...effectiveEstimateInput,
         optimizationSettings: {
           workingHours: {
             start: startTime,
@@ -235,7 +319,7 @@ useEffect(() => {
     window.clearTimeout(debounceId);
     controller.abort();
   };
-}, [estimateInputBase, startTime, endTime, breaks, extraBreaks, estimateStartDate]);
+}, [effectiveEstimateInput, startTime, endTime, breaks, extraBreaks, estimateStartDate]);
 
 const feasibilityResult = useMemo(() => {
   if (!routeEstimates?.length) return null;
@@ -251,13 +335,14 @@ const onSubmit = async (data: any) => {
     id: Date.now().toString(),
     name: ensuredName,
     description: data.description,
-    
+
     workingHours: {
       start: data.startTime,
       end: data.endTime
     },
     breaks: breaks.filter(b => b.enabled),
     extraBreaks: extraBreaks.filter(b => b.enabled),
+    fackOverrides,
     selectedRoutes,
     filters,
     vehicles,
@@ -267,42 +352,56 @@ const onSubmit = async (data: any) => {
 };
 
   return (
-    <div className="space-y-8 bg-white rounded-lg p-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <ProjectDetailsSection 
-            form={form} 
-            isNameAutofilled={isNameAutofilled}
-            isDescriptionAutofilled={isDescriptionAutofilled}
-            onNameUserEdit={() => setIsNameAutofilled(false)}
-            onDescriptionUserEdit={() => setIsDescriptionAutofilled(false)}
+    <div className="flex gap-6 items-start">
+      <div className="flex-1 min-w-0 max-w-5xl space-y-8 bg-white rounded-lg p-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <ProjectDetailsSection
+              form={form}
+              isNameAutofilled={isNameAutofilled}
+              isDescriptionAutofilled={isDescriptionAutofilled}
+              onNameUserEdit={() => setIsNameAutofilled(false)}
+              onDescriptionUserEdit={() => setIsDescriptionAutofilled(false)}
+            />
+
+            <Separator />
+
+            <WorkerSettingsSection form={form} />
+
+            <BreaksSection
+              breaks={breaks}
+              extraBreaks={extraBreaks}
+              onBreaksChange={setBreaks}
+              onExtraBreaksChange={setExtraBreaks}
+              disableHover
+              bookingCoordinates={bookingCoordinates}
+            />
+
+            <FeasibilityIndicator
+              result={feasibilityResult}
+              loading={estimatesLoading}
+            />
+
+            <div className="flex gap-2 justify-end pt-6 pb-6">
+              <Button type="submit" className="bg-[#BBD197] hover:bg-[#BBD197]/90">
+                Spara och fortsätt
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </div>
+
+      {vehiclesWithFack.length > 0 && (
+        <div className="w-[420px] shrink-0">
+          <VehicleSettingsSection
+            vehicles={vehiclesWithFack}
+            wasteTypesPerVehicle={wasteTypesPerVehicle}
+            fackOverrides={fackOverrides}
+            onFackOverridesChange={setFackOverrides}
+            routeData={estimateInputBase?.routeData as any[]}
           />
-
-          <Separator />
-
-          <WorkerSettingsSection form={form} />
-
-          <BreaksSection
-            breaks={breaks}
-            extraBreaks={extraBreaks}
-            onBreaksChange={setBreaks}
-            onExtraBreaksChange={setExtraBreaks}
-            disableHover
-            bookingCoordinates={bookingCoordinates}
-          />
-
-          <FeasibilityIndicator
-            result={feasibilityResult}
-            loading={estimatesLoading}
-          />
-
-          <div className="flex gap-2 justify-end pt-6 pb-6">
-            <Button type="submit" className="bg-[#BBD197] hover:bg-[#BBD197]/90">
-              Spara och fortsätt
-            </Button>
-          </div>
-        </form>
-      </Form>
+        </div>
+      )}
     </div>
   );
 };

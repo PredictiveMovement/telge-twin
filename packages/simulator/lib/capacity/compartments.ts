@@ -49,9 +49,7 @@ export function createCompartments(
         typeof detail?.fackNumber === 'number'
           ? detail.fackNumber
           : index + 1,
-      allowedWasteTypes: allowedWasteTypes.length
-        ? allowedWasteTypes
-        : [ALLOW_ALL],
+      allowedWasteTypes,
       capacityLiters,
       capacityKg,
       fillLiters: 0,

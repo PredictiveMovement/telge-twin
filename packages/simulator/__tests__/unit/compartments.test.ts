@@ -83,12 +83,12 @@ describe('Compartments (Unit Tests)', () => {
       expect(compartments[0].capacityKg).toBe(3000)
     })
 
-    it('should fallback to ALLOW_ALL when no waste types', () => {
+    it('should have empty allowedWasteTypes when no waste types configured', () => {
       const fackDetails = [{ avfallstyper: [] }]
 
       const compartments = createCompartments(fackDetails)
 
-      expect(compartments[0].allowedWasteTypes).toEqual(['*'])
+      expect(compartments[0].allowedWasteTypes).toEqual([])
     })
 
     it('should have initial fill levels at 0', () => {

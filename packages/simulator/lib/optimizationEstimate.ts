@@ -490,6 +490,14 @@ export async function estimateTruckRuntime(
     .filter((booking): booking is Booking => Boolean(booking))
     .filter((booking) => booking.status !== 'Unreachable')
 
+  if (activePlan.length === 0) {
+    return {
+      durationSeconds: 0,
+      distanceMeters: 0,
+      unreachableStopCount: 0,
+    }
+  }
+
   const pickupTours = buildPickupTours(
     activePlan,
     truck.compartments,
@@ -569,15 +577,6 @@ export async function estimateTruckRuntime(
 
   await consumeBreaks()
 
-  // Handle remaining breaks not yet consumed (scheduled after route finished)
-  while (breakIndex < breaks.length) {
-    if (breaks[breakIndex].startMs >= workdayEndMs) break
-    if (currentTimeMs < breaks[breakIndex].startMs) {
-      currentTimeMs = breaks[breakIndex].startMs
-    }
-    await consumeBreaks()
-  }
-
   if (currentPosition.distanceTo(truck.startPosition) >= 5) {
     const [leg] = await routeWaypointLegs([currentPosition, toPosition(truck.startPosition)])
     if (leg) {
@@ -655,11 +654,6 @@ export async function estimateOptimizationFeasibility(
 
       return Promise.all(
         (fleet.vehicles || []).map(async (vehicle) => {
-          const standardizedBookings =
-            fleet.preAssignedBookings?.[vehicle.originalId] || []
-          const bookings = standardizedBookings.map((booking) =>
-            createBookingFromStandardized(booking, vehicle.originalId)
-          )
           const truck = createEstimateTruck(
             vehicle,
             fleet,
@@ -667,6 +661,21 @@ export async function estimateOptimizationFeasibility(
             virtualTime,
             fleetSettings
           )
+
+          const standardizedBookings =
+            fleet.preAssignedBookings?.[vehicle.originalId] || []
+          const bookings = standardizedBookings
+            .map((booking) =>
+              createBookingFromStandardized(booking, vehicle.originalId)
+            )
+            .filter((booking) =>
+              truck.compartments.some(
+                (c) =>
+                  c.allowedWasteTypes.includes('*') ||
+                  (booking.recyclingType != null &&
+                    c.allowedWasteTypes.includes(booking.recyclingType))
+              )
+            )
 
           const plan = bookings.map((booking) => ({ booking }))
 

@@ -47,6 +47,12 @@ const SaveOptimizationProjectPage = () => {
     [navigationState?.selectedItems]
   )
 
+  const avftyper = useMemo(
+    () =>
+      (navigationState?.previewSettings as any)?.avftyper || [],
+    [navigationState?.previewSettings]
+  )
+
   const preparedOptimizationData = useMemo(
     () =>
       prepareOptimizationData({
@@ -85,14 +91,74 @@ const SaveOptimizationProjectPage = () => {
       const previewSettings = navigationState.previewSettings as Settings
       const originalFilename = navigationState.originalFilename || 'routes.json'
       const selectedRouteData = preparedOptimizationData?.routeData || []
-      const fleetConfiguration = preparedOptimizationData?.fleetConfiguration || []
-      const removedCount = preparedOptimizationData?.removedCount || 0
+      const rawFleetConfig = preparedOptimizationData?.fleetConfiguration || []
+      const fackOverrides = normalized.fackOverrides || []
+
+      // Apply fack overrides to fleet configuration
+      const fleetConfiguration = fackOverrides.length
+        ? rawFleetConfig.map((fleet: any) => {
+            const vehicles = (fleet.vehicles || []).map((v: any) => {
+              if (!v.fackDetails?.length) return v
+              const updatedFack = v.fackDetails.map((fack: any) => {
+                const override = fackOverrides.find(
+                  (o: any) =>
+                    o.vehicleId === v.originalId &&
+                    o.fackNumber === fack.fackNumber
+                )
+                if (!override) return fack
+                return {
+                  ...fack,
+                  avfallstyper: override.allowedWasteTypes.map(
+                    (avftyp: string) => {
+                      const spec = avftyper.find(
+                        (a: any) => a.ID === avftyp
+                      )
+                      return {
+                        avftyp,
+                        beskrivning: spec?.BESKRIVNING || null,
+                      }
+                    }
+                  ),
+                }
+              })
+              return { ...v, fackDetails: updatedFack }
+            })
+            return { ...fleet, vehicles }
+          })
+        : rawFleetConfig
+      // Filter route data based on fack overrides — remove bookings
+      // whose waste type no longer matches any fack on their vehicle
+      let finalRouteData = selectedRouteData
+      let overrideRemovedCount = 0
+      if (fackOverrides.length) {
+        const allowedByVehicle = new Map<string, Set<string>>()
+        for (const fleet of fleetConfiguration as any[]) {
+          for (const v of fleet.vehicles || []) {
+            const allowed = new Set<string>()
+            for (const fack of v.fackDetails || []) {
+              for (const a of fack.avfallstyper || []) {
+                if (a.avftyp) allowed.add(a.avftyp)
+              }
+            }
+            allowedByVehicle.set(v.originalId, allowed)
+          }
+        }
+        finalRouteData = selectedRouteData.filter((record: any) => {
+          const allowed = allowedByVehicle.get(record.Bil)
+          if (!allowed) return true // vehicle without fack config — keep
+          if (allowed.size === 0) return false // all facks empty — remove
+          return !record.Avftyp || allowed.has(record.Avftyp)
+        })
+        overrideRemovedCount = selectedRouteData.length - finalRouteData.length
+      }
+
+      const removedCount = (preparedOptimizationData?.removedCount || 0) + overrideRemovedCount
 
       if (removedCount > 0) {
         toast.info(`Filtrerat bort ${removedCount} bokningar utan passande fack`)
       }
 
-      if (!selectedRouteData.length) {
+      if (!finalRouteData.length) {
         toast.error('Inga rader matchar ditt urval efter filtrering.')
         return
       }
@@ -103,7 +169,7 @@ const SaveOptimizationProjectPage = () => {
         description: normalized.description || 'Sparad optimering',
         originalFilename,
         filterCriteria: navigationState.filters || { mode: navigationState.viewMode },
-        routeData: selectedRouteData as unknown as Record<string, unknown>[],
+        routeData: finalRouteData as unknown as Record<string, unknown>[],
         originalRecordCount: uploadedData.length,
         fleetConfiguration: fleetConfiguration as unknown as Record<string, unknown>[],
         originalSettings:
@@ -176,7 +242,7 @@ const SaveOptimizationProjectPage = () => {
           </div>
         </div>
 
-        <div className="max-w-4xl">
+        <div>
           <SaveOptimizationForm
             onSave={handleSaveOptimization}
             selectedRoutes={navigationState?.selectedRoutes || []}
@@ -185,6 +251,7 @@ const SaveOptimizationProjectPage = () => {
               navigationState?.viewMode as 'turid' | 'flottor' | undefined
             }
             selectedItems={navigationState?.selectedItems || []}
+            avftyper={avftyper}
             estimateInputBase={
               preparedOptimizationData
                 ? {

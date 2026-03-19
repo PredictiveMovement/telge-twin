@@ -4,7 +4,7 @@ import {
   type Settings,
   type RouteRecord as FleetRouteRecord,
 } from '@/utils/fleetGenerator'
-import { byId, buildFackInfo, pickDominant, type BilSpec } from '@/utils/shared'
+import { byId, buildFackInfo, type BilSpec } from '@/utils/shared'
 
 export interface PreparedOptimizationData {
   routeData: RouteRecord[]
@@ -56,26 +56,23 @@ export function prepareOptimizationData({
       (!selectedVehicles?.size || selectedVehicles.has(record.Bil))
   )
 
-  const byTur = new Map<string, RouteRecord[]>()
-  routeData.forEach((record) => {
-    if (!byTur.has(record.Turid)) byTur.set(record.Turid, [])
-    byTur.get(record.Turid)!.push(record)
-  })
+  const bilIndex = byId(previewSettings?.bilar || []) as Record<string, BilSpec>
+  const fackCache = new Map<string, ReturnType<typeof buildFackInfo>>()
+  const getFack = (bil: string) => {
+    if (!fackCache.has(bil)) fackCache.set(bil, buildFackInfo(bilIndex[bil]))
+    return fackCache.get(bil)!
+  }
 
   let removedCount = 0
   const filteredRouteData: RouteRecord[] = []
 
-  for (const [, records] of Array.from(byTur.entries())) {
-    const dominantBil = pickDominant(records.map((record) => record.Bil)) || records[0]?.Bil
-    const bil = (byId(previewSettings?.bilar || []) as Record<string, BilSpec>)[
-      dominantBil
-    ]
-    const fack = buildFackInfo(bil)
-    const matchingRecords = records.filter((record) =>
-      matchesFack(record.Avftyp, fack)
-    )
-    removedCount += records.length - matchingRecords.length
-    filteredRouteData.push(...matchingRecords)
+  for (const record of routeData) {
+    const fack = getFack(record.Bil)
+    if (matchesFack(record.Avftyp, fack)) {
+      filteredRouteData.push(record)
+    } else {
+      removedCount++
+    }
   }
 
   if (!filteredRouteData.length) {
