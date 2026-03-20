@@ -69,20 +69,11 @@ const FeasibilityIndicator: React.FC<FeasibilityIndicatorProps> = ({
   const allFit = summary.overflows === 0 && summary.tight === 0
   const hasOverflows = summary.overflows > 0
 
-  const subject = (count: number) =>
-    count === summary.total
-      ? summary.total === 1
-        ? 'Fordonet'
-        : 'Alla fordon'
-      : count === 1
-        ? 'Fordonet'
-        : `${count} fordon`
-
   const summaryText = allFit
-    ? `${subject(summary.total)} beräknas hinna hämta allt på utsatt tid`
+    ? 'Fordonet bedöms ha hunnit hämta allt under den ursprungliga arbetstiden'
     : hasOverflows
-      ? `${subject(summary.overflows)} uppskattas inte hinna hämta allt på utsatt tid`
-      : `${subject(summary.tight)} kommer eventuellt få svårt att hinna hämta allt på utsatt tid`
+      ? 'Fordonet bedöms inte ha hunnit hämta allt under den ursprungliga arbetstiden'
+      : 'Fordonet bedöms ha haft svårt att hinna hämta allt under den ursprungliga arbetstiden'
 
   const summaryStatus = allFit ? 'fits' : hasOverflows ? 'overflows' : 'tight'
   const SummaryIcon = statusConfig[summaryStatus].icon
@@ -90,7 +81,7 @@ const FeasibilityIndicator: React.FC<FeasibilityIndicatorProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Tidsuppskattning per fordon</span>
+        <span className="text-sm font-medium">Tidsuppskattning för fordon</span>
         {vehicles.length > 3 && (
           <button
             type="button"
