@@ -8,8 +8,6 @@ import type { BreakConfig } from '@/types/breaks';
 interface BreaksSectionProps {
   breaks: BreakConfig[];
   extraBreaks: BreakConfig[];
-  defaultBreaks: BreakConfig[];
-  defaultExtraBreaks?: BreakConfig[];
   onBreaksChange: (breaks: BreakConfig[]) => void;
   onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void;
   disableHover?: boolean;
@@ -19,8 +17,6 @@ interface BreaksSectionProps {
 const BreaksSection: React.FC<BreaksSectionProps> = ({
   breaks,
   extraBreaks,
-  defaultBreaks,
-  defaultExtraBreaks,
   onBreaksChange,
   onExtraBreaksChange,
   disableHover,
@@ -51,22 +47,6 @@ const BreaksSection: React.FC<BreaksSectionProps> = ({
     onExtraBreaksChange,
     saveToHistory
   });
-
-  const hasChanges = useMemo(() => {
-    const extraChanged = defaultExtraBreaks !== undefined
-      ? extraBreaks.length !== defaultExtraBreaks.length ||
-        extraBreaks.some((b, i) => {
-          const d = defaultExtraBreaks[i];
-          return !d || b.id !== d.id || b.duration !== d.duration || b.name !== d.name || b.desiredTime !== d.desiredTime || (b.location || '') !== (d.location || '');
-        })
-      : extraBreaks.length > 0;
-    return extraChanged ||
-      breaks.length !== defaultBreaks.length ||
-      breaks.some((b, i) => {
-        const d = defaultBreaks[i];
-        return !d || b.id !== d.id || b.duration !== d.duration || b.name !== d.name || b.desiredTime !== d.desiredTime || (b.location || '') !== (d.location || '');
-      });
-  }, [breaks, extraBreaks, defaultBreaks, defaultExtraBreaks]);
 
   const allBreaks = useMemo(() => [...breaks, ...extraBreaks], [breaks, extraBreaks]);
 

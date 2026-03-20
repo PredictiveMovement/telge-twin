@@ -13,7 +13,7 @@ import {
 } from '@/api/simulator';
 import type { RouteEstimate } from '@/api/simulator';
 import { computeFeasibility } from '@/utils/feasibilityEstimate';
-import { type BreakConfig, DEFAULT_BREAKS } from '@/types/breaks';
+import type { BreakConfig } from '@/types/breaks';
 import { buildOptimizationStartDate } from '@/utils/optimizationPreparation';
 
 interface SaveOptimizationFormProps {
@@ -267,7 +267,6 @@ const onSubmit = async (data: any) => {
           <BreaksSection
             breaks={breaks}
             extraBreaks={extraBreaks}
-            defaultBreaks={DEFAULT_BREAKS}
             onBreaksChange={setBreaks}
             onExtraBreaksChange={setExtraBreaks}
             disableHover

@@ -21,8 +21,9 @@ export function register(
     socket.on('reset', () => {
       virtualTime.reset()
     })
-    socket.on('play', () => {
+    socket.on('play', (ack?: (playing: boolean) => void) => {
       if (!parameters?.dispatchReady) {
+        ack?.(virtualTime.isPlaying())
         return
       }
       virtualTime.play()

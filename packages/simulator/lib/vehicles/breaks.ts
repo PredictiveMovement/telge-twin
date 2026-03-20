@@ -38,6 +38,8 @@ type BreakCandidate = {
   durationMinutes?: number
   desiredTime?: string
   duration?: number
+  location?: string
+  locationCoordinates?: { lat: number; lng: number }
 }
 
 const resolveWorkdayStartMinutes = (

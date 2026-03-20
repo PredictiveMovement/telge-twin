@@ -1,10 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import type { BreakConfig } from '@/types/breaks';
-
-interface Snapshot {
-  breaks: BreakConfig[];
-  extraBreaks: BreakConfig[];
-}
 
 export const useBreaksHistory = (
   breaks: BreakConfig[],

@@ -334,7 +334,7 @@ const MapPage = () => {
     }
   }, [socket, isMapActive, status.running, status.experimentId])
 
-  const handlePlayTime = () => {
+  const handlePlayTime = async () => {
     if (!vehiclesReady || !status.running || hasRoutingFailure) return
     setTimeState(true, status.timeSpeed)
     try {

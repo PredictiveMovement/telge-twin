@@ -150,7 +150,6 @@ class Vehicle {
         scan((prevRemainingPointsInRoute: any, currentTimeInMs: any) => {
           try {
             if (!prevRemainingPointsInRoute || !prevRemainingPointsInRoute.length) {
-              this.stopped()
               return []
             }
 
@@ -166,6 +165,11 @@ class Vehicle {
               return []
             }
             this.updatePosition(newPosition, skippedPoints, currentTimeInMs)
+
+            if (!remainingPoints || remainingPoints.length === 0) {
+              this.stopped()
+            }
+
             return remainingPoints || []
           } catch (err: any) {
             error(`[simulate] scan error for vehicle ${this.id}:`, err?.message || err)

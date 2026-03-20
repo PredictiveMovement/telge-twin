@@ -679,4 +679,43 @@ export async function startSimulationFromDatasetRest(
   }
 }
 
+// --- Optimization feasibility estimation ---
+
+export interface RouteEstimate {
+  vehicleId: string
+  durationSeconds: number
+  distanceMeters: number
+  stopCount: number
+  unreachableStopCount: number
+}
+
+export interface OptimizationEstimateRequest {
+  routeData: Record<string, unknown>[]
+  fleetConfiguration: Record<string, unknown>[]
+  originalSettings?: Record<string, unknown> | null
+  optimizationSettings?: OptimizationSettings | null
+  startDate?: string
+}
+
+export interface OptimizationFeasibilityResponse {
+  estimates: RouteEstimate[]
+}
+
+export async function estimateOptimizationFeasibility(
+  payload: OptimizationEstimateRequest,
+  options: {
+    signal?: AbortSignal
+    timeoutMs?: number
+  } = {}
+): Promise<OptimizationFeasibilityResponse> {
+  const response = await simulatorApi.post('/api/optimization/estimate', payload, {
+    signal: options.signal,
+    timeout: options.timeoutMs ?? 30000,
+  })
+  const data = response.data?.data
+  return {
+    estimates: data?.estimates || [],
+  }
+}
+
 export default simulatorApi

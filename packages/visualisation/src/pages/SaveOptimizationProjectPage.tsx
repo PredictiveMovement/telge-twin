@@ -5,7 +5,6 @@ import { ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import SaveOptimizationForm from '@/components/optimize/SaveOptimizationForm'
 import { toast } from '@/hooks/use-toast'
-import { saveRouteDataset, startSimulationFromDatasetRest } from '@/api/simulator'
 import {
   saveRouteDataset,
   startSimulationFromDatasetRest,
@@ -13,6 +12,10 @@ import {
 import { type Settings } from '@/utils/fleetGenerator'
 import type { RouteRecord } from '@/components/routes/FileUpload'
 import { useOptimizationContext } from '@/contexts/OptimizationContext'
+import {
+  buildOptimizationStartDate,
+  prepareOptimizationData,
+} from '@/utils/optimizationPreparation'
 
 const SaveOptimizationProjectPage = () => {
   const navigate = useNavigate()
@@ -125,37 +128,18 @@ const SaveOptimizationProjectPage = () => {
           onNavigate: () => {
             navigate('/routes?tab=optimizations', { replace: true })
           },
-          onComplete: () => {
-            // Optional: any cleanup after animation completes
-          },
           expectedVehicleCount,
         })
-
-        // Determine start time from working hours
-        let startHour = 6
-        let startMinute = 0
-        const workingHoursStart = normalized.workingHours?.start
-        if (workingHoursStart) {
-          const parts = workingHoursStart.split(':')
-          if (parts.length >= 2) {
-            startHour = parseInt(parts[0], 10)
-            startMinute = parseInt(parts[1], 10)
-          }
-        }
-
-        // Determine date from filter criteria or default to today
-        let startDate = new Date()
-        if (navigationState?.filters?.dateRange?.from) {
-          startDate = new Date(navigationState.filters.dateRange.from)
-        }
-        startDate.setHours(startHour, startMinute, 0, 0)
 
         // Start simulation via REST API (runs in background while animation plays)
         startSimulationFromDatasetRest(
           datasetId,
           normalized.name,
           {
-            startDate: startDate.toISOString(),
+            startDate: buildOptimizationStartDate(
+              navigationState?.filters,
+              normalized.workingHours
+            ),
             experimentType: 'vroom',
           }
         ).catch(() => {
