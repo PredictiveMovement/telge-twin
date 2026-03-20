@@ -5,7 +5,7 @@ import {
   reportDispatchError,
 } from '../dispatch/truckDispatch'
 import { isVroomPlanningCancelledError } from '../vroom'
-import { warn, error as logError } from '../log'
+import { warn, error as logError, info } from '../log'
 import { CLUSTERING_CONFIG } from '../config'
 import { getHemsortDistribution } from '../config/hemsort'
 import {
@@ -54,6 +54,8 @@ class Truck extends Vehicle {
   private shiftEndedForDay = false
   private breakSchedule: ScheduledBreak[] = []
   private breakActive: ScheduledBreak | null = null
+  private breakNavigatingToLocation = false
+  private breakPreviousStatus: string | null = null
   private finishingWorkday = false
   private skipQueueUnreachableMarking = false
 
@@ -107,6 +109,95 @@ class Truck extends Vehicle {
     plan.push(this.createInstruction('end'))
 
     return plan
+  }
+
+  private getInstructionTarget(instruction: Instruction): any {
+    switch (instruction.action) {
+      case 'start':
+      case 'delivery':
+      case 'end':
+        return this.startPosition
+      case 'pickup': {
+        if (instruction.booking?.pickup?.position) {
+          return instruction.booking.pickup.position
+        }
+        if (instruction.booking?.pickup) {
+          return new Position({
+            lat: instruction.booking.pickup.lat,
+            lng: instruction.booking.pickup.lon,
+          })
+        }
+        return null
+      }
+      default:
+        return this.startPosition
+    }
+  }
+
+  /**
+   * Pre-compute OSRM routes for all legs in the plan.
+   * After this, each instruction.route holds the full OSRM response
+   * so navigateTo() can skip network calls during simulation.
+   */
+  async precomputeRoutes(): Promise<void> {
+    if (!this.plan || this.plan.length === 0) return
+
+    const osrm = require('../osrm')
+
+    let prevPosition = this.position
+    const jobs = this.plan.map((instruction: Instruction) => {
+      const target = this.getInstructionTarget(instruction)
+      if (!target) return null
+      const from = prevPosition
+      prevPosition = target
+      return { instruction, from, to: target }
+    }).filter(Boolean)
+
+    let successCount = 0
+    let emptyCount = 0
+    let failCount = 0
+
+    await Promise.all(
+      jobs.map(async (job: any) => {
+        try {
+          const route = await osrm.route(job.from, job.to)
+          if (route?.legs) {
+            job.instruction.route = route
+            successCount++
+          } else {
+            emptyCount++
+            logError(`[precomputeRoutes] OSRM returned empty route for truck ${this.id}:`, {
+              action: job.instruction.action,
+              from: { lat: job.from.lat, lon: job.from.lon },
+              to: { lat: job.to.lat, lon: job.to.lon },
+              routeKeys: route ? Object.keys(route) : [],
+            })
+          }
+        } catch (err: any) {
+          failCount++
+          logError(`[precomputeRoutes] OSRM failed for truck ${this.id}:`, err?.message || err)
+        }
+      })
+    )
+
+    const totalDrivingSec = jobs.reduce((sum: number, job: any) => {
+      const dur = job?.instruction?.route?.duration || 0
+      return sum + dur
+    }, 0)
+    info(`[precomputeRoutes] Truck ${this.id}: ${successCount} routes, ${emptyCount} empty, ${failCount} failed (of ${jobs.length} jobs). Total driving: ${Math.round(totalDrivingSec / 60)} min`)
+  }
+
+  /**
+   * Navigate back to depot with a fresh OSRM route.
+   * Used for end-of-workday returns where the route isn't in the plan.
+   */
+  private async navigateToDepot(): Promise<any> {
+    const osrm = require('../osrm')
+    const depotRoute = await this.runWithoutAdvancing(() =>
+      osrm.route(this.position, this.startPosition)
+    )
+    this.instruction = this.createInstruction('end', null, { route: depotRoute })
+    return this.navigateTo(this.startPosition)
   }
 
   constructor(args: TruckConstructorArgs) {
@@ -258,10 +349,13 @@ class Truck extends Vehicle {
     this.breakSchedule.forEach((b) => {
       b.taken = true
     })
+    this.breakActive = null
+    this.breakNavigatingToLocation = false
+    this.breakPreviousStatus = null
 
     this.setStatus('returning')
 
-    await this.navigateTo(this.startPosition)
+    await this.navigateToDepot()
   }
 
   private async maybeTakeBreak(): Promise<boolean> {
@@ -281,20 +375,79 @@ class Truck extends Vehicle {
       return false
     }
 
-    const previousStatus = this.status
     this.breakActive = upcoming
+    this.breakPreviousStatus = this.status
+
+    // If break has a location, navigate there first
+    if (upcoming.locationCoordinates) {
+      const breakPosition = new Position({
+        lat: upcoming.locationCoordinates.lat,
+        lng: upcoming.locationCoordinates.lng,
+      })
+
+      const distToBreak = this.position?.distanceTo?.(breakPosition) ?? 0
+      if (distToBreak > 50) {
+        this.breakNavigatingToLocation = true
+        this.setStatus('toBreak')
+        this.emitMoved()
+
+        const osrm = require('../osrm')
+        const breakRoute = await this.runWithoutAdvancing(() =>
+          osrm.route(this.position, breakPosition)
+        )
+        this.instruction = this.createInstruction('break', null, { route: breakRoute })
+        this.navigateTo(breakPosition)
+        // Truck is now driving to break location.
+        // When it arrives, stopped() → handlePostStop() → takeActiveBreak() will complete the break.
+        return true
+      }
+    }
+
+    // No location or already at location — take break immediately
+    await this.takeActiveBreak()
+    return true
+  }
+
+  private async takeActiveBreak(): Promise<void> {
+    const active = this.breakActive
+    if (!active) return
+
+    this.breakNavigatingToLocation = false
     this.speed = 0
     this.setStatus('break')
     this.emitMoved()
 
-    await this.virtualTime.wait(upcoming.durationMs)
+    await this.virtualTime.wait(active.durationMs)
 
-    upcoming.taken = true
+    active.taken = true
     this.breakActive = null
-    this.setStatus(previousStatus || 'ready')
-    this.emitMoved()
 
-    return true
+    // Recompute route for next plan instruction since the truck
+    // may now be at a break location, not where it was before
+    if (active.locationCoordinates) {
+      const nextInstruction = this.plan[0]
+      if (nextInstruction) {
+        const nextTarget = this.getInstructionTarget(nextInstruction)
+        if (nextTarget) {
+          const osrm = require('../osrm')
+          const newRoute = await this.runWithoutAdvancing(() =>
+            osrm.route(this.position, nextTarget)
+          )
+          nextInstruction.route = newRoute
+        }
+      }
+    }
+
+    const restoredStatus = this.breakPreviousStatus || 'ready'
+    this.breakPreviousStatus = null
+    this.setStatus(restoredStatus)
+    this.emitMoved()
+  }
+
+  get breakLocations(): { lat: number; lng: number }[] {
+    return this.breakSchedule
+      .filter((b) => b.locationCoordinates)
+      .map((b) => b.locationCoordinates!)
   }
 
   /** Compute expected pickup volume (liters) and weight (kg) for a booking using dataset settings. */
@@ -382,12 +535,18 @@ class Truck extends Vehicle {
     }
 
     if (this.breakActive) {
+      if (this.breakNavigatingToLocation) {
+        // Navigating to break location — arrival handled by handlePostStop
+        return
+      }
       this.speed = 0
       this.setStatus('break')
       return
     }
 
     if (await this.maybeTakeBreak()) {
+      // If navigating to break location, don't recurse — arrival will continue the flow
+      if (this.breakNavigatingToLocation) return
       return this.pickNextInstructionFromPlan()
     }
 
@@ -435,8 +594,6 @@ class Truck extends Vehicle {
       this.booking = null
     }
 
-    // Keep 'planning' status until OSRM route is ready
-    // Wrap navigateTo in Promise.resolve since it may return a value directly when close to destination
     const action = this.instruction?.action || 'returning'
     switch (action) {
       case 'start':
@@ -534,12 +691,20 @@ class Truck extends Vehicle {
     }
 
     if (this.breakActive) {
+      if (this.breakNavigatingToLocation) {
+        // Arrived at break location — now take the actual break
+        await this.takeActiveBreak()
+        return this.handlePostStop()
+      }
+      // Break is in progress (virtualTime.wait) — do nothing
       this.speed = 0
       this.setStatus('break')
       return
     }
 
     if (await this.maybeTakeBreak()) {
+      // If navigating to break location, don't recurse — arrival will re-enter handlePostStop
+      if (this.breakNavigatingToLocation) return
       return this.handlePostStop()
     }
 
@@ -551,7 +716,11 @@ class Truck extends Vehicle {
     if (this.plan.length === 0) {
       // If we still have cargo, insert a delivery stop and continue
       if (this.cargo.length > 0) {
-        this.plan.unshift(this.createInstruction('delivery'))
+        const osrm = require('../osrm')
+        const depotRoute = await this.runWithoutAdvancing(() =>
+          osrm.route(this.position, this.startPosition)
+        )
+        this.plan.unshift(this.createInstruction('delivery', null, { route: depotRoute }))
         return this.pickNextInstructionFromPlan()
       }
 
@@ -574,7 +743,7 @@ class Truck extends Vehicle {
 
       if (!atDepot) {
         this.setStatus('returning')
-        await this.navigateTo(this.startPosition)
+        await this.navigateToDepot()
         return
       }
 
@@ -682,12 +851,26 @@ class Truck extends Vehicle {
         const nextInstruction = this.plan[0]
 
         if (!nextInstruction || nextInstruction.action !== 'delivery') {
-          this.plan.unshift({
-            action: 'delivery',
-            arrival: 0,
-            departure: 0,
-            booking: null,
+          // Compute routes for the unplanned depot trip:
+          // 1. Current position → depot (delivery)
+          // 2. Depot → next pickup (return from depot)
+          const osrm = require('../osrm')
+          const depotRoute = await this.runWithoutAdvancing(async () => {
+            const toDepot = await osrm.route(this.position, this.startPosition)
+            // Fix next pickup's route: it was precomputed from previous pickup,
+            // but now the truck will be at depot after delivery
+            if (nextInstruction) {
+              const nextTarget = this.getInstructionTarget(nextInstruction)
+              if (nextTarget) {
+                nextInstruction.route = await osrm.route(this.startPosition, nextTarget)
+              }
+            }
+            return toDepot
           })
+
+          this.plan.unshift(
+            this.createInstruction('delivery', null, { route: depotRoute })
+          )
         }
       }
     }
@@ -737,6 +920,7 @@ class Truck extends Vehicle {
         if (this.isSequentialExperiment() && this.queue.length > 0) {
           this.plan = this.buildSequentialPlanFromQueue()
           if (this.plan.length > 0) {
+            await this.runWithoutAdvancing(() => this.precomputeRoutes())
             return this.pickNextInstructionFromPlan()
           }
         }
@@ -756,7 +940,7 @@ class Truck extends Vehicle {
         }
 
         this.setStatus('end')
-        return this.navigateTo(this.startPosition)
+        return this.navigateToDepot()
       }
     }
 
@@ -807,7 +991,7 @@ class Truck extends Vehicle {
 
     if (!atStart) {
       this.setStatus('returning')
-      await this.navigateTo(this.startPosition)
+      await this.navigateToDepot()
       return
     }
 
@@ -842,6 +1026,7 @@ class Truck extends Vehicle {
       this.plan = this.queue.map((b: any) =>
         this.createInstruction('pickup', b)
       )
+      await this.runWithoutAdvancing(() => this.precomputeRoutes())
       if (!this.instruction) await this.pickNextInstructionFromPlan()
       return booking
     }
@@ -850,13 +1035,15 @@ class Truck extends Vehicle {
     // This prevents starting with just 1 booking when more are being dispatched
     clearTimeout(this._timeout)
 
+    const seqMultiplier = this.virtualTime.getTimeMultiplier() || 1
+    const seqDelay = Math.max(1500 / seqMultiplier, 50)
     this._timeout = setTimeout(async () => {
       this.plan = this.buildSequentialPlanFromQueue()
-
+      await this.runWithoutAdvancing(() => this.precomputeRoutes())
       if (!this.instruction) {
         await this.pickNextInstructionFromPlan()
       }
-    }, 1500)
+    }, seqDelay)
 
     return booking
   }
@@ -880,88 +1067,100 @@ class Truck extends Vehicle {
     if (booking.queued) booking.queued(this)
 
     clearTimeout(this._timeout)
-    const randomDelay =
+    const baseDelay =
       CLUSTERING_CONFIG.TRUCK_PLANNING_TIMEOUT_MS +
       Math.random() * CLUSTERING_CONFIG.TRUCK_PLANNING_RANDOM_DELAY_MS
+    const multiplier = this.virtualTime.getTimeMultiplier() || 1
+    const randomDelay = Math.max(baseDelay / multiplier, 50)
     this._timeout = setTimeout(async () => {
       this.setStatus('planning')
       this.skipQueueUnreachableMarking = false
 
-      if (this.fleet.settings.replayExperiment) {
-        this.plan = await useReplayRoute(this, this.queue)
-        // Ensure area partitions are saved for this truck in replay as well
-        try {
-          createSpatialChunks(this.queue, experimentId, this.id)
-        } catch (e) {
-          // non-fatal
-        }
-      } else {
-        try {
-          const vroomPromise = findBestRouteToPickupBookings(
-            experimentId,
-            this,
-            this.queue
-          )
+      await this.runWithoutAdvancing(async () => {
+        if (this.fleet.settings.replayExperiment) {
+          this.plan = await useReplayRoute(this, this.queue)
 
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => {
-              reject(
-                new Error(
-                  `VROOM planning timeout after ${CLUSTERING_CONFIG.VROOM_TIMEOUT_MS}ms`
-                )
-              )
-            }, CLUSTERING_CONFIG.VROOM_TIMEOUT_MS)
-          })
-
-          this.plan = await Promise.race([vroomPromise, timeoutPromise]) as any[]
-
-          // Remove any bookings that could not be scheduled within the shift
-          this.queue = this.queue.filter(
-            (queued: any) => queued?.status !== 'Unreachable'
-          )
-
-          if (this.plan) {
-            // Use planGroupId from fleet settings, fallback to experimentId
-            const planGroupId = this.fleet?.settings?.planGroupId || experimentId
-            await saveCompletePlanForReplay(
-              planGroupId,
-              this.id,
-              this.fleet?.name || this.id,
-              this.plan,
-              this.queue,
-              this.fleet?.settings?.createReplay ?? true
-            )
-            // Ensure area partitions are saved for this truck as well
-            try {
-              createSpatialChunks(this.queue, experimentId, this.id)
-            } catch (e) {
-              // non-fatal
-            }
-          } else {
-            throw new Error('VROOM returned null plan')
+          // Ensure area partitions are saved for this truck in replay as well
+          try {
+            createSpatialChunks(this.queue, experimentId, this.id)
+          } catch (e) {
+            // non-fatal
           }
-        } catch (error: any) {
-          const failedBookingCount = this.queue.length
-          this.plan = []
-          this.skipQueueUnreachableMarking = true
-          this.queue = []
-          if (!isVroomPlanningCancelledError(error)) {
-            logError(`VROOM planning failed for truck ${this.id}`, {
+        } else {
+          try {
+            const vroomPromise = findBestRouteToPickupBookings(
               experimentId,
-              truckId: this.id,
-              error: error.message,
-              bookingCount: failedBookingCount,
+              this,
+              this.queue
+            )
+
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => {
+                reject(
+                  new Error(
+                    `VROOM planning timeout after ${CLUSTERING_CONFIG.VROOM_TIMEOUT_MS}ms`
+                  )
+                )
+              }, CLUSTERING_CONFIG.VROOM_TIMEOUT_MS)
             })
 
-            await reportDispatchError(
-              experimentId,
-              this.id,
-              this.fleet?.name || this.id,
-              error.message || 'VROOM planning failed'
+            this.plan = (await Promise.race([
+              vroomPromise,
+              timeoutPromise,
+            ])) as any[]
+
+            // Remove any bookings that could not be scheduled within the shift
+            this.queue = this.queue.filter(
+              (queued: any) => queued?.status !== 'Unreachable'
             )
+
+            if (this.plan) {
+              // Pre-compute all OSRM routes before simulation starts
+              await this.precomputeRoutes()
+
+              // Use planGroupId from fleet settings, fallback to experimentId
+              const planGroupId =
+                this.fleet?.settings?.planGroupId || experimentId
+              await saveCompletePlanForReplay(
+                planGroupId,
+                this.id,
+                this.fleet?.name || this.id,
+                this.plan,
+                this.queue,
+                this.fleet?.settings?.createReplay ?? true
+              )
+              // Ensure area partitions are saved for this truck as well
+              try {
+                createSpatialChunks(this.queue, experimentId, this.id)
+              } catch (e) {
+                // non-fatal
+              }
+            } else {
+              throw new Error('VROOM returned null plan')
+            }
+          } catch (error: any) {
+            const failedBookingCount = this.queue.length
+            this.plan = []
+            this.skipQueueUnreachableMarking = true
+            this.queue = []
+            if (!isVroomPlanningCancelledError(error)) {
+              logError(`VROOM planning failed for truck ${this.id}`, {
+                experimentId,
+                truckId: this.id,
+                error: error.message,
+                bookingCount: failedBookingCount,
+              })
+
+              await reportDispatchError(
+                experimentId,
+                this.id,
+                this.fleet?.name || this.id,
+                error.message || 'VROOM planning failed'
+              )
+            }
           }
         }
-      }
+      })
       if (!this.instruction) await this.pickNextInstructionFromPlan()
     }, randomDelay)
 

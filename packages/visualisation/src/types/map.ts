@@ -12,6 +12,7 @@ export interface Car {
   parcelCapacity?: number
   cargo?: number
   queue?: number
+  breakLocations?: [number, number][]
   // Compartments (fack) – emitted by backend if available
   compartments?: Array<{
     fackNumber: number

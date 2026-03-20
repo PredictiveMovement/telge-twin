@@ -19,4 +19,5 @@ export interface LayersMenuProps {
   iconClassName?: string
   triggerTooltip?: string
   contentClassName?: string
+  show3DToggle?: boolean
 }

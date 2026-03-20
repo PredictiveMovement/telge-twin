@@ -174,6 +174,10 @@ export const useRouteFilters = () => {
     return count
   }
 
+  const restoreSearchFilters = (restored: RouteFilters) => {
+    setSearchFilters(restored)
+  }
+
   return {
     searchFilters,
     filters,
@@ -186,6 +190,7 @@ export const useRouteFilters = () => {
     clearFilters,
     clearAllSearchFilters,
     getActiveFilterCount,
+    restoreSearchFilters,
     // New dedicated clear functions
     clearAllWasteTypes,
     clearAllVehicleTypes,

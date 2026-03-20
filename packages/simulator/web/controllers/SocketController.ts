@@ -80,24 +80,28 @@ export class SocketController {
       virtualTime.setCurrentSession(null)
     })
 
-    socket.on('sessionPlay', ({ sessionId }: { sessionId: string }) => {
+    socket.on('sessionPlay', ({ sessionId }: { sessionId: string }, ack?: (playing: boolean) => void) => {
       if (!sessionController.isSocketInSession(socket.id, sessionId)) {
+        ack?.(virtualTimeToUse.isPlaying())
         return
       }
 
       virtualTime.setCurrentSession(sessionId)
       virtualTimeToUse.play()
       virtualTime.setCurrentSession(null)
+      ack?.(virtualTimeToUse.isPlaying())
     })
 
-    socket.on('sessionPause', ({ sessionId }: { sessionId: string }) => {
+    socket.on('sessionPause', ({ sessionId }: { sessionId: string }, ack?: (playing: boolean) => void) => {
       if (!sessionController.isSocketInSession(socket.id, sessionId)) {
+        ack?.(virtualTimeToUse.isPlaying())
         return
       }
 
       virtualTime.setCurrentSession(sessionId)
       virtualTimeToUse.pause()
       virtualTime.setCurrentSession(null)
+      ack?.(virtualTimeToUse.isPlaying())
     })
 
     socket.on(

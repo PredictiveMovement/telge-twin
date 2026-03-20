@@ -35,6 +35,7 @@ import {
   createClusterTransitionsLayer,
   createTransitionEndpointsLayer,
   createRoutesLayer,
+  createBreakLocationLayer,
   computePartitionData,
   computeClusterTransitions,
   computeTransitionEndpoints,
@@ -460,8 +461,8 @@ const Map: React.FC<MapProps> = ({
   }, [cars, carLayer, useIcons, handleCarClick])
 
   const bookingLayer = useMemo(
-    () => createBookingLayer(filteredBookings, createHoverHandler('booking')),
-    [filteredBookings]
+    () => createBookingLayer(filteredBookings, createHoverHandler('booking'), mapStyle),
+    [filteredBookings, mapStyle]
   )
 
   const destinationLayer = createDestinationLayer(
@@ -664,6 +665,11 @@ const Map: React.FC<MapProps> = ({
 
   const routesLayer = useMemo(() => createRoutesLayer(routesData), [routesData])
 
+  const breakLocationLayer = useMemo(
+    () => createBreakLocationLayer(cars),
+    [cars]
+  )
+
   const layers = useMemo(() => {
     const allLayers = []
 
@@ -677,6 +683,7 @@ const Map: React.FC<MapProps> = ({
     allLayers.push(bookingLayer)
     allLayers.push(destinationLayer)
     if (showArcLayer) allLayers.push(routesLayer)
+    if (breakLocationLayer) allLayers.push(breakLocationLayer)
     if (carIconLayer) allLayers.push(carIconLayer)
 
     return allLayers
@@ -691,6 +698,7 @@ const Map: React.FC<MapProps> = ({
     bookingLayer,
     destinationLayer,
     routesLayer,
+    breakLocationLayer,
     carIconLayer,
     showArcLayer,
   ])

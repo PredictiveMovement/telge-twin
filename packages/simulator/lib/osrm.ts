@@ -6,7 +6,7 @@ const nodeCrypto = require('crypto')
 
 const osrmUrl = process.env.OSRM_URL || 'https://osrm.telge.iteam.pub'
 const { warn, write } = require('./log')
-const queue = require('./queueSubject')
+const { osrmQueue } = require('./queueSubject')
 
 const decodePolyline = function (geometry: any) {
   return polyline.decode(geometry).map((point: any) => ({
@@ -77,7 +77,7 @@ const osrm = {
     ].join(';')
 
     return cachedFetch('route', { from, to }, () =>
-      queue(() =>
+      osrmQueue(() =>
         nodeFetch(
           `${osrmUrl}/route/v1/driving/${coordinates}?steps=true&alternatives=false&overview=full&annotations=true`
         )

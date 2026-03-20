@@ -727,7 +727,6 @@ export default function SavedDatasetsTab() {
                   <BreaksSection
                     breaks={editBreaks}
                     extraBreaks={editExtraBreaks}
-                    timeOptions={[]}
                     onBreaksChange={setEditBreaks}
                     onExtraBreaksChange={setEditExtraBreaks}
                     disableHover

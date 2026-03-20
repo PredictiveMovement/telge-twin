@@ -1,7 +1,6 @@
-import { interval, firstValueFrom } from 'rxjs'
+import { interval, firstValueFrom, ReplaySubject, Subscription } from 'rxjs'
 import {
   scan,
-  shareReplay,
   map,
   filter,
   distinctUntilChanged,
@@ -19,35 +18,86 @@ export class VirtualTime {
   private workdayStartMs!: number
   private workdayEndMs!: number
   private readonly defaultShiftDurationHours = 8
+  private msUpdateFrequency: number = 100
+  private intervalSub?: Subscription
+  private timeSubject!: ReplaySubject<Date>
 
   constructor(timeMultiplier = 1, startHour = 8.0, endHour?: number) {
     this.startHour = startHour
     this.endHour = endHour
     this.timeMultiplier = timeMultiplier
+    this.timeSubject = new ReplaySubject<Date>(1)
     this.reset()
   }
 
+  /**
+   * Compute the real-time tick interval based on the current time multiplier.
+   * At high multipliers, use smaller intervals to reduce virtual-time quantization.
+   * Target: ≤1 virtual second per tick where feasible.
+   */
+  private computeTickInterval(): number {
+    if (this.timeMultiplier <= 0 || !isFinite(this.timeMultiplier)) return 100
+    return Math.max(10, Math.min(100, Math.round(1000 / this.timeMultiplier)))
+  }
+
   reset(): void {
+    if (this.intervalSub) {
+      this.intervalSub.unsubscribe()
+    }
+
     const startDate: Date = addHours(startOfDay(new Date()), this.startHour)
-    const msUpdateFrequency = 100
+    this.msUpdateFrequency = this.computeTickInterval()
     this.workdayStartMs = startDate.getTime()
 
     const resolvedEndHour = this.resolveEndHour()
     const endDate = addHours(startOfDay(startDate), resolvedEndHour)
     this.workdayEndMs = endDate.getTime()
 
-    this.currentTime = interval(msUpdateFrequency).pipe(
-      scan(
-        (acc: Date) =>
-          addMilliseconds(
-            acc,
-            msUpdateFrequency * this.timeMultiplier * this.internalTimeScale
-          ),
-        startDate
-      ),
-      shareReplay(1)
-    )
+    if (!this.timeSubject) {
+      this.timeSubject = new ReplaySubject<Date>(1)
+    }
+
+    const freq = this.msUpdateFrequency
+    this.intervalSub = interval(freq)
+      .pipe(
+        scan(
+          (acc: Date) =>
+            addMilliseconds(
+              acc,
+              freq * this.timeMultiplier * this.internalTimeScale
+            ),
+          startDate
+        )
+      )
+      .subscribe((time) => this.timeSubject.next(time))
+
+    this.currentTime = this.timeSubject.asObservable()
     this._now = startDate.getTime()
+  }
+
+  /**
+   * Rebuild the interval from the current virtual time.
+   * Called when the multiplier changes and requires a different tick frequency.
+   */
+  private rebuildInterval(): void {
+    if (this.intervalSub) {
+      this.intervalSub.unsubscribe()
+    }
+    this.msUpdateFrequency = this.computeTickInterval()
+    const currentDate = new Date(this._now)
+    const freq = this.msUpdateFrequency
+    this.intervalSub = interval(freq)
+      .pipe(
+        scan(
+          (acc: Date) =>
+            addMilliseconds(
+              acc,
+              freq * this.timeMultiplier * this.internalTimeScale
+            ),
+          currentDate
+        )
+      )
+      .subscribe((time) => this.timeSubject.next(time))
   }
 
   getTimeStream() {
@@ -113,6 +163,16 @@ export class VirtualTime {
     return this.internalTimeScale > 0
   }
 
+  async runWithoutAdvancing<T>(fn: () => Promise<T>): Promise<T> {
+    const wasPlaying = this.isPlaying()
+    if (wasPlaying) this.pause()
+    try {
+      return await fn()
+    } finally {
+      if (wasPlaying) this.play()
+    }
+  }
+
   async waitUntil(time: number): Promise<any> {
     if (this.timeMultiplier === 0) return // don't wait when time is stopped
     if (this.timeMultiplier === Infinity) return // return directly if time is set to infinity
@@ -129,7 +189,12 @@ export class VirtualTime {
 
   // Set the speed in which time should advance
   setTimeMultiplier(timeMultiplier: number): void {
+    const oldFreq = this.msUpdateFrequency
     this.timeMultiplier = timeMultiplier
+    const newFreq = this.computeTickInterval()
+    if (newFreq !== oldFreq) {
+      this.rebuildInterval()
+    }
   }
 
   getTimeMultiplier(): number {
@@ -222,6 +287,10 @@ class VirtualTimeManager {
 
   isPlaying(): boolean {
     return this.getCurrentVirtualTime().isPlaying()
+  }
+
+  async runWithoutAdvancing<T>(fn: () => Promise<T>): Promise<T> {
+    return this.getCurrentVirtualTime().runWithoutAdvancing(fn)
   }
 
   async waitUntil(time: number): Promise<any> {

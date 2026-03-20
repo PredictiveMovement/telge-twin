@@ -5,15 +5,12 @@ const { scan } = require('rxjs/operators')
 const moment = require('moment')
 const { assert: consoleAssert } = require('console')
 
-const osrm = require('../osrm')
 const { haversine, bearing } = require('../distance')
 const interpolate = require('../interpolate')
 import Booking from '../models/booking'
 const { safeId } = require('../id')
 const { error } = require('../log')
 const Position = require('../models/position')
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 interface VehicleConstructorArgs {
   id?: string
@@ -62,6 +59,7 @@ class Vehicle {
   movementSubscription?: any // RxJS Subscription
   destination?: any // Should be Position
   route?: any // OSRM route object
+  instruction?: any // Current plan instruction (set by Truck)
   booking?: any // Should be Booking instance
   lastPositionUpdate: number // Changed: will be initialized
   pointsPassedSinceLastUpdate?: any[]
@@ -152,7 +150,6 @@ class Vehicle {
         scan((prevRemainingPointsInRoute: any, currentTimeInMs: any) => {
           try {
             if (!prevRemainingPointsInRoute || !prevRemainingPointsInRoute.length) {
-              this.stopped()
               return []
             }
 
@@ -168,6 +165,11 @@ class Vehicle {
               return []
             }
             this.updatePosition(newPosition, skippedPoints, currentTimeInMs)
+
+            if (!remainingPoints || remainingPoints.length === 0) {
+              this.stopped()
+            }
+
             return remainingPoints || []
           } catch (err: any) {
             error(`[simulate] scan error for vehicle ${this.id}:`, err?.message || err)
@@ -182,37 +184,39 @@ class Vehicle {
       })
   }
 
-  navigateTo(destination: any /* Position */) {
+  async runWithoutAdvancing<T>(fn: () => Promise<T>): Promise<T> {
+    if (typeof this.virtualTime?.runWithoutAdvancing === 'function') {
+      return this.virtualTime.runWithoutAdvancing(fn)
+    }
+
+    return fn()
+  }
+
+  navigateTo(destination: any /* Position */): Promise<any> | any {
     this.destination = destination
 
     if (this.position.distanceTo(destination) < 5) {
-      // Do not route if we are close enough.
-
       this.stopped()
       return destination
     }
 
-    return osrm
-      .route(this.position, this.destination)
-      .then(async (route: any) => {
-        route.started = await this.time()
-        this.route = route
-        if (!route.legs)
-          throw new Error(
-            `Route not found from: ${JSON.stringify(
-              this.position
-            )} to: ${JSON.stringify(this.destination)} from: ${JSON.stringify(
-              this.position
-            )}`
-          )
-        this.simulate(this.route)
-        return this.destination
+    const route = this.instruction?.route
+    if (!route?.legs) {
+      error(`[vehicle ${this.id}] No precomputed route for destination`, {
+        action: this.instruction?.action,
+        hasInstruction: !!this.instruction,
+        hasRoute: !!route,
+        routeKeys: route ? Object.keys(route) : [],
+        destinationLat: destination?.lat,
+        destinationLon: destination?.lon || destination?.lng,
       })
-      .catch(
-        (err: any) =>
-          error('Route error, retrying in 1s...', err) ||
-          wait(1000).then(() => this.navigateTo(destination))
-      )
+      return destination
+    }
+
+    route.started = this.virtualTime.now()
+    this.route = route
+    this.simulate(this.route)
+    return this.destination
   }
 
   async handleBooking(booking: any /* Booking */) {

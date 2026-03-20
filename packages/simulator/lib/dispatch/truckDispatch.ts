@@ -9,7 +9,6 @@ import {
 } from '../vroom'
 import {
   isExperimentCancelled,
-  shouldLogExperimentCancellation,
 } from '../cancelledExperiments'
 import { error, info } from '../log'
 import { CLUSTERING_CONFIG } from '../config'
@@ -56,6 +55,7 @@ export interface Instruction {
   arrival: number
   departure: number
   booking: any
+  route?: any // Pre-computed OSRM route for this leg
 }
 
 export interface PlanStatistics {
@@ -293,12 +293,19 @@ async function orderChunksWithVroom(
 
 /* ----------------------------------------------------------- */
 export async function findBestRouteToPickupBookings(
-  experimentId: string,
+  experimentId: string | undefined,
   truck: any,
   bookings: any[],
-  instructions?: ('pickup' | 'delivery' | 'start')[]
+  instructions?: ('pickup' | 'delivery' | 'start')[],
+  options: {
+    skipExperimentValidation?: boolean
+  } = {}
 ): Promise<Instruction[] | undefined> {
   const shouldAbort = async () => {
+    if (options.skipExperimentValidation || !experimentId) {
+      return false
+    }
+
     if (isExperimentCancelled(experimentId)) {
       return true
     }
@@ -316,9 +323,6 @@ export async function findBestRouteToPickupBookings(
 
   const throwIfCancelled = async () => {
     if (await shouldAbort()) {
-      if (shouldLogExperimentCancellation(experimentId)) {
-        info(`   ⚠️ Experiment ${experimentId} was deleted - optimization cancelled`)
-      }
       throw new Error(VROOM_PLANNING_CANCELLED_MESSAGE)
     }
   }
@@ -548,6 +552,25 @@ export function mergeVroomChunkResults(
   return merged
 }
 
+/**
+ * Strip OSRM route to only what interpolate.extractPoints() needs:
+ * geometry.coordinates + legs[].annotation.{duration, distance}
+ */
+function stripRouteForStorage(route: any): any {
+  if (!route?.legs) return undefined
+  return {
+    duration: route.duration,
+    distance: route.distance,
+    geometry: route.geometry,
+    legs: route.legs.map((leg: any) => ({
+      annotation: {
+        duration: leg.annotation?.duration,
+        distance: leg.annotation?.distance,
+      },
+    })),
+  }
+}
+
 export async function saveCompletePlanForReplay(
   experimentId: string,
   truckId: string,
@@ -579,6 +602,7 @@ export async function saveCompletePlanForReplay(
       action: i.action,
       arrival: i.arrival,
       departure: i.departure,
+      route: stripRouteForStorage(i.route),
       booking: i.booking
         ? {
             bookingId: i.booking.bookingId,
@@ -687,6 +711,7 @@ export async function useReplayRoute(truck: any, bookings: any[]) {
           arrival: ins.arrival,
           departure: ins.departure,
           booking: matched,
+          route: ins.route || undefined,
         }
       })
     }

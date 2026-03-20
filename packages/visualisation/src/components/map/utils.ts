@@ -40,6 +40,7 @@ export const COLORS = {
 
 export const ICON_MAPPING = {
   ready: { x: 40, y: 0, width: 40, height: 40, mask: false },
+  toBreak: { x: 0, y: 0, width: 40, height: 40, mask: false },
   default: { x: 0, y: 0, width: 40, height: 40, mask: false },
 }
 
@@ -52,7 +53,7 @@ export const getPartitionColor = (partitionId: string): number[] => {
 
 export const getVehicleColor = ({ status }: { status: string }): number[] => {
   const opacity = Math.round((4 / 5) * 255)
-  if (status === 'break') {
+  if (status === 'break' || status === 'toBreak') {
     return [...COLORS.vehicle.break, opacity]
   }
   if (status === 'planning') {
@@ -65,10 +66,14 @@ export const getVehicleColor = ({ status }: { status: string }): number[] => {
   ]
 }
 
+export const isLightMapStyle = (style: string) =>
+  style !== MAP_STYLES.dark && style !== MAP_STYLES.satellite
+
 export const getBookingColor = ({
   status,
   recyclingType,
-}: Booking): number[] => {
+  mapStyle,
+}: Booking & { mapStyle?: string }): number[] => {
   const opacity =
     status === 'Delivered'
       ? 55
@@ -83,9 +88,13 @@ export const getBookingColor = ({
   if (status === 'Unreachable')
     return [...COLORS.booking.UNREACHABLE, opacity]
 
+  const fallback = mapStyle && isLightMapStyle(mapStyle)
+    ? [100, 110, 125]
+    : COLORS.booking.default
+
   return [
     ...(COLORS.booking[recyclingType as keyof typeof COLORS.booking] ||
-      COLORS.booking.default),
+      fallback),
     opacity,
   ]
 }
