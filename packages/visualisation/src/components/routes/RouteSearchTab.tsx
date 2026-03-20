@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,9 +16,11 @@ import { toast } from '@/hooks/use-toast'
 import { getSettingsForPreview, extractInfoFromData } from './FileUpload/utils'
 import type { Settings } from '@/utils/fleetGenerator'
 
+const SEARCH_STATE_KEY = 'routeSearchState'
+
 const RouteSearchTab: React.FC = () => {
   const navigate = useNavigate()
-  
+
   // Use the new calendar selection hook
   const { 
     mode, 
@@ -43,6 +45,23 @@ const RouteSearchTab: React.FC = () => {
   const [viewMode, setViewMode] = useState("turid")
   const [searchQuery, setSearchQuery] = useState('')
   const resultsRef = useRef<HTMLDivElement>(null)
+
+  // Restore state from sessionStorage when navigating back
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SEARCH_STATE_KEY)
+      if (!saved) return
+      sessionStorage.removeItem(SEARCH_STATE_KEY)
+      const restore = JSON.parse(saved)
+      if (restore.uploadedData) routeDataHook.setRouteData(restore.uploadedData)
+      if (restore.rawSearchResults) setRawSearchResults(restore.rawSearchResults)
+      if (restore.selectedSearchRoutes) setSelectedSearchRoutes(restore.selectedSearchRoutes)
+      if (restore.filters) routeFiltersHook.restoreSearchFilters(restore.filters)
+      if (restore.viewMode) setViewMode(restore.viewMode)
+      setHasSearched(true)
+    } catch { /* ignore corrupt data */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const viewOptions = [
     { value: "turid", label: "TurID" }
@@ -340,6 +359,17 @@ const RouteSearchTab: React.FC = () => {
       extractedInfo
     )
 
+    // Save search state so it can be restored when navigating back
+    try {
+      sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({
+        rawSearchResults,
+        selectedSearchRoutes,
+        filters: routeFiltersHook.searchFilters,
+        viewMode,
+        uploadedData: routeDataHook.routeData,
+      }))
+    } catch { /* storage full — non-critical */ }
+
     // Navigate to save optimization page
     navigate('/optimize/save', {
       state: {
@@ -349,7 +379,7 @@ const RouteSearchTab: React.FC = () => {
         selectedItems,
         uploadedData: routeDataHook.routeData,
         originalFilename: filename,
-        previewSettings
+        previewSettings,
       }
     })
   }

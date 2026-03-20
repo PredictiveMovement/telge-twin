@@ -80,10 +80,18 @@ export const createBookingLayer = (bookings: Booking[], onHover: any, mapStyle?:
     updateTriggers: { getFillColor: mapStyle },
   })
 
-export const createDestinationLayer = (bookings: Booking[], onHover: any) =>
-  new IconLayer({
+export const createDestinationLayer = (bookings: Booking[], onHover: any) => {
+  const seen = new Set<string>()
+  const unique = bookings.filter((b) => {
+    if (!b.destination) return false
+    const key = `${b.destination[0].toFixed(5)},${b.destination[1].toFixed(5)}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return new IconLayer({
     id: 'destination-layer',
-    data: bookings.filter((b) => b.destination),
+    data: unique,
     pickable: true,
     iconAtlas: '/base-big.png',
     iconMapping: { marker: { x: 0, y: 0, width: 40, height: 40, mask: false } },
@@ -93,6 +101,7 @@ export const createDestinationLayer = (bookings: Booking[], onHover: any) =>
     getSize: () => 5,
     onHover,
   })
+}
 
 export const createMunicipalityLayer = (
   data: { id: string; name: string; polygon: number[][] }[],
@@ -235,15 +244,14 @@ export const createBreakLocationLayer = (cars: Car[]) => {
     id: 'break-location-layer',
     data,
     getPosition: (d: [number, number]) => d,
-    getIcon: () => ({
-      url: getBreakIconUrl(),
-      width: 64,
-      height: 64,
-      mask: false,
-    }),
+    iconAtlas: getBreakIconUrl(),
+    iconMapping: { break: { x: 0, y: 0, width: 64, height: 64, mask: false } },
+    getIcon: () => 'break',
     getSize: 32,
     sizeScale: 1,
     pickable: false,
+    alphaCutoff: -1,
+    parameters: { depthTest: false },
   })
 }
 

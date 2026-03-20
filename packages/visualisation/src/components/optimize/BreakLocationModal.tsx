@@ -9,6 +9,7 @@ import { MAP_STYLES, isLightMapStyle } from '@/components/map/utils';
 import { getBreakIconUrl, getMapPinIconUrl } from '@/components/map/layers';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PELIAS_URL } from '@/lib/pelias';
+import { DEPOT_COORDINATE } from '@/utils/shared';
 
 interface BreakLocationModalProps {
   isOpen: boolean;
@@ -155,7 +156,7 @@ const BreakLocationModal: React.FC<BreakLocationModalProps> = ({
 
     if (bookingCoordinates.length > 0) {
       const fillColor: [number, number, number, number] = isLightMapStyle(mapStyle)
-        ? [156, 163, 175, 204]
+        ? [100, 110, 125, 204]
         : [254, 254, 254, 204];
       result.push(
         new ScatterplotLayer({
@@ -174,21 +175,34 @@ const BreakLocationModal: React.FC<BreakLocationModalProps> = ({
       );
     }
 
+    result.push(
+      new IconLayer({
+        id: 'depot-location',
+        data: [DEPOT_COORDINATE],
+        getPosition: (d: [number, number]) => d,
+        iconAtlas: '/base-big.png',
+        iconMapping: { marker: { x: 0, y: 0, width: 40, height: 40, mask: false } },
+        getIcon: () => 'marker',
+        sizeScale: 7,
+        getSize: 5,
+        pickable: false,
+      }),
+    );
+
     if (otherBreakCoordinates.length > 0) {
       result.push(
         new IconLayer({
           id: 'other-break-locations',
           data: otherBreakCoordinates,
           getPosition: (d: { lat: number; lng: number }) => [d.lng, d.lat],
-          getIcon: () => ({
-            url: getBreakIconUrl(),
-            width: 64,
-            height: 64,
-            mask: false,
-          }),
+          iconAtlas: getBreakIconUrl(),
+          iconMapping: { break: { x: 0, y: 0, width: 64, height: 64, mask: false } },
+          getIcon: () => 'break',
           getSize: 32,
           sizeScale: 1,
           pickable: false,
+          alphaCutoff: -1,
+          parameters: { depthTest: false },
         }),
       );
     }
@@ -292,64 +306,63 @@ const BreakLocationModal: React.FC<BreakLocationModalProps> = ({
     </TooltipProvider>
   );
 
-  const mapContent = (
-    <div
-      ref={containerRef}
-      className="w-full relative rounded-md overflow-hidden border border-gray-200"
-      style={{ height: fullscreen ? '100%' : 450 }}
-    >
-      <DeckGL
-        viewState={viewState}
-        onViewStateChange={({ viewState: vs }: any) => setViewState(vs)}
-        onClick={handleMapClick}
-        controller={true}
-        layers={layers}
-        getCursor={() => 'crosshair'}
-        style={{ position: 'absolute', inset: 0 }}
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent
+        className={
+          fullscreen
+            ? '!duration-0 !max-w-[100vw] !w-[100vw] !h-[100vh] !p-0 !m-0 !border-none !rounded-none !translate-x-0 !translate-y-0 !top-0 !left-0 [&>button]:hidden'
+            : '!duration-0 sm:max-w-[700px]'
+        }
       >
-        <StaticMap
-          mapStyle={mapStyle}
-          mapboxApiAccessToken={MAPBOX_TOKEN}
-        />
-      </DeckGL>
-      {mapControls}
-    </div>
-  );
+        {!fullscreen && (
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Välj plats på kartan
+            </DialogTitle>
+          </DialogHeader>
+        )}
 
-  if (fullscreen) {
-    return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-        <DialogContent className="!duration-0 !max-w-[100vw] !w-[100vw] !h-[100vh] !p-0 !m-0 !border-none !rounded-none !translate-x-0 !translate-y-0 !top-0 !left-0 [&>button]:hidden">
-          <div className="flex flex-col h-full">
-            <div className="flex-1 relative">
-              {mapContent}
+        <div className={fullscreen ? 'flex flex-col h-full' : 'contents'}>
+          <div className={fullscreen ? 'flex-1 relative' : ''}>
+            <div
+              ref={containerRef}
+              className="w-full relative rounded-md overflow-hidden border border-gray-200"
+              style={{ height: fullscreen ? '100%' : 450 }}
+            >
+              <DeckGL
+                viewState={viewState}
+                onViewStateChange={({ viewState: vs }: any) => setViewState(vs)}
+                onClick={handleMapClick}
+                controller={true}
+                layers={layers}
+                getCursor={() => 'crosshair'}
+                style={{ position: 'absolute', inset: 0 }}
+              >
+                <StaticMap
+                  mapStyle={mapStyle}
+                  mapboxApiAccessToken={MAPBOX_TOKEN}
+                />
+              </DeckGL>
+              {mapControls}
             </div>
+          </div>
+
+          {fullscreen ? (
             <div className="bg-white border-t px-4 py-3 flex items-center justify-between">
               {addressDisplay}
               {actionButtons}
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="!duration-0 sm:max-w-[700px]">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            Välj plats på kartan
-          </DialogTitle>
-        </DialogHeader>
-
-        {mapContent}
-        {addressDisplay}
-
-        <DialogFooter>
-          {actionButtons}
-        </DialogFooter>
+          ) : (
+            <>
+              {addressDisplay}
+              <DialogFooter>
+                {actionButtons}
+              </DialogFooter>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

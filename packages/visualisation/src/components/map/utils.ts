@@ -89,7 +89,7 @@ export const getBookingColor = ({
     return [...COLORS.booking.UNREACHABLE, opacity]
 
   const fallback = mapStyle && isLightMapStyle(mapStyle)
-    ? [156, 163, 175]
+    ? [100, 110, 125]
     : COLORS.booking.default
 
   return [
