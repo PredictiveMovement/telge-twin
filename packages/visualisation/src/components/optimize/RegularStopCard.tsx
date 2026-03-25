@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Clock, Calendar, Key, Footprints, Timer, User, Building2, Trash2, ParkingCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Calendar, Key, Footprints, Timer, User, Building2, Trash2, ParkingCircle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Stop } from '@/types/stops';
 import { extractVehicleNumber, getVehicleLabel } from '@/lib/vehicleUtils';
@@ -40,19 +40,6 @@ const RegularStopCard = ({
   const parkButtonRef = useRef<HTMLButtonElement>(null);
   const isEditable = listType === 'optimized';
 
-  const calculateEstimatedTime = () => {
-    if (!startTime) return "12:00";
-    if (stop.estimatedTime) return stop.estimatedTime;
-
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startMinutes = hours * 60 + minutes;
-    // Assume ~10 minutes per stop
-    const estimatedMinutes = startMinutes + (stopIndex * 10);
-    const estimatedHours = Math.floor(estimatedMinutes / 60) % 24;
-    const remainingMinutes = estimatedMinutes % 60;
-    return `${estimatedHours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}`;
-  };
-
   // Handle click outside to reset delete and park confirmation
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -72,7 +59,6 @@ const RegularStopCard = ({
     }
   }, [isDeleteConfirming, isParkConfirming]);
 
-  const estimatedTime = calculateEstimatedTime();
   const backgroundColor = listType === 'current' ? 'bg-[#FBFBFB]' : 'bg-white';
 
   // Find the current position of this stop in the current (left) column
@@ -153,12 +139,6 @@ const RegularStopCard = ({
                     </div>
                   )}
                   <p className="text-base font-medium text-gray-900 truncate">{stop.address}</p>
-                </div>
-
-                {/* Clock time display - top right corner, same line as address */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Clock className="h-3 w-3" style={{ color: 'hsl(var(--text-secondary))' }} />
-                  <span className="font-medium text-sm" style={{ color: 'hsl(var(--text-secondary))' }}>{estimatedTime}</span>
                 </div>
               </div>
 
