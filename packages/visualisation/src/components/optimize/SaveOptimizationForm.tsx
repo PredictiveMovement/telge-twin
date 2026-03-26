@@ -13,7 +13,7 @@ import {
 } from '@/api/simulator';
 import type { RouteEstimate } from '@/api/simulator';
 import { computeFeasibility } from '@/utils/feasibilityEstimate';
-import type { BreakConfig } from '@/types/breaks';
+import { type BreakConfig, DEFAULT_BREAKS } from '@/types/breaks';
 import { buildOptimizationStartDate } from '@/utils/optimizationPreparation';
 
 interface SaveOptimizationFormProps {
@@ -46,25 +46,7 @@ const SaveOptimizationForm: React.FC<SaveOptimizationFormProps> = ({
     }
   });
 
-  const [breaks, setBreaks] = useState<BreakConfig[]>([{
-    id: 'morning',
-    name: 'Förmiddagsrast',
-    duration: 15,
-    enabled: true,
-    desiredTime: '08:00'
-  }, {
-    id: 'lunch',
-    name: 'Lunch',
-    duration: 45,
-    enabled: true,
-    desiredTime: '10:00'
-  }, {
-    id: 'afternoon',
-    name: 'Eftermiddagsrast',
-    duration: 15,
-    enabled: true,
-    desiredTime: '13:00'
-  }]);
+  const [breaks, setBreaks] = useState<BreakConfig[]>(DEFAULT_BREAKS.map(b => ({ ...b })));
 
   const [extraBreaks, setExtraBreaks] = useState<BreakConfig[]>([]);
 
@@ -285,6 +267,7 @@ const onSubmit = async (data: any) => {
           <BreaksSection
             breaks={breaks}
             extraBreaks={extraBreaks}
+            defaultBreaks={DEFAULT_BREAKS}
             onBreaksChange={setBreaks}
             onExtraBreaksChange={setExtraBreaks}
             disableHover

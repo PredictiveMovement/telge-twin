@@ -13,6 +13,7 @@ import { LayoutGrid, Table as TableIcon } from 'lucide-react';
 import SavedOptimizationsTable, { SavedOptimization, OptimizationVersion } from '@/components/optimize/SavedOptimizationsTable';
 import SavedOptimizationsGrid from '@/components/optimize/SavedOptimizationsGrid';
 import BreaksSection from '@/components/optimize/BreaksSection';
+import { DEFAULT_BREAKS } from '@/types/breaks';
 import {
   RouteDataset,
   getRouteDatasets,
@@ -164,25 +165,7 @@ export default function SavedDatasetsTab() {
     setEditStartTime(workingHours?.start || '06:00');
     setEditEndTime(workingHours?.end || '15:00');
     
-    const breaks = experiment.optimizationSettings?.breaks || dataset?.optimizationSettings?.breaks || [{
-      id: 'morning',
-      name: 'Förmiddagsrast',
-      duration: 15,
-      enabled: true,
-      desiredTime: '08:00'
-    }, {
-      id: 'lunch',
-      name: 'Lunch',
-      duration: 45,
-      enabled: true,
-      desiredTime: '10:00'
-    }, {
-      id: 'afternoon',
-      name: 'Eftermiddagsrast',
-      duration: 15,
-      enabled: true,
-      desiredTime: '13:00'
-    }];
+    const breaks = experiment.optimizationSettings?.breaks || dataset?.optimizationSettings?.breaks || DEFAULT_BREAKS.map(b => ({ ...b }));
     setEditBreaks(breaks);
     
     const extraBreaks = experiment.optimizationSettings?.extraBreaks || dataset?.optimizationSettings?.extraBreaks || [];
@@ -727,6 +710,7 @@ export default function SavedDatasetsTab() {
                   <BreaksSection
                     breaks={editBreaks}
                     extraBreaks={editExtraBreaks}
+                    defaultBreaks={DEFAULT_BREAKS}
                     onBreaksChange={setEditBreaks}
                     onExtraBreaksChange={setEditExtraBreaks}
                     disableHover

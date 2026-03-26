@@ -8,6 +8,7 @@ import type { BreakConfig } from '@/types/breaks';
 interface BreaksSectionProps {
   breaks: BreakConfig[];
   extraBreaks: BreakConfig[];
+  defaultBreaks: BreakConfig[];
   onBreaksChange: (breaks: BreakConfig[]) => void;
   onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void;
   disableHover?: boolean;
@@ -17,17 +18,19 @@ interface BreaksSectionProps {
 const BreaksSection: React.FC<BreaksSectionProps> = ({
   breaks,
   extraBreaks,
+  defaultBreaks,
   onBreaksChange,
   onExtraBreaksChange,
   disableHover,
   bookingCoordinates
 }) => {
   // History management for breaks
-  const { handleUndo, handleRedo, handleClear, canUndo, canRedo } = useBreaksHistory(
+  const { saveToHistory, handleUndo, handleRedo, handleClear, canUndo, canRedo } = useBreaksHistory(
     breaks,
     extraBreaks,
     onBreaksChange,
-    onExtraBreaksChange
+    onExtraBreaksChange,
+    defaultBreaks
   );
 
   // Break operations
@@ -42,8 +45,19 @@ const BreaksSection: React.FC<BreaksSectionProps> = ({
     breaks,
     extraBreaks,
     onBreaksChange,
-    onExtraBreaksChange
+    onExtraBreaksChange,
+    saveToHistory
   });
+
+  const hasChanges = useMemo(() =>
+    extraBreaks.length > 0 ||
+    breaks.length !== defaultBreaks.length ||
+    breaks.some((b, i) => {
+      const d = defaultBreaks[i];
+      return !d || b.id !== d.id || b.duration !== d.duration || b.name !== d.name || b.desiredTime !== d.desiredTime || b.location !== d.location;
+    }),
+    [breaks, extraBreaks, defaultBreaks]
+  );
 
   const allBreaks = useMemo(() => [...breaks, ...extraBreaks], [breaks, extraBreaks]);
 
@@ -69,6 +83,7 @@ const BreaksSection: React.FC<BreaksSectionProps> = ({
         onAdd={addExtraBreak}
         canUndo={canUndo}
         canRedo={canRedo}
+        canClear={hasChanges}
       />
       
       <div className="space-y-2">
