@@ -11,11 +11,13 @@ export const useBreaksHistory = (
   extraBreaks: BreakConfig[],
   onBreaksChange: (breaks: BreakConfig[]) => void,
   onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void,
-  defaultBreaks: BreakConfig[]
+  defaultBreaks: BreakConfig[],
+  defaultExtraBreaks?: BreakConfig[]
 ) => {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [index, setIndex] = useState(-1);
   const initialBreaksRef = useRef(defaultBreaks);
+  const initialExtraBreaksRef = useRef(defaultExtraBreaks ?? []);
 
   const saveToHistory = useCallback((newBreaks: BreakConfig[], newExtraBreaks: BreakConfig[]) => {
     const trimmed = snapshots.slice(0, index + 1);
@@ -47,7 +49,7 @@ export const useBreaksHistory = (
 
   const handleClear = useCallback(() => {
     onBreaksChange(initialBreaksRef.current.map(b => ({ ...b })));
-    onExtraBreaksChange([]);
+    onExtraBreaksChange(initialExtraBreaksRef.current.map(b => ({ ...b })));
     setSnapshots([]);
     setIndex(-1);
   }, [onBreaksChange, onExtraBreaksChange]);
