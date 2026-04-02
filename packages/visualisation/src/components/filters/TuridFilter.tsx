@@ -106,7 +106,7 @@ const TuridFilter: React.FC<TuridFilterProps> = ({
             </FilterButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent 
-            className="w-[300px] bg-white border border-gray-200 shadow-lg z-50" 
+            className="min-w-[var(--radix-dropdown-menu-trigger-width)] bg-white border border-gray-200 shadow-lg z-50"
             align="start"
           >
             {/* Search field - sticky at top */}

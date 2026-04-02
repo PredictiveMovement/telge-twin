@@ -2,26 +2,21 @@
  * Vehicle utility functions for mapping vehicle numbers to types
  */
 
+import telgeSettings from '@/config/telge-settings.json'
+
+const bilSettings: Array<{ ID: string; BESKRIVNING: string }> =
+  (telgeSettings as any).settings?.bilar || []
+
+const bilLookup = new Map(bilSettings.map(b => [b.ID, b.BESKRIVNING]))
+
 /**
- * Maps vehicle number to its type
+ * Maps vehicle number to its type via telge-settings.json
  * @param vehicleNumber - The vehicle number as a string (e.g., "20")
- * @returns The vehicle type (e.g., "4-fack", "2-fack", "Lastbil")
+ * @returns The vehicle type (e.g., "Hushåll 4-fack", "Högservice 2-fack")
  */
 export const getVehicleType = (vehicleNumber: string): string => {
   const num = vehicleNumber.trim();
-
-  // 4-fack vehicles (Hushåll)
-  if (['20', '21', '22', '23'].includes(num)) {
-    return '4-fack';
-  }
-
-  // 2-fack vehicles (Högservice)
-  if (['40', '41'].includes(num)) {
-    return '2-fack';
-  }
-
-  // Default
-  return 'Lastbil';
+  return bilLookup.get(num) || 'Okänd';
 };
 
 /**
@@ -38,7 +33,7 @@ export const extractVehicleNumber = (vehicle: string): string => {
 /**
  * Generates a formatted label for vehicle badge
  * @param vehicleNumber - The vehicle number as a string
- * @returns Formatted label (e.g., "20 – 4-fack")
+ * @returns Formatted label (e.g., "20 (Hushåll 4-fack)")
  */
 export const getVehicleLabel = (vehicleNumber: string): string => {
   const num = vehicleNumber.trim();

@@ -102,7 +102,7 @@ const MultipleSelectFilter: React.FC<MultipleSelectFilterProps> = ({
               </div>
             </FilterButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-[300px] bg-white border border-gray-200 shadow-lg z-50" align="start">
+          <DropdownMenuContent className="min-w-[var(--radix-dropdown-menu-trigger-width)] bg-white border border-gray-200 shadow-lg z-50" align="start">
             <div className="max-h-[400px] overflow-y-auto overflow-x-hidden">
               {options.map((option: any) => (
                 <DropdownMenuCheckboxItem

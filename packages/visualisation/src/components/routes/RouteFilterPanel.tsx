@@ -19,6 +19,7 @@ interface RouteFilterPanelProps {
     id: string;
     display: string;
   }>;
+  vehicleTypes?: string[];
   tjanstetyper: string[];
   turids: string[];
   hideHeader?: boolean;
@@ -37,6 +38,7 @@ const RouteFilterPanel: React.FC<RouteFilterPanelProps> = ({
   activeFilterCount,
   avfallstyper,
   vehicleOptions,
+  vehicleTypes,
   tjanstetyper,
   turids,
   hideHeader = false,
@@ -56,7 +58,6 @@ const RouteFilterPanel: React.FC<RouteFilterPanelProps> = ({
   };
 
   const handleServiceTypeChange = (serviceTypeId: string, checked: boolean) => {
-    // ServiceTypeId is now the actual type description (same as other filters)
     onFilterChange('tjanstetyp', serviceTypeId);
   };
 
@@ -65,35 +66,7 @@ const RouteFilterPanel: React.FC<RouteFilterPanelProps> = ({
   };
 
   const handleVehicleTypeChange = (vehicleTypeId: string, checked: boolean) => {
-    const typeName = vehicleTypeId; // IDs are the type names
-
-    // Toggle the type itself
-    onFilterChange('fordonstyp', typeName);
-
-    // Helper to extract the type from display string "ID DESCRIPTION"
-    const getTypeFromDisplay = (display: string) => {
-      const parts = display.split(' ');
-      const desc = parts.slice(1).join(' ').trim();
-      const tokens = desc.split(' ');
-      return tokens[tokens.length - 1] || desc;
-    };
-
-    // Find all vehicle IDs matching this type
-    const matchingIds = vehicleOptions
-      .filter(v => getTypeFromDisplay(v.display) === typeName)
-      .map(v => v.id);
-
-    if (checked) {
-      // Ensure all matching IDs are selected
-      matchingIds
-        .filter(id => !searchFilters.fordonsnummer.includes(id))
-        .forEach(id => onFilterChange('fordonsnummer', id));
-    } else {
-      // Remove all matching IDs
-      matchingIds
-        .filter(id => searchFilters.fordonsnummer.includes(id))
-        .forEach(id => onFilterChange('fordonsnummer', id));
-    }
+    onFilterChange('fordonstyp', vehicleTypeId);
   };
 
   return (
@@ -115,6 +88,7 @@ const RouteFilterPanel: React.FC<RouteFilterPanelProps> = ({
       <FilterConfigurationProvider
         avfallstyper={avfallstyper}
         vehicleOptions={vehicleOptions}
+        vehicleTypes={vehicleTypes}
         tjanstetyper={tjanstetyper}
         veckodagar={[]}
         frekvenser={[]}

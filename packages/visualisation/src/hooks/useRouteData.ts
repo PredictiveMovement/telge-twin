@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { getVehicleType } from '@/lib/vehicleUtils'
 
 export interface RouteRecord {
   Turid?: string
@@ -65,14 +66,18 @@ export const useRouteData = () => {
       return []
     }
     
-    // Extract unique vehicle IDs
+    // Extract unique vehicle IDs and enrich with description from telge-settings
     const vehicles = [...new Set(routeData.map(item => item.Bil))]
       .filter(bil => bil && bil !== '--')
-      .map(bil => ({
-        id: String(bil),
-        display: String(bil)
-      }))
-    
+      .map(bil => {
+        const id = String(bil)
+        const type = getVehicleType(id)
+        return {
+          id,
+          display: type !== 'Okänd' ? `${id} ${type}` : id
+        }
+      })
+
     return vehicles.sort((a, b) => a.display.localeCompare(b.display))
   }, [routeData])
 
@@ -89,26 +94,6 @@ export const useRouteData = () => {
 
   // Get tjanstetyper - MEMOIZED
   const tjanstetyper = useMemo(() => getUniqueValues('Tjtyp'), [routeData])
-
-  // Get unique vehicle types from vehicle options
-  const getVehicleTypes = useMemo(() => {
-    if (!vehicleOptions || vehicleOptions.length === 0) {
-      return []
-    }
-    
-    const types = new Set<string>()
-    vehicleOptions.forEach(v => {
-      // Extract vehicle type from display string
-      // Format: "40 Högservice 2-fack" -> extract "2-fack"
-      const parts = v.display.split(' ')
-      const desc = parts.slice(1).join(' ')
-      const tokens = desc.split(' ')
-      const type = tokens[tokens.length - 1]
-      if (type) types.add(type)
-    })
-    
-    return Array.from(types).sort()
-  }, [vehicleOptions])
 
   // For frequency, extract from the data or use predefined values - MEMOIZED
   const frekvenser = useMemo((): string[] => {
@@ -182,7 +167,6 @@ export const useRouteData = () => {
     getTurids,
     getWeekdayFromDate,
     generateRouteFromData,
-    getVehicleTypes,
   }
 }
 

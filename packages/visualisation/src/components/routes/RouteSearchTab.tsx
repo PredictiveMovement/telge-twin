@@ -10,6 +10,8 @@ import { useNewCalendarSelection } from '@/hooks/useNewCalendarSelection'
 import { useRouteData, RouteRecord, RouteCardData } from '@/hooks/useRouteData'
 import { useRouteFilters } from '@/hooks/useRouteFilters'
 import { getTelgeRouteData } from '@/api/simulator'
+import { getVehicleType } from '@/lib/vehicleUtils'
+import { useDynamicFilterOptions, pruneStaleFilters } from '@/hooks/useDynamicFilterOptions'
 import { format, isSameDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { toast } from '@/hooks/use-toast'
@@ -39,6 +41,14 @@ const RouteSearchTab: React.FC = () => {
   const routeFiltersHook = useRouteFilters()
   
   const [rawSearchResults, setRawSearchResults] = useState<RouteCardData[]>([])
+  const dynamicOptions = useDynamicFilterOptions(rawSearchResults, routeFiltersHook.searchFilters)
+
+  // Auto-prune filter selections that are no longer valid given dynamic options
+  useEffect(() => {
+    const pruned = pruneStaleFilters(routeFiltersHook.searchFilters, dynamicOptions)
+    if (pruned) routeFiltersHook.restoreSearchFilters(pruned)
+  }, [dynamicOptions])
+
   const [selectedSearchRoutes, setSelectedSearchRoutes] = useState<string[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -179,9 +189,9 @@ const RouteSearchTab: React.FC = () => {
         const allTjanstetyper = [...new Set(bookings.map(b => b.Tjtyp).filter(Boolean))]
         const totalBookings = bookings.length
 
-        // Find vehicle description
-        const vehicleOption = routeDataHook.vehicleOptions.find(v => v.id === baseBooking.Bil)
-        const vehicleDescription = vehicleOption?.display || baseBooking.Bil || 'Okänt'
+        const bilId = baseBooking.Bil || 'Okänt'
+        const bilType = getVehicleType(bilId)
+        const vehicleDescription = bilType !== 'Okänd' ? `${bilId} ${bilType}` : bilId
 
         // Check if turordning is missing (all values are 0 or all same value)
         const turordningValues = bookings.map(b => b.Turordningsnr ?? 0)
@@ -251,14 +261,11 @@ const RouteSearchTab: React.FC = () => {
     // Apply Fordonstyp filter
     if (filters.fordonstyp.length > 0) {
       filtered = filtered.filter(item => {
-        // Extract vehicle type from vehicleDescription
-        // Format: "40 Högservice 2-fack" -> extract "2-fack"
+        // vehicleDescription format: "ID BESKRIVNING" e.g. "40 Högservice 2-fack"
         const desc = item.vehicleDescription || ''
         const parts = desc.split(' ')
-        const vehicleInfo = parts.slice(1).join(' ')
-        const tokens = vehicleInfo.split(' ')
-        const vehicleType = tokens[tokens.length - 1]
-        
+        const vehicleType = parts.slice(1).join(' ').trim()
+
         return filters.fordonstyp.includes(vehicleType)
       })
     }
@@ -490,19 +497,21 @@ const RouteSearchTab: React.FC = () => {
             {!isLoading && (
               <>
                 <div className="mb-6">
-                  <RouteFilterPanel 
-                    searchFilters={routeFiltersHook.searchFilters} 
-                    onFilterChange={routeFiltersHook.handleSearchFilterArrayChange} 
-                    onClearFilters={routeFiltersHook.clearAllSearchFilters} 
-                    activeFilterCount={routeFiltersHook.getActiveFilterCount()} 
-                    avfallstyper={routeDataHook.avfallstyper} 
-                    vehicleOptions={routeDataHook.vehicleOptions} 
-                    tjanstetyper={routeDataHook.tjanstetyper}
-                    turids={routeDataHook.getTurids} 
-                    hideHeader={true} 
+                  <RouteFilterPanel
+                    searchFilters={routeFiltersHook.searchFilters}
+                    onFilterChange={routeFiltersHook.handleSearchFilterArrayChange}
+                    onClearFilters={routeFiltersHook.clearAllSearchFilters}
+                    activeFilterCount={routeFiltersHook.getActiveFilterCount()}
+                    avfallstyper={dynamicOptions.avfallstyper}
+                    vehicleOptions={dynamicOptions.vehicleOptions}
+                    vehicleTypes={dynamicOptions.fordonstyper}
+                    tjanstetyper={dynamicOptions.tjanstetyper}
+                    turids={dynamicOptions.turids}
+                    hideHeader={true}
                     onClearAllTurids={routeFiltersHook.clearAllTurids}
                     onClearAllWasteTypes={routeFiltersHook.clearAllWasteTypes}
                     onClearAllVehicles={routeFiltersHook.clearAllVehicles}
+                    onClearAllVehicleTypes={routeFiltersHook.clearAllVehicleTypes}
                     onClearAllServiceTypes={routeFiltersHook.clearAllServiceTypes}
                   />
                 </div>
