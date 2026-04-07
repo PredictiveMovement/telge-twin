@@ -33,5 +33,5 @@ spec:
     spec:
       containers:
         - name: visualisation
-          image: ghcr.io/predictivemovement/telge-twin-visualisation:dev-20260407070955-1ed3aea # {"$imagepolicy": "flux-system:visualisation-dev"}
+          image: ghcr.io/predictivemovement/telge-twin-visualisation:dev-20260407131851-d241806 # {"$imagepolicy": "flux-system:visualisation-dev"}
           imagePullPolicy: Always
