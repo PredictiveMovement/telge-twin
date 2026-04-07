@@ -51,6 +51,8 @@ interface OptimizationContextType {
   cancelOptimization: (id: string) => void;
   completeOptimization: (id: string, hadSuccessfulPlans?: boolean) => void;
   markAsViewed: (id: string) => void;
+  markAsUnseen: (id: string) => void;
+  isUnseen: (id: string) => boolean;
   isOptimizing: (id: string) => boolean;
   isCompleted: (id: string) => boolean;
   hasAnyCompleted: () => boolean;
@@ -65,6 +67,8 @@ const createNoopContext = (): OptimizationContextType => ({
   cancelOptimization: () => {},
   completeOptimization: () => {},
   markAsViewed: () => {},
+  markAsUnseen: () => {},
+  isUnseen: () => false,
   isOptimizing: () => false,
   isCompleted: () => false,
   hasAnyCompleted: () => false,
@@ -83,6 +87,15 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { socket } = useMapSocket();
   const [runningOptimizations, setRunningOptimizations] = useState<Map<string, RunningOptimization>>(new Map());
   const [completedOptimizations, setCompletedOptimizations] = useState<Map<string, CompletionInfo>>(new Map());
+  const [unseenCompleted, setUnseenCompleted] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('ruttger-unseen-optimizations');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const unseenInitRef = useRef(false);
   const isUpdateRef = useRef<Map<string, boolean>>(new Map());
   const animationFramesRef = useRef<Map<string, number>>(new Map());
   const startTimesRef = useRef<Map<string, number>>(new Map());
@@ -341,8 +354,21 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       next.delete(id);
       return next;
     });
+    setUnseenCompleted(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
     completingRef.current.delete(id);
   }, []);
+
+  const markAsUnseen = useCallback((id: string) => {
+    setUnseenCompleted(prev => new Set(prev).add(id));
+  }, []);
+
+  const isUnseen = useCallback((id: string) => {
+    return unseenCompleted.has(id);
+  }, [unseenCompleted]);
 
   const isOptimizing = useCallback((id: string) => {
     return runningOptimizations.has(id);
@@ -364,6 +390,25 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const getCompletionInfo = useCallback((id: string): CompletionInfo | null => {
     return completedOptimizations.get(id) ?? null;
   }, [completedOptimizations]);
+
+  // Sync newly completed optimizations to unseen set
+  useEffect(() => {
+    if (completedOptimizations.size === 0) return;
+    setUnseenCompleted(prev => {
+      const next = new Set(prev);
+      completedOptimizations.forEach((_, id) => next.add(id));
+      return next;
+    });
+  }, [completedOptimizations]);
+
+  // Persist unseen set to localStorage (skip initial mount)
+  useEffect(() => {
+    if (!unseenInitRef.current) {
+      unseenInitRef.current = true;
+      return;
+    }
+    localStorage.setItem('ruttger-unseen-optimizations', JSON.stringify([...unseenCompleted]));
+  }, [unseenCompleted]);
 
   useEffect(() => {
     if (!socket) return;
@@ -466,6 +511,8 @@ export const OptimizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         cancelOptimization,
         completeOptimization,
         markAsViewed,
+        markAsUnseen,
+        isUnseen,
         isOptimizing,
         isCompleted,
         hasAnyCompleted,
