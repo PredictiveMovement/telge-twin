@@ -1,50 +1,61 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { BreakConfig } from '@/types/breaks';
+
+interface Snapshot {
+  breaks: BreakConfig[];
+  extraBreaks: BreakConfig[];
+}
 
 export const useBreaksHistory = (
   breaks: BreakConfig[],
   extraBreaks: BreakConfig[],
   onBreaksChange: (breaks: BreakConfig[]) => void,
-  onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void
+  onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void,
+  defaultBreaks: BreakConfig[],
+  defaultExtraBreaks?: BreakConfig[]
 ) => {
-  const [history, setHistory] = useState<{ breaks: BreakConfig[]; extraBreaks: BreakConfig[]; }[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [index, setIndex] = useState(-1);
+  const initialBreaksRef = useRef(defaultBreaks);
+  const initialExtraBreaksRef = useRef(defaultExtraBreaks ?? []);
 
-  // Save state to history before making changes
-  const saveToHistory = useCallback(() => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push({ breaks: [...breaks], extraBreaks: [...extraBreaks] });
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  }, [breaks, extraBreaks, history, historyIndex]);
-
-  const handleUndo = () => {
-    if (historyIndex >= 0) {
-      const previousState = history[historyIndex];
-      onBreaksChange(previousState.breaks);
-      onExtraBreaksChange(previousState.extraBreaks);
-      setHistoryIndex(historyIndex - 1);
+  const saveToHistory = useCallback((newBreaks: BreakConfig[], newExtraBreaks: BreakConfig[]) => {
+    const trimmed = snapshots.slice(0, index + 1);
+    if (trimmed.length === 0) {
+      trimmed.push({ breaks: [...breaks], extraBreaks: [...extraBreaks] });
     }
-  };
+    trimmed.push({ breaks: [...newBreaks], extraBreaks: [...newExtraBreaks] });
+    setSnapshots(trimmed);
+    setIndex(trimmed.length - 1);
+  }, [breaks, extraBreaks, snapshots, index]);
 
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      const nextIndex = historyIndex + 1;
-      const nextState = history[nextIndex];
-      onBreaksChange(nextState.breaks);
-      onExtraBreaksChange(nextState.extraBreaks);
-      setHistoryIndex(nextIndex);
+  const handleUndo = useCallback(() => {
+    if (index > 0) {
+      const prev = snapshots[index - 1];
+      onBreaksChange(prev.breaks.map(b => ({ ...b })));
+      onExtraBreaksChange(prev.extraBreaks.map(b => ({ ...b })));
+      setIndex(index - 1);
     }
-  };
+  }, [index, snapshots, onBreaksChange, onExtraBreaksChange]);
 
-  const handleClear = () => {
-    saveToHistory();
-    onBreaksChange([...breaks]);
-    onExtraBreaksChange([]);
-  };
+  const handleRedo = useCallback(() => {
+    if (index < snapshots.length - 1) {
+      const next = snapshots[index + 1];
+      onBreaksChange(next.breaks.map(b => ({ ...b })));
+      onExtraBreaksChange(next.extraBreaks.map(b => ({ ...b })));
+      setIndex(index + 1);
+    }
+  }, [index, snapshots, onBreaksChange, onExtraBreaksChange]);
 
-  const canUndo = historyIndex >= 0;
-  const canRedo = historyIndex < history.length - 1;
+  const handleClear = useCallback(() => {
+    onBreaksChange(initialBreaksRef.current.map(b => ({ ...b })));
+    onExtraBreaksChange(initialExtraBreaksRef.current.map(b => ({ ...b })));
+    setSnapshots([]);
+    setIndex(-1);
+  }, [onBreaksChange, onExtraBreaksChange]);
+
+  const canUndo = index > 0;
+  const canRedo = index < snapshots.length - 1;
 
   return {
     saveToHistory,

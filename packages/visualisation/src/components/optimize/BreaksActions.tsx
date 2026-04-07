@@ -21,6 +21,7 @@ interface BreaksActionsProps {
   onAdd: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  canClear: boolean;
 }
 
 const BreaksActions: React.FC<BreaksActionsProps> = ({
@@ -29,7 +30,8 @@ const BreaksActions: React.FC<BreaksActionsProps> = ({
   onClear,
   onAdd,
   canUndo,
-  canRedo
+  canRedo,
+  canClear
 }) => {
   return (
     <div className="flex items-center gap-4">
@@ -81,6 +83,7 @@ const BreaksActions: React.FC<BreaksActionsProps> = ({
                       size="icon" 
                       className="h-8 w-8 hover:bg-muted hover:text-muted-foreground"
                       aria-label="Börja om"
+                      disabled={!canClear}
                     >
                       <RotateCcw className="h-4 w-4" />
                     </Button>

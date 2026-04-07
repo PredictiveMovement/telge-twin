@@ -29,6 +29,7 @@ import {
   type Settings,
 } from '@/utils/fleetGenerator'
 import { FLEET_CONFIG } from '@/config/fleet'
+import { getVehicleType } from '@/lib/vehicleUtils'
 import { getTelgeRouteData } from '@/api/simulator'
 
 // ---------------------------------------------------------
@@ -57,11 +58,9 @@ const createEmptyFilters = (): SearchFilters => ({
 })
 
 const getVehicleTypeFromDisplay = (display: string) => {
+  // display format: "ID BESKRIVNING" e.g. "40 Högservice 2-fack"
   const parts = display.split(' ')
-  const desc = parts.slice(1).join(' ').trim()
-  if (!desc) return ''
-  const tokens = desc.split(' ')
-  return tokens[tokens.length - 1] || desc
+  return parts.slice(1).join(' ').trim()
 }
 
 type RouteSummaryCard = {
@@ -116,6 +115,116 @@ export default function FileUploadTab() {
     })
     return map
   }, [filterOptions.vehicleOptions])
+
+  // Dynamic filter options: each dropdown only shows values relevant given OTHER active filters
+  const dynamicFilterOptions = useMemo(() => {
+    if (!uploadedData.length) return { ...filterOptions, fordonstyper: [] }
+
+    const { frequencyLookup } = filterOptions
+    const freqIdFor = (label: string) => frequencyLookup[label] || label
+
+    type Pred = (r: RouteRecord) => boolean
+    const predicates: Record<string, Pred> = {
+      avfallstyp: (r) => searchFilters.avfallstyp.includes(r.Avftyp || ''),
+      fordonsnummer: (r) => searchFilters.fordonsnummer.includes(r.Bil || ''),
+      fordonstyp: (r) => {
+        const t = vehicleTypeById[r.Bil || '']
+        return !!t && searchFilters.fordonstyp.includes(t)
+      },
+      tjanstetyp: (r) => searchFilters.tjanstetyp.includes(r.Tjtyp || ''),
+      frekvens: (r) => searchFilters.frekvens.some(f => freqIdFor(f) === r.Frekvens),
+      veckodag: (r) => {
+        const label = formatWeekdayLabel(r.Datum)
+        return !!label && searchFilters.veckodag.includes(label)
+      },
+    }
+
+    const filterExcluding = (...excludeKeys: string[]) =>
+      uploadedData.filter(record => {
+        for (const [key, pred] of Object.entries(predicates)) {
+          if (excludeKeys.includes(key)) continue
+          const val = (searchFilters as any)[key]
+          if (Array.isArray(val) && val.length > 0 && !pred(record)) return false
+        }
+        return true
+      })
+
+    const sorted = (set: Set<string>) =>
+      Array.from(set).sort((a, b) => a.localeCompare(b, 'sv'))
+
+    const unique = (items: (string | undefined)[]) =>
+      sorted(new Set(items.filter(Boolean) as string[]))
+
+    const forAvf = filterExcluding('avfallstyp')
+    const forFordonstyp = filterExcluding('fordonstyp')
+    const forFordon = filterExcluding('fordonsnummer')
+    const forTjanst = filterExcluding('tjanstetyp')
+    const forFrekvens = filterExcluding('frekvens')
+    const forVeckodag = filterExcluding('veckodag')
+
+    // Vehicle options: fordon dropdown excludes only fordonsnummer
+    const fordonIds = new Set(forFordon.map(r => r.Bil).filter(Boolean) as string[])
+    const vehicleOptions = Array.from(fordonIds)
+      .map(id => {
+        const type = getVehicleType(id)
+        return { id, display: type !== 'Okänd' ? `${id} ${type}` : id }
+      })
+      .sort((a, b) => a.display.localeCompare(b.display, 'sv'))
+
+    // Frequency: extract IDs, map to descriptions
+    const freqIds = unique(forFrekvens.map(r => r.Frekvens))
+    const freqIdToDesc = new Map<string, string>()
+    Object.entries(frequencyLookup).forEach(([desc, id]) => freqIdToDesc.set(id, desc))
+    const frekvenser = freqIds.map(id => freqIdToDesc.get(id) || id)
+
+    // Fordonstyp options: excludes only fordonstyp filter
+    const fordonstypSet = new Set<string>()
+    forFordonstyp.forEach(r => {
+      const t = vehicleTypeById[r.Bil || '']
+      if (t) fordonstypSet.add(t)
+    })
+
+    return {
+      avfallstyper: unique(forAvf.map(r => r.Avftyp)),
+      vehicleOptions,
+      fordonstyper: sorted(fordonstypSet),
+      tjanstetyper: unique(forTjanst.map(r => r.Tjtyp)),
+      veckodagar: unique(forVeckodag.map(r => formatWeekdayLabel(r.Datum) || undefined)),
+      frekvenser,
+      frequencyLookup,
+    }
+  }, [uploadedData, searchFilters, filterOptions, vehicleTypeById])
+
+  // Auto-prune filter selections that are no longer valid given dynamic options
+  useEffect(() => {
+    const opts = dynamicFilterOptions
+    const validFordon = new Set(opts.vehicleOptions.map(v => v.id))
+    const validFordonstyper = new Set(opts.fordonstyper)
+    const validAvf = new Set(opts.avfallstyper)
+    const validTjanst = new Set(opts.tjanstetyper)
+    const validVeckodag = new Set(opts.veckodagar)
+    const validFrekvens = new Set(opts.frekvenser)
+
+    setSearchFilters(prev => {
+      const pruned = {
+        ...prev,
+        avfallstyp: prev.avfallstyp.filter(v => validAvf.has(v)),
+        fordonstyp: prev.fordonstyp.filter(v => validFordonstyper.has(v)),
+        fordonsnummer: prev.fordonsnummer.filter(v => validFordon.has(v)),
+        tjanstetyp: prev.tjanstetyp.filter(v => validTjanst.has(v)),
+        veckodag: prev.veckodag.filter(v => validVeckodag.has(v)),
+        frekvens: prev.frekvens.filter(v => validFrekvens.has(v)),
+      }
+      const changed =
+        pruned.avfallstyp.length !== prev.avfallstyp.length ||
+        pruned.fordonstyp.length !== prev.fordonstyp.length ||
+        pruned.fordonsnummer.length !== prev.fordonsnummer.length ||
+        pruned.tjanstetyp.length !== prev.tjanstetyp.length ||
+        pruned.veckodag.length !== prev.veckodag.length ||
+        pruned.frekvens.length !== prev.frekvens.length
+      return changed ? pruned : prev
+    })
+  }, [dynamicFilterOptions])
 
   const activeFilterCount = useMemo(() => {
     const arrayCount =
@@ -588,9 +697,10 @@ export default function FileUploadTab() {
               searchFilters={searchFilters}
               onFilterChange={handleFilterChange}
               activeFilterCount={activeFilterCount}
-              avfallstyper={filterOptions.avfallstyper}
-              vehicleOptions={filterOptions.vehicleOptions}
-              tjanstetyper={filterOptions.tjanstetyper}
+              avfallstyper={dynamicFilterOptions.avfallstyper}
+              vehicleOptions={dynamicFilterOptions.vehicleOptions}
+              vehicleTypes={dynamicFilterOptions.fordonstyper}
+              tjanstetyper={dynamicFilterOptions.tjanstetyper}
               selectedDate={selectedDate}
               onDateChange={handleDateSelect}
               hideHeader={true}

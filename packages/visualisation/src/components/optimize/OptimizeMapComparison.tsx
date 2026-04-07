@@ -11,7 +11,7 @@ import {
   Unlink,
 } from 'lucide-react'
 
-import Map from '@/components/Map'
+import Map, { MapControls } from '@/components/Map'
 import SettingsMenu from '@/components/SettingsMenu'
 import LayersMenu from '@/components/LayersMenu'
 import { MapPlaybackOverlay } from '@/components/map/MapPlaybackOverlay'
@@ -80,7 +80,10 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
   const [currentProgress, setCurrentProgress] = useState([0])
   const [optimizedProgress, setOptimizedProgress] = useState([0])
   const [playbackSpeed, setPlaybackSpeed] = useState(60)
-  const [mapZoom, setMapZoom] = useState(12)
+  const [currentMapControls, setCurrentMapControls] =
+    useState<MapControls | null>(null)
+  const [optimizedMapControls, setOptimizedMapControls] =
+    useState<MapControls | null>(null)
 
   // Current map state (left)
   const [currentMapStyle, setCurrentMapStyle] = useState(
@@ -383,8 +386,16 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
     }
   }
 
-  const handleZoomIn = () => setMapZoom((prev) => Math.min(prev + 1, 20))
-  const handleZoomOut = () => setMapZoom((prev) => Math.max(prev - 1, 1))
+  const handleZoomIn = (target: MapColumn) => {
+    const controls =
+      target === 'current' ? currentMapControls : optimizedMapControls
+    controls?.zoomIn()
+  }
+  const handleZoomOut = (target: MapColumn) => {
+    const controls =
+      target === 'current' ? currentMapControls : optimizedMapControls
+    controls?.zoomOut()
+  }
 
   const renderStatusColor = (target: MapColumn) => {
     const simulation =
@@ -581,6 +592,11 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                 showPlaybackControls={false}
                 showFullscreenControl={false}
                 showVirtualTime={false}
+                onControlsReady={
+                  target === 'current'
+                    ? setCurrentMapControls
+                    : setOptimizedMapControls
+                }
               />
             </div>
 
@@ -643,7 +659,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                     size="icon"
                     variant="ghost"
                     className="text-gray-800 hover:bg-gray-100 hover:text-secondary h-6 w-6 rounded-full transition-colors"
-                    onClick={handleZoomIn}
+                    onClick={() => handleZoomIn(target)}
                   >
                     <ZoomIn className="h-3 w-3" />
                   </Button>
@@ -651,7 +667,7 @@ const OptimizeMapComparison: React.FC<OptimizeMapComparisonProps> = ({
                     size="icon"
                     variant="ghost"
                     className="text-gray-800 hover:bg-gray-100 hover:text-secondary h-6 w-6 rounded-full transition-colors"
-                    onClick={handleZoomOut}
+                    onClick={() => handleZoomOut(target)}
                   >
                     <ZoomOut className="h-3 w-3" />
                   </Button>

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { GripVertical, Clock } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import EditTippingModal from './EditTippingModal';
 
 interface Stop {
@@ -36,22 +36,6 @@ const TippingStopCard = ({
   const isEditable = listType === 'optimized';
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const justClosedRef = useRef(false);
-  
-  // Calculate estimated time based on startTime and stopIndex
-  const calculateEstimatedTime = () => {
-    if (!startTime) return "12:00";
-    
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const startMinutes = hours * 60 + minutes;
-    // Estimate roughly 10 minutes per stop before this tipping
-    const estimatedMinutes = startMinutes + (stopIndex * 10);
-    const estimatedHours = Math.floor(estimatedMinutes / 60);
-    const remainingMinutes = estimatedMinutes % 60;
-    
-    return `${estimatedHours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}`;
-  };
-  
-  const estimatedTime = stop.estimatedTime || calculateEstimatedTime();
   
   const handleCardClick = (e: React.MouseEvent) => {
     // Only handle clicks if it's the main card area and not dragging
@@ -95,23 +79,9 @@ const TippingStopCard = ({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end gap-1">
-            {/* Clock time row */}
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-telge-telgebla" />
-              <span className="font-medium text-telge-telgebla text-sm">{estimatedTime}</span>
-            </div>
-            
-            {/* Duration row */}
-            <div className="flex items-center">
-              <span className="text-sm text-telge-morkbla min-w-[40px] text-center">
-                {stop.duration || 20} min
-              </span>
-            </div>
-          </div>
-          
-        </div>
+        <span className="text-sm text-telge-morkbla">
+          {stop.duration || 20} min
+        </span>
       </div>
       
       {onUpdateTipping && (

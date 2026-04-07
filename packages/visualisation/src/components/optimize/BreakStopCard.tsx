@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { GripVertical, Clock } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import EditBreakModal from './EditBreakModal';
 
 interface Stop {
@@ -38,15 +38,6 @@ const BreakStopCard = ({
   const justClosedRef = useRef(false);
   const isEditable = listType === 'optimized';
   const isLunch = stop.type === 'lunch';
-  
-  // Hardcoded break times
-  const getBreakTime = () => {
-    if (isLunch) return "10:00";
-    // For coffee breaks, determine if it's morning or afternoon based on index
-    return stopIndex < 20 ? "08:00" : "13:00"; // Rough estimate: morning vs afternoon
-  };
-  
-  const estimatedTime = stop.estimatedTime || getBreakTime();
   
   const handleCardClick = (e: React.MouseEvent) => {
     // Only handle clicks if it's the main card area and not dragging
@@ -90,23 +81,9 @@ const BreakStopCard = ({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col gap-1">
-            {/* Clock time row */}
-            <div className="flex items-center gap-1 justify-end">
-              <Clock className="h-3 w-3 text-orange-500" />
-              <span className="font-medium text-orange-700 text-sm">{estimatedTime}</span>
-            </div>
-            
-            {/* Duration row */}
-            <div className="flex items-center justify-end">
-              <span className="text-orange-600 text-sm">
-                {stop.duration || (isLunch ? 30 : 15)} min
-              </span>
-            </div>
-          </div>
-          
-        </div>
+        <span className="text-orange-600 text-sm">
+          {stop.duration || (isLunch ? 30 : 15)} min
+        </span>
       </div>
       
       {isEditable && onUpdateBreak && (

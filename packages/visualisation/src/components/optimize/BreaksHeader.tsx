@@ -9,6 +9,7 @@ interface BreaksHeaderProps {
   onAdd: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  canClear: boolean;
 }
 
 const BreaksHeader: React.FC<BreaksHeaderProps> = ({
@@ -17,7 +18,8 @@ const BreaksHeader: React.FC<BreaksHeaderProps> = ({
   onClear,
   onAdd,
   canUndo,
-  canRedo
+  canRedo,
+  canClear
 }) => {
   return (
     <div className="flex items-center justify-between">
@@ -34,6 +36,7 @@ const BreaksHeader: React.FC<BreaksHeaderProps> = ({
         onAdd={onAdd}
         canUndo={canUndo}
         canRedo={canRedo}
+        canClear={canClear}
       />
     </div>
   );

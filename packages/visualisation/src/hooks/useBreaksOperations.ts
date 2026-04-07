@@ -6,93 +6,79 @@ interface UseBreaksOperationsProps {
   extraBreaks: BreakConfig[];
   onBreaksChange: (breaks: BreakConfig[]) => void;
   onExtraBreaksChange: (extraBreaks: BreakConfig[]) => void;
+  saveToHistory: (newBreaks: BreakConfig[], newExtraBreaks: BreakConfig[]) => void;
 }
 
 export const useBreaksOperations = ({
   breaks,
   extraBreaks,
   onBreaksChange,
-  onExtraBreaksChange
+  onExtraBreaksChange,
+  saveToHistory
 }: UseBreaksOperationsProps) => {
-  
+
   const updateBreakDuration = useCallback((id: string, change: number, isExtra = false) => {
+    const update = (b: BreakConfig) =>
+      b.id === id ? { ...b, duration: Math.max(5, b.duration + change) } : b;
+    const newBreaks = isExtra ? breaks : breaks.map(update);
+    const newExtraBreaks = isExtra ? extraBreaks.map(update) : extraBreaks;
+    saveToHistory(newBreaks, newExtraBreaks);
     if (isExtra) {
-      onExtraBreaksChange(extraBreaks.map(breakItem => 
-        breakItem.id === id ? {
-          ...breakItem,
-          duration: Math.max(5, breakItem.duration + change)
-        } : breakItem
-      ));
+      onExtraBreaksChange(newExtraBreaks);
     } else {
-      onBreaksChange(breaks.map(breakItem => 
-        breakItem.id === id ? {
-          ...breakItem,
-          duration: Math.max(5, breakItem.duration + change)
-        } : breakItem
-      ));
+      onBreaksChange(newBreaks);
     }
-  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
+  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange, saveToHistory]);
 
   const updateBreakName = useCallback((id: string, newName: string, isExtra = false) => {
+    const update = (b: BreakConfig) =>
+      b.id === id ? { ...b, name: newName } : b;
+    const newBreaks = isExtra ? breaks : breaks.map(update);
+    const newExtraBreaks = isExtra ? extraBreaks.map(update) : extraBreaks;
+    saveToHistory(newBreaks, newExtraBreaks);
     if (isExtra) {
-      onExtraBreaksChange(extraBreaks.map(breakItem => 
-        breakItem.id === id ? {
-          ...breakItem,
-          name: newName
-        } : breakItem
-      ));
+      onExtraBreaksChange(newExtraBreaks);
     } else {
-      onBreaksChange(breaks.map(breakItem => 
-        breakItem.id === id ? {
-          ...breakItem,
-          name: newName
-        } : breakItem
-      ));
+      onBreaksChange(newBreaks);
     }
-  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
+  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange, saveToHistory]);
 
   const updateBreakTime = useCallback((id: string, newTime: string, isExtra = false) => {
+    const update = (b: BreakConfig) =>
+      b.id === id ? { ...b, desiredTime: newTime } : b;
+    const newBreaks = isExtra ? breaks : breaks.map(update);
+    const newExtraBreaks = isExtra ? extraBreaks.map(update) : extraBreaks;
+    saveToHistory(newBreaks, newExtraBreaks);
     if (isExtra) {
-      onExtraBreaksChange(extraBreaks.map(breakItem => 
-        breakItem.id === id ? {
-          ...breakItem,
-          desiredTime: newTime
-        } : breakItem
-      ));
+      onExtraBreaksChange(newExtraBreaks);
     } else {
-      onBreaksChange(breaks.map(breakItem => 
-        breakItem.id === id ? {
-          ...breakItem,
-          desiredTime: newTime
-        } : breakItem
-      ));
+      onBreaksChange(newBreaks);
     }
-  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
+  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange, saveToHistory]);
 
   const updateBreakLocation = useCallback((id: string, newLocation: string, isExtra = false, coordinates?: { lat: number; lng: number }) => {
-    const update = (breakItem: BreakConfig) =>
-      breakItem.id === id
-        ? {
-            ...breakItem,
-            location: newLocation,
-            locationCoordinates: coordinates ?? undefined,
-          }
-        : breakItem;
-
+    const update = (b: BreakConfig) =>
+      b.id === id ? { ...b, location: newLocation, locationCoordinates: coordinates ?? undefined } : b;
+    const newBreaks = isExtra ? breaks : breaks.map(update);
+    const newExtraBreaks = isExtra ? extraBreaks.map(update) : extraBreaks;
+    saveToHistory(newBreaks, newExtraBreaks);
     if (isExtra) {
-      onExtraBreaksChange(extraBreaks.map(update));
+      onExtraBreaksChange(newExtraBreaks);
     } else {
-      onBreaksChange(breaks.map(update));
+      onBreaksChange(newBreaks);
     }
-  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
+  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange, saveToHistory]);
 
   const deleteBreak = useCallback((id: string, isExtra = false) => {
+    const newBreaks = isExtra ? breaks : breaks.filter(b => b.id !== id);
+    const newExtraBreaks = isExtra ? extraBreaks.filter(b => b.id !== id) : extraBreaks;
+    saveToHistory(newBreaks, newExtraBreaks);
     if (isExtra) {
-      onExtraBreaksChange(extraBreaks.filter(breakItem => breakItem.id !== id));
+      onExtraBreaksChange(newExtraBreaks);
     } else {
-      onBreaksChange(breaks.filter(breakItem => breakItem.id !== id));
+      onBreaksChange(newBreaks);
     }
-  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange]);
+  }, [breaks, extraBreaks, onBreaksChange, onExtraBreaksChange, saveToHistory]);
 
   const addExtraBreak = useCallback(() => {
     const newBreak: BreakConfig = {
@@ -102,19 +88,17 @@ export const useBreaksOperations = ({
       enabled: true,
       desiredTime: '10:00'
     };
-    onExtraBreaksChange([...extraBreaks, newBreak]);
-    
-    // Scroll to the newly added break
+    const newExtraBreaks = [...extraBreaks, newBreak];
+    saveToHistory(breaks, newExtraBreaks);
+    onExtraBreaksChange(newExtraBreaks);
+
     setTimeout(() => {
       const newBreakElement = document.getElementById(`break-${newBreak.id}`);
       if (newBreakElement) {
-        newBreakElement.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center' 
-        });
+        newBreakElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 200);
-  }, [extraBreaks, onExtraBreaksChange]);
+  }, [breaks, extraBreaks, onExtraBreaksChange, saveToHistory]);
 
   return {
     updateBreakDuration,

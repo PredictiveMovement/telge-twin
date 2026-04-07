@@ -25,6 +25,7 @@ const findTjTyp = (id: string) =>
 interface FilterConfigurationProviderProps {
   avfallstyper: string[];
   vehicleOptions: Array<{ id: string; display: string }>;
+  vehicleTypes?: string[];
   tjanstetyper: string[];
   veckodagar: string[];
   frekvenser: string[];
@@ -35,6 +36,7 @@ interface FilterConfigurationProviderProps {
 const FilterConfigurationProvider: React.FC<FilterConfigurationProviderProps> = ({
   avfallstyper = [],
   vehicleOptions = [],
+  vehicleTypes: vehicleTypesProp,
   tjanstetyper = [],
   veckodagar = [],
   frekvenser = [],
@@ -68,12 +70,12 @@ const FilterConfigurationProvider: React.FC<FilterConfigurationProviderProps> = 
       ID: (index + 1).toString(),
       BESKRIVNING: freq
     })),
-    vehicleTypes: Array.from(new Set((vehicleOptions || []).map(vehicle => {
-       const parts = vehicle.display.split(' ');
-       const desc = parts.slice(1).join(' ').trim();
-       const tokens = desc.split(' ');
-       return tokens[tokens.length - 1] || desc;
-     }))).sort().map(type => ({ ID: type, BESKRIVNING: type })),
+    vehicleTypes: vehicleTypesProp
+      ? vehicleTypesProp.map(type => ({ ID: type, BESKRIVNING: type }))
+      : Array.from(new Set((vehicleOptions || []).map(vehicle => {
+          const parts = vehicle.display.split(' ');
+          return parts.slice(1).join(' ').trim();
+        }).filter(Boolean))).sort().map(type => ({ ID: type, BESKRIVNING: type })),
     turids: (turids || []).map((turid) => ({
       ID: turid,
       BESKRIVNING: turid
