@@ -6,12 +6,14 @@ interface OptimizationStatusIndicatorProps {
   isOptimizing?: boolean;
   isFailed?: boolean;
   versionCount?: number; // Number of versions for this optimization
+  seen?: boolean; // Hide completed badge once the user has opened this optimization
 }
 
 const OptimizationStatusIndicator: React.FC<OptimizationStatusIndicatorProps> = ({
   isOptimizing = false,
   isFailed = false,
   versionCount = 1,
+  seen = false,
 }) => {
   const [showSpinner, setShowSpinner] = useState(true);
   const hasMultipleVersions = versionCount > 1;
@@ -45,6 +47,8 @@ const OptimizationStatusIndicator: React.FC<OptimizationStatusIndicatorProps> = 
       </span>
     );
   }
+
+  if (seen) return null;
 
   // Show badge for completed optimizations
   return (

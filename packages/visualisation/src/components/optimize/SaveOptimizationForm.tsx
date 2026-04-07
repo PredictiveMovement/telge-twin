@@ -58,7 +58,7 @@ const getNextOptimizationName = useCallback(async (): Promise<string> => {
   try {
     const saved = await getRouteDatasets();
     const nums = saved
-      .map((o) => (typeof o?.name === 'string' ? o.name.match(/^Optimering\s(\d{2})$/) : null))
+      .map((o) => (typeof o?.name === 'string' ? o.name.match(/^Optimering\s(\d+)$/) : null))
       .filter(Boolean)
       .map((m: RegExpMatchArray) => parseInt(m[1], 10));
     const max = nums.length ? Math.max(...nums) : 0;

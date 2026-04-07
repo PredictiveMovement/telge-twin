@@ -28,9 +28,10 @@ export interface SavedOptimization {
   sourceDatasetId?: string;
   isLatestVersion?: boolean;
   versions?: OptimizationVersion[];
-  vehicleCount?: number;
-  isOptimizing?: boolean;
-  isFailed?: boolean;
+  vehicleCount?: number;  // Antal fordon med planer
+  isOptimizing?: boolean; // True om optimering pågår (vroomTruckPlanIds är tom array)
+  isFailed?: boolean; // True om alla truckar fick dispatch errors
+  seen?: boolean; // True om användaren redan öppnat denna optimering
 }
 
 interface SavedOptimizationsTableProps {
@@ -112,10 +113,10 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
               </button>
             </TableHead>
             <TableHead className="w-[144px] whitespace-nowrap">
-              <div className="flex items-center justify-end gap-2 -mr-4">
-                <span className="h-8 w-8" />
-                <span className="h-8 w-8 flex items-center justify-center">Åtgärder</span>
-                <span className="h-8 w-8" />
+              <div className="flex items-center justify-end gap-2">
+                <span className="h-8 w-8 shrink-0 flex items-center overflow-visible whitespace-nowrap">Åtgärder</span>
+                <span className="h-8 w-8 shrink-0" />
+                <span className="h-8 w-8 shrink-0" />
               </div>
             </TableHead>
           </TableRow>
@@ -152,6 +153,7 @@ const SavedOptimizationsTable: React.FC<SavedOptimizationsTableProps> = ({
                         isOptimizing={isOptimizing}
                         isFailed={isFailed}
                         versionCount={opt.versions?.length || 1}
+                        seen={opt.seen}
                       />
                       {currentOptimizationId === opt.id && onCancelOptimization && (
                         <Button

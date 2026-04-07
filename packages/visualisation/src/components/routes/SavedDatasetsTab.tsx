@@ -36,7 +36,7 @@ interface ExperimentWithDocId extends Experiment {
 export default function SavedDatasetsTab() {
   const navigate = useNavigate();
   const { socket } = useMapSocket();
-  const { runningOptimizations, completedOptimizations, markAsViewed, cancelOptimization } = useOptimizationContext();
+  const { runningOptimizations, completedOptimizations, markAsViewed, clearCompleted, markAsUnseen, isUnseen, cancelOptimization } = useOptimizationContext();
   const [datasets, setDatasets] = useState<RouteDataset[]>([]);
   const [experiments, setExperiments] = useState<ExperimentWithDocId[]>([]);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
@@ -239,6 +239,10 @@ export default function SavedDatasetsTab() {
 
       if (result.success && result.experimentId) {
         toast.success('Ny version skapad');
+        const datasetId = editingExperiment.sourceDatasetId;
+        if (datasetId) {
+          markAsUnseen(datasetId);
+        }
         await loadDatasets();
         handleCloseEdit();
       } else {
@@ -254,6 +258,8 @@ export default function SavedDatasetsTab() {
 
     const experimentId = opt.experimentId || opt.latestExperimentId;
     if (!experimentId) return;
+
+    markAsViewed(opt.id);
 
     setNavigatingId(opt.id);
 
@@ -282,6 +288,7 @@ export default function SavedDatasetsTab() {
 
       setDatasets(prev => prev.filter(d => d.datasetId !== datasetId));
       setExperiments(prev => prev.filter(e => e.sourceDatasetId !== datasetId));
+      markAsViewed(datasetId);
 
       toast.success('Optimering borttagen');
     } catch {
@@ -432,11 +439,12 @@ export default function SavedDatasetsTab() {
         vehicleCount: latestExp.vroomTruckPlanIds?.length || 0,
         isOptimizing: runningOptimizations.has(datasetId),
         isFailed: failed,
+        seen: !isUnseen(datasetId),
       });
     });
 
     return result;
-  }, [datasets, experiments, runningOptimizations, completedOptimizations]);
+  }, [datasets, experiments, runningOptimizations, completedOptimizations, isUnseen]);
 
   const currentOptimizationId = useMemo(() => {
     const optimizing = optimizations.find(opt => opt.isOptimizing === true);
@@ -512,7 +520,7 @@ export default function SavedDatasetsTab() {
           const expectedVehicleCount = getExpectedVehicleCount(dataset, latestExp);
 
           if (isExperimentComplete(latestExp, expectedVehicleCount) || isExperimentFailed(latestExp)) {
-            markAsViewed(id);
+            clearCompleted(id);
           }
         });
       } catch {
@@ -520,7 +528,7 @@ export default function SavedDatasetsTab() {
     };
 
     loadWithRetry(3, 500);
-  }, [completedOptimizations, markAsViewed]);
+  }, [completedOptimizations, clearCompleted]);
 
 
   const query = search.trim().toLowerCase();

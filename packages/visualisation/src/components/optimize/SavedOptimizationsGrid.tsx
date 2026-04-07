@@ -70,6 +70,7 @@ const SavedOptimizationsGrid: React.FC<SavedOptimizationsGridProps> = ({
                     isOptimizing={isOptimizing}
                     isFailed={isFailed}
                     versionCount={opt.versions?.length || 1}
+                    seen={opt.seen}
                   />
                   {currentOptimizationId === opt.id && onCancelOptimization && (
                     <Button
