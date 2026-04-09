@@ -13,6 +13,7 @@ import {
   Experiment,
   ExperimentStatistics,
   RouteDataset,
+  exportToThor,
 } from '@/api/simulator'
 import OptimizeHeader from '@/components/optimize/OptimizeHeader'
 import OptimizeMapComparison from '@/components/optimize/OptimizeMapComparison'
@@ -21,6 +22,7 @@ import ExperimentRouteStops from '@/components/optimize/ExperimentRouteStops'
 import OptimizeActions from '@/components/optimize/OptimizeActions'
 import OptimizeProgressBar from '@/components/optimize/OptimizeProgressBar'
 import { useOptimizeProgress } from '@/hooks/useOptimizeProgress'
+import { toast } from '@/hooks/use-toast'
 import { Stop } from '@/types/stops'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
@@ -309,6 +311,7 @@ const ExperimentDetailPage = () => {
     optimizedStops: Stop[]
     selectedVehicle: string
   } | null>(null)
+  const [isSendingToThor, setIsSendingToThor] = useState(false)
   const [routeStopsData, setRouteStopsData] = useState<Record<string, VehicleStops>>({})
   const [routeStopsLoading, setRouteStopsLoading] = useState(false)
   const [routeStopsError, setRouteStopsError] = useState<string | null>(null)
@@ -562,6 +565,26 @@ const ExperimentDetailPage = () => {
     window.dispatchEvent(event)
   }
 
+  const handleSendToThor = async () => {
+    if (!experiment) return
+
+    setIsSendingToThor(true)
+    try {
+      const result = await exportToThor(experiment.id)
+      if (result.success) {
+        const tours = result.data?.tours || []
+        const names = tours.map((t: any) => t.tourName).join(', ')
+        toast({ title: `Skickad till Thor som "${names || 'ny tur'}"` })
+      } else {
+        toast.error(result.error || 'Kunde inte skicka till Thor')
+      }
+    } catch {
+      toast.error('Kunde inte skicka till Thor')
+    } finally {
+      setIsSendingToThor(false)
+    }
+  }
+
   const handleMapDataChange = (data: {
     optimizedStops: Stop[]
     selectedVehicle: string
@@ -589,6 +612,8 @@ const ExperimentDetailPage = () => {
           savedProject={savedProject}
           hasChanges={false}
           onSaveChanges={handleSaveChanges}
+          onSendToThor={handleSendToThor}
+          isSendingToThor={isSendingToThor}
         />
 
         {experiment.dispatchErrors && experiment.dispatchErrors.length > 0 && (
@@ -631,6 +656,8 @@ const ExperimentDetailPage = () => {
         />
 
         <OptimizeActions
+          onSendToThor={handleSendToThor}
+          isSendingToThor={isSendingToThor}
           onViewMap={handleViewMap}
           isMapLoading={isMapLoading}
           mapData={mapData}

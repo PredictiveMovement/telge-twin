@@ -241,6 +241,30 @@ export async function getExperiments(): Promise<Experiment[]> {
   }
 }
 
+export async function exportToThor(
+  experimentId: string,
+  vehicleId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await simulatorApi.post('/api/telge/export', {
+      experimentId,
+      vehicleId,
+    })
+    return response.data || { success: false, error: 'No response data' }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const responseError =
+        (typeof error.response?.data?.error === 'string' &&
+          error.response.data.error) ||
+        error.message
+      return { success: false, error: responseError }
+    }
+    const message =
+      error instanceof Error ? error.message : 'Failed to export to Thor'
+    return { success: false, error: message }
+  }
+}
+
 /**
  * Loads Telge route data for a specific date or date range.
  * @param from - YYYY-MM-DD (start date)

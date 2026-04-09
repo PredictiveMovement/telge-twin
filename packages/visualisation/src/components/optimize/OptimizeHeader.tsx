@@ -26,6 +26,9 @@ interface OptimizeHeaderProps {
   };
   hasChanges?: boolean;
   onSaveChanges?: () => Promise<void> | void;
+  onSendToThor?: () => void;
+  isSendingToThor?: boolean;
+  sendToThorDisabled?: boolean;
   onViewMap?: () => void;
   isMapLoading?: boolean;
   mapData?: {
@@ -38,6 +41,9 @@ const OptimizeHeader = ({
   savedProject,
   hasChanges,
   onSaveChanges,
+  onSendToThor,
+  isSendingToThor = false,
+  sendToThorDisabled = false,
   onViewMap,
   isMapLoading = false,
   mapData
@@ -220,6 +226,15 @@ const OptimizeHeader = ({
             disabled={!hasChanges || isProcessing}
           >
             Uppdatera
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={onSendToThor}
+            disabled={isSendingToThor || sendToThorDisabled}
+            title={sendToThorDisabled ? 'Spara ändringar först' : undefined}
+          >
+            {isSendingToThor ? 'Skickar...' : 'Skicka till Thor'}
           </Button>
           <Button
             onClick={() => !isMapLoading && onViewMap?.()}
