@@ -1,5 +1,6 @@
 import { Router } from 'express'
-import { fetchTelgeRouteData } from '../../services/TelgeApiService'
+import { fetchRouteData, exportRouteData } from '../../services/TelgeApiService'
+import { elasticsearchService } from '../../services/ElasticsearchService'
 import { handleError, successResponse } from './helpers'
 
 const router = Router()
@@ -21,7 +22,7 @@ router.get('/telge/routedata', async (req, res) => {
         .json(handleError(null, 'Invalid or missing to date (YYYY-MM-DD)'))
     }
 
-    const data = await fetchTelgeRouteData(from, to)
+    const data = await fetchRouteData(from, to)
     return res.json(successResponse(data))
   } catch (error) {
     const message =
@@ -34,6 +35,90 @@ router.get('/telge/routedata', async (req, res) => {
         : message.startsWith('CONFIG:')
           ? 500
           : 502
+    return res.status(status).json(handleError(error, message))
+  }
+})
+
+router.post('/telge/export', async (req, res) => {
+  try {
+    const { experimentId, vehicleId } = req.body
+
+    if (!experimentId) {
+      return res
+        .status(400)
+        .json(handleError(null, 'experimentId is required'))
+    }
+
+    const experiment = await elasticsearchService.getExperiment(experimentId)
+    if (!experiment) {
+      return res.status(404).json(handleError(null, 'Experiment not found'))
+    }
+
+    const tourName = experiment.name
+
+    const planIds = experiment.vroomTruckPlanIds || []
+    if (!planIds.length) {
+      return res
+        .status(404)
+        .json(handleError(null, 'No truck plans found for experiment'))
+    }
+
+    const truckPlans = await elasticsearchService.getVroomPlansByIds(planIds)
+    const plansToExport = vehicleId
+      ? truckPlans.filter((p: any) => p.truckId === vehicleId)
+      : truckPlans
+
+    if (!plansToExport.length) {
+      return res
+        .status(404)
+        .json(handleError(null, 'No matching truck plans found'))
+    }
+
+    const results: { tourName: string; truckId: string; exportedRows: number }[] = []
+
+    for (const plan of plansToExport) {
+      const steps = plan.completePlan || []
+      const rows: any[] = []
+      let orderIndex = 0
+
+      for (const step of steps) {
+        const record = step.booking?.originalRouteRecord
+        if (!record) continue
+
+        rows.push({
+          ...record,
+          Turid: plansToExport.length === 1
+            ? tourName
+            : `${tourName} - Bil ${plan.truckId}`,
+          Turordningsnr: ++orderIndex,
+        })
+      }
+
+      if (!rows.length) continue
+
+      await exportRouteData(rows)
+      results.push({
+        tourName: rows[0].Turid,
+        truckId: plan.truckId,
+        exportedRows: rows.length,
+      })
+    }
+
+    if (!results.length) {
+      return res
+        .status(400)
+        .json(handleError(null, 'No exportable route data found in experiment'))
+    }
+
+    return res.json(successResponse({ tours: results }))
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Failed exporting route data'
+    const status = message.startsWith('VALIDATION:')
+      ? 400
+      : message.startsWith('CONFIG:')
+        ? 500
+        : 502
     return res.status(status).json(handleError(error, message))
   }
 })

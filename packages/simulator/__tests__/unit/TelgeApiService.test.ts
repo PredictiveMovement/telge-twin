@@ -6,8 +6,8 @@ jest.mock('node-fetch', () => ({
 }))
 
 import {
-  fetchTelgeRouteData,
-  resetTelgeToken,
+  fetchRouteData,
+  resetToken,
 } from '../../web/services/TelgeApiService'
 
 const originalEnv = { ...process.env }
@@ -23,7 +23,7 @@ const createResponse = (overrides: Partial<Response> = {}) => ({
 describe('TelgeApiService', () => {
   beforeEach(() => {
     fetchMock.mockReset()
-    resetTelgeToken()
+    resetToken()
     process.env = {
       ...originalEnv,
       TELGE_API_BASE_URL: 'https://example.com',
@@ -37,7 +37,7 @@ describe('TelgeApiService', () => {
   })
 
   it('rejects invalid date format', async () => {
-    await expect(fetchTelgeRouteData('20240115')).rejects.toThrow(
+    await expect(fetchRouteData('20240115')).rejects.toThrow(
       /Invalid from date format/
     )
     expect(fetchMock).not.toHaveBeenCalled()
@@ -47,7 +47,7 @@ describe('TelgeApiService', () => {
     process.env.TELGE_API_USERNAME = ''
     process.env.TELGE_API_PASSWORD = ''
 
-    await expect(fetchTelgeRouteData('2024-01-15')).rejects.toThrow(
+    await expect(fetchRouteData('2024-01-15')).rejects.toThrow(
       /TELGE_API_USERNAME or TELGE_API_PASSWORD/
     )
     expect(fetchMock).not.toHaveBeenCalled()
@@ -62,7 +62,7 @@ describe('TelgeApiService', () => {
       })
     )
 
-    await expect(fetchTelgeRouteData('2024-01-15')).rejects.toThrow(
+    await expect(fetchRouteData('2024-01-15')).rejects.toThrow(
       /Failed to get token \(401\): unauthorised/
     )
   })
@@ -82,7 +82,7 @@ describe('TelgeApiService', () => {
         })
       )
 
-    await expect(fetchTelgeRouteData('2024-01-15')).rejects.toThrow(
+    await expect(fetchRouteData('2024-01-15')).rejects.toThrow(
       /Failed to fetch route data \(502\): bad gateway/
     )
   })
@@ -101,7 +101,7 @@ describe('TelgeApiService', () => {
         })
       )
 
-    await expect(fetchTelgeRouteData('2024-01-15')).resolves.toEqual(sampleData)
+    await expect(fetchRouteData('2024-01-15')).resolves.toEqual(sampleData)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
