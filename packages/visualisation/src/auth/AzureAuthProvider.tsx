@@ -32,6 +32,11 @@ export function AzureAuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true
 
     const prepareInstance = async () => {
+      if (!isAzureADConfigured) {
+        if (isMounted) setIsReady(true)
+        return
+      }
+
       try {
         await msalInstance.initialize()
         const existingAccounts = msalInstance.getAllAccounts()
@@ -55,13 +60,7 @@ export function AzureAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   if (!isAzureADConfigured) {
-    return (
-      <AuthMessage
-        variant="warning"
-        title="Konfiguration saknas"
-        message="Azure AD-konfiguration saknas. Kontrollera att VITE_AZURE_AD_CLIENT_ID är satt."
-      />
-    )
+    return <>{children}</>
   }
 
   if (!isReady) {
