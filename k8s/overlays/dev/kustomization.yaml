@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - simulator-timeout.yaml
 
 namespace: telge-dev
 
