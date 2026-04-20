@@ -1,9 +1,15 @@
-import axios from 'axios'
+import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { SIMULATOR_CONFIG } from '../config/simulator'
 import { Socket } from 'socket.io-client'
 import type { BreakConfig } from '@/types/breaks'
 import { msalInstance, isAzureADConfigured, apiScopes } from '@/auth/azureConfig'
 import { InteractionRequiredAuthError } from '@azure/msal-browser'
+
+declare module 'axios' {
+  export interface InternalAxiosRequestConfig {
+    _authRetried?: boolean
+  }
+}
 
 const simulatorApi = axios.create({
   baseURL: SIMULATOR_CONFIG.url,
@@ -23,7 +29,9 @@ simulatorApi.interceptors.request.use(async (config) => {
       account,
     })
     config.headers.Authorization = `Bearer ${response.accessToken}`
-  } catch {}
+  } catch (err) {
+    console.warn('[auth] Silent token acquisition failed:', err)
+  }
 
   return config
 })
