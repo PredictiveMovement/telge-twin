@@ -46,12 +46,12 @@ router.post('/telge/export', async (req, res) => {
     if (!experimentId) {
       return res
         .status(400)
-        .json(handleError(null, 'experimentId is required'))
+        .json(handleError(null, 'Experiment-ID saknas'))
     }
 
     const experiment = await elasticsearchService.getExperiment(experimentId)
     if (!experiment) {
-      return res.status(404).json(handleError(null, 'Experiment not found'))
+      return res.status(404).json(handleError(null, 'Experimentet hittades inte'))
     }
 
     const tourName = experiment.name
@@ -60,7 +60,7 @@ router.post('/telge/export', async (req, res) => {
     if (!planIds.length) {
       return res
         .status(404)
-        .json(handleError(null, 'No truck plans found for experiment'))
+        .json(handleError(null, 'Inga körplaner hittades för experimentet'))
     }
 
     const truckPlans = await elasticsearchService.getVroomPlansByIds(planIds)
@@ -71,7 +71,7 @@ router.post('/telge/export', async (req, res) => {
     if (!plansToExport.length) {
       return res
         .status(404)
-        .json(handleError(null, 'No matching truck plans found'))
+        .json(handleError(null, 'Inga matchande körplaner hittades'))
     }
 
     const results: { tourName: string; truckId: string; exportedRows: number }[] = []
@@ -107,18 +107,21 @@ router.post('/telge/export', async (req, res) => {
     if (!results.length) {
       return res
         .status(400)
-        .json(handleError(null, 'No exportable route data found in experiment'))
+        .json(handleError(null, 'Ingen exporterbar ruttdata hittades i experimentet'))
     }
 
     return res.json(successResponse({ tours: results }))
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Failed exporting route data'
-    const status = message.startsWith('VALIDATION:')
+    const raw =
+      error instanceof Error ? error.message : ''
+    const status = raw.startsWith('VALIDATION:')
       ? 400
-      : message.startsWith('CONFIG:')
+      : raw.startsWith('CONFIG:')
         ? 500
         : 502
+    const message = raw.startsWith('UPSTREAM:') || !raw
+      ? 'Kunde inte exportera ruttdata'
+      : raw
     return res.status(status).json(handleError(error, message))
   }
 })

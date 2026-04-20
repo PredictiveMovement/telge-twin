@@ -7,6 +7,7 @@ jest.mock('node-fetch', () => ({
 
 import {
   fetchRouteData,
+  exportRouteData,
   resetToken,
 } from '../../web/services/TelgeApiService'
 
@@ -103,5 +104,73 @@ describe('TelgeApiService', () => {
 
     await expect(fetchRouteData('2024-01-15')).resolves.toEqual(sampleData)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('exportRouteData', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    resetToken()
+    process.env = {
+      ...originalEnv,
+      TELGE_API_BASE_URL: 'https://example.com',
+      TELGE_API_USERNAME: 'user',
+      TELGE_API_PASSWORD: 'pass',
+    }
+  })
+
+  afterAll(() => {
+    process.env = originalEnv
+  })
+
+  it('throws on empty rows array', async () => {
+    await expect(exportRouteData([])).rejects.toThrow(
+      /No route data rows to export/
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('posts rows to routedatasave endpoint', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'token', expires_in: 3600 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ success: true }),
+        })
+      )
+
+    const rows = [{ Turid: 'test', Turordningsnr: 1 }]
+    await exportRouteData(rows)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [url, opts] = fetchMock.mock.calls[1]
+    expect(url).toBe('https://example.com/apiRutt/ruttoptimering/routedatasave')
+    expect(opts.method).toBe('POST')
+    expect(opts.headers['Content-Type']).toBe('application/json')
+    expect(JSON.parse(opts.body)).toEqual(rows)
+  })
+
+  it('throws on upstream HTTP error', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'token', expires_in: 3600 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({
+          ok: false,
+          status: 500,
+          text: async () => 'internal error',
+        })
+      )
+
+    await expect(
+      exportRouteData([{ Turid: 'test' }])
+    ).rejects.toThrow(/Failed to export route data \(500\): internal error/)
   })
 })
