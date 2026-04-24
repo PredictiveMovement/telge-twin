@@ -13,7 +13,8 @@ import simulationRouter from './routes/http/simulation'
 import telgeRouter from './routes/http/telge'
 import optimizationRouter from './routes/http/optimization'
 import { createIndices } from '../lib/elastic'
-import { requireAuth, verifyToken, isAuthConfigured } from './middleware/requireAuth'
+import { requireAuth, isAuthConfigured } from './middleware/requireAuth'
+import { socketAuth } from './middleware/socketAuth'
 
 const PORT = env.PORT || 4000
 const BODY_LIMIT = '50mb'
@@ -53,19 +54,7 @@ const io = new Server(server, {
   },
 })
 
-io.use(async (socket, next) => {
-  if (!isAuthConfigured) return next()
-
-  const token = socket.handshake.auth?.token
-  if (!token) return next(new Error('Missing token'))
-
-  try {
-    await verifyToken(token)
-    next()
-  } catch {
-    next(new Error('Invalid or expired token'))
-  }
-})
+io.use(socketAuth)
 
 // Start server after indices are created
 ;(async () => {
@@ -77,6 +66,10 @@ io.use(async (socket, next) => {
   }
 
   if (!isAuthConfigured) {
+    if (env.NODE_ENV === 'production') {
+      console.error('[auth] FATAL: Azure AD not configured in production. Set AZURE_AD_TENANT_ID and AZURE_AD_CLIENT_ID. Exiting.')
+      process.exit(1)
+    }
     console.warn('[auth] Azure AD not configured — all requests are unauthenticated')
   }
 

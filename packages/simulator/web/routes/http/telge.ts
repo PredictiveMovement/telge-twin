@@ -25,16 +25,16 @@ router.get('/telge/routedata', async (req, res) => {
     const data = await fetchRouteData(from, to)
     return res.json(successResponse(data))
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Failed fetching Telge route data'
-    const status =
-      message.startsWith('VALIDATION:')
-        ? 400
-        : message.startsWith('CONFIG:')
-          ? 500
-          : 502
+    const raw =
+      error instanceof Error ? error.message : ''
+    const status = raw.startsWith('VALIDATION:')
+      ? 400
+      : raw.startsWith('CONFIG:')
+        ? 500
+        : 502
+    const message = raw.startsWith('UPSTREAM:') || !raw
+      ? 'Kunde inte hämta ruttdata'
+      : raw
     return res.status(status).json(handleError(error, message))
   }
 })

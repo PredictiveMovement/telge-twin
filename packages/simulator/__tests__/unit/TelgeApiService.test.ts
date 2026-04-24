@@ -105,6 +105,105 @@ describe('TelgeApiService', () => {
     await expect(fetchRouteData('2024-01-15')).resolves.toEqual(sampleData)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('reuses cached token for second call within TTL', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'cached-tok', expires_in: 3600 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => [{ id: 1 }] })
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => [{ id: 2 }] })
+      )
+
+    await fetchRouteData('2024-01-15')
+    await fetchRouteData('2024-01-16')
+
+    // token fetch once + two route data fetches = 3 total
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    // both route requests used the cached token
+    const authHeader1 = fetchMock.mock.calls[1][1].headers.Authorization
+    const authHeader2 = fetchMock.mock.calls[2][1].headers.Authorization
+    expect(authHeader1).toBe('Bearer cached-tok')
+    expect(authHeader2).toBe('Bearer cached-tok')
+  })
+
+  it('fetches a new token after resetToken()', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'tok-1', expires_in: 3600 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => [{ id: 1 }] })
+      )
+
+    await fetchRouteData('2024-01-15')
+    resetToken()
+
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'tok-2', expires_in: 3600 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => [{ id: 2 }] })
+      )
+
+    await fetchRouteData('2024-01-16')
+
+    // 2 token fetches + 2 route fetches = 4
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    const authHeader2 = fetchMock.mock.calls[3][1].headers.Authorization
+    expect(authHeader2).toBe('Bearer tok-2')
+  })
+
+  it('fetches a new token after cache expires', async () => {
+    const realDateNow = Date.now
+    let now = 1000000
+
+    Date.now = () => now
+
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'old-tok', expires_in: 60 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => [{ id: 1 }] })
+      )
+
+    await fetchRouteData('2024-01-15')
+
+    // advance past the expiry (60s - 30s buffer = 30s minimum, so advance 31s)
+    now += 61 * 1000
+
+    fetchMock
+      .mockResolvedValueOnce(
+        createResponse({
+          json: async () => ({ access_token: 'new-tok', expires_in: 3600 }),
+        })
+      )
+      .mockResolvedValueOnce(
+        createResponse({ json: async () => [{ id: 2 }] })
+      )
+
+    await fetchRouteData('2024-01-16')
+
+    // 2 token fetches + 2 route fetches = 4
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    const authHeader2 = fetchMock.mock.calls[3][1].headers.Authorization
+    expect(authHeader2).toBe('Bearer new-tok')
+
+    Date.now = realDateNow
+  })
 })
 
 describe('exportRouteData', () => {

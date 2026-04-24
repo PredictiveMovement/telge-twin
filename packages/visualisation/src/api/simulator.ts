@@ -30,7 +30,7 @@ simulatorApi.interceptors.request.use(async (config) => {
     })
     config.headers.Authorization = `Bearer ${response.accessToken}`
   } catch (err) {
-    console.warn('[auth] Silent token acquisition failed:', err)
+    console.warn('[auth] Silent token acquisition failed:', err instanceof Error ? err.message : 'unknown error')
   }
 
   return config
