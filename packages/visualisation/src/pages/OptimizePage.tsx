@@ -11,6 +11,7 @@ import {
   getVroomBookingsForExperiment,
   getVroomPlan,
   updateRouteOrder,
+  exportToThor,
   Experiment,
   ExperimentStatistics,
 } from '@/api/simulator'
@@ -23,6 +24,7 @@ import RouteColumnsGrid from '@/components/optimize/RouteColumnsGrid'
 import RouteStopsActions from '@/components/optimize/RouteStopsActions'
 import { VersionSnapshot } from '@/components/optimize/HistorySheet'
 import { useOptimizeProgress } from '@/hooks/useOptimizeProgress'
+import { toast } from '@/hooks/use-toast'
 import { useRouteStopsLogic } from '@/hooks/useRouteStopsLogic'
 import { Stop } from '@/types/stops'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -405,6 +407,8 @@ const OptimizePage = () => {
   // VROOM plan data (for saving route order)
   const [vroomPlanData, setVroomPlanData] = useState<any>(null)
 
+  const [isSendingToThor, setIsSendingToThor] = useState(false)
+
   // Version history
   const [versions, setVersions] = useState<VersionSnapshot[]>([])
 
@@ -606,6 +610,26 @@ const OptimizePage = () => {
     }
   }
 
+  const handleSendToThor = async () => {
+    if (!experimentId || !selectedVehicle) return
+
+    setIsSendingToThor(true)
+    try {
+      const result = await exportToThor(experimentId, selectedVehicle)
+      if (result.success) {
+        const tours = result.data?.tours || []
+        const names = tours.map((t: any) => t.tourName).join(', ')
+        toast({ title: `Skickad till Thor som "${names || 'ny tur'}"` })
+      } else {
+        toast.error(result.error || 'Kunde inte skicka till Thor')
+      }
+    } catch {
+      toast.error('Kunde inte skicka till Thor')
+    } finally {
+      setIsSendingToThor(false)
+    }
+  }
+
   const handleRestoreVersion = (versionId: string) => {
     // Find version and restore
     const version = versions.find(v => v.id === versionId)
@@ -648,6 +672,9 @@ const OptimizePage = () => {
           savedProject={experiment ? { id: experiment.documentId, name: experiment.name || 'Experiment' } : undefined}
           hasChanges={routeStopsLogic.hasChangesFromOriginal}
           onSaveChanges={handleSaveRouteOrder}
+          onSendToThor={handleSendToThor}
+          isSendingToThor={isSendingToThor}
+          sendToThorDisabled={routeStopsLogic.hasChangesFromOriginal}
           onViewMap={handleViewMap}
           isMapLoading={isMapLoading}
           mapData={mapData}
@@ -714,6 +741,9 @@ const OptimizePage = () => {
         )}
 
         <OptimizeActions
+          onSendToThor={handleSendToThor}
+          isSendingToThor={isSendingToThor}
+          sendToThorDisabled={routeStopsLogic.hasChangesFromOriginal}
           onViewMap={handleViewMap}
           isMapLoading={isMapLoading}
           mapData={mapData}

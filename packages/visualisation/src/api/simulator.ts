@@ -1,13 +1,73 @@
-import axios from 'axios'
+import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { SIMULATOR_CONFIG } from '../config/simulator'
 import { Socket } from 'socket.io-client'
 import type { BreakConfig } from '@/types/breaks'
+import { msalInstance, isAzureADConfigured, apiScopes } from '@/auth/azureConfig'
+import { InteractionRequiredAuthError } from '@azure/msal-browser'
+
+declare module 'axios' {
+  export interface InternalAxiosRequestConfig {
+    _authRetried?: boolean
+  }
+}
 
 const simulatorApi = axios.create({
   baseURL: SIMULATOR_CONFIG.url,
   timeout: SIMULATOR_CONFIG.requestConfig.timeout,
   headers: SIMULATOR_CONFIG.requestConfig.headers,
 })
+
+simulatorApi.interceptors.request.use(async (config) => {
+  if (!isAzureADConfigured || !apiScopes.length) return config
+
+  const account = msalInstance.getActiveAccount()
+  if (!account) return config
+
+  try {
+    const response = await msalInstance.acquireTokenSilent({
+      scopes: apiScopes,
+      account,
+    })
+    config.headers.Authorization = `Bearer ${response.accessToken}`
+  } catch (err) {
+    console.warn('[auth] Silent token acquisition failed:', err instanceof Error ? err.message : 'unknown error')
+  }
+
+  return config
+})
+
+simulatorApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (
+      isAzureADConfigured &&
+      apiScopes.length &&
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      !error.config?._authRetried
+    ) {
+      const account = msalInstance.getActiveAccount()
+      if (account) {
+        try {
+          const tokenResponse = await msalInstance.acquireTokenSilent({
+            scopes: apiScopes,
+            account,
+            forceRefresh: true,
+          })
+          error.config._authRetried = true
+          error.config.headers.Authorization = `Bearer ${tokenResponse.accessToken}`
+          return simulatorApi.request(error.config)
+        } catch (retryError) {
+          if (retryError instanceof InteractionRequiredAuthError) {
+            await msalInstance.acquireTokenRedirect({ scopes: apiScopes })
+          }
+        }
+      }
+      error.message = 'Något gick fel. Försök igen eller kontakta support.'
+    }
+    return Promise.reject(error)
+  }
+)
 
 export interface OptimizationSettings {
   workingHours?: {
@@ -238,6 +298,30 @@ export async function getExperiments(): Promise<Experiment[]> {
     return []
   } catch (_error) {
     return []
+  }
+}
+
+export async function exportToThor(
+  experimentId: string,
+  vehicleId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await simulatorApi.post('/api/telge/export', {
+      experimentId,
+      vehicleId,
+    })
+    return response.data || { success: false, error: 'No response data' }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const responseError =
+        (typeof error.response?.data?.error === 'string' &&
+          error.response.data.error) ||
+        error.message
+      return { success: false, error: responseError }
+    }
+    const message =
+      error instanceof Error ? error.message : 'Failed to export to Thor'
+    return { success: false, error: message }
   }
 }
 

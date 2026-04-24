@@ -51,7 +51,7 @@ async function getValidToken(): Promise<string> {
   return tokenCache.accessToken
 }
 
-export async function fetchTelgeRouteData(from: string, to?: string): Promise<any[]> {
+export async function fetchRouteData(from: string, to?: string): Promise<any[]> {
   const fromDate = from
   const toDate = to || from
   
@@ -85,6 +85,34 @@ export async function fetchTelgeRouteData(from: string, to?: string): Promise<an
   return []
 }
 
-export function resetTelgeToken() {
+export async function exportRouteData(rows: any[]): Promise<any> {
+  if (!rows.length) {
+    throw new Error('VALIDATION: No route data rows to export')
+  }
+
+  const { baseUrl } = getEnv()
+  const token = await getValidToken()
+  const url = `${baseUrl}/apiRutt/ruttoptimering/routedatasave`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(rows),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(
+      `UPSTREAM: Failed to export route data (${res.status}): ${text}`
+    )
+  }
+
+  return res.json().catch(() => ({}))
+}
+
+export function resetToken() {
   tokenCache = null
 }

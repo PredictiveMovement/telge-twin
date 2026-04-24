@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { SIMULATOR_CONFIG } from '../config/simulator'
+import { msalInstance, isAzureADConfigured, apiScopes } from '@/auth/azureConfig'
 
 interface MapSocketState {
   socket: Socket | null
@@ -31,10 +32,29 @@ export const useMapSocket = () => {
   const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
-    const socket = io(SIMULATOR_CONFIG.url, {
+    const opts: Record<string, unknown> = {
       transports: ['websocket', 'polling'],
       timeout: SIMULATOR_CONFIG.requestConfig.timeout,
-    })
+      withCredentials: true,
+    }
+
+    if (isAzureADConfigured && apiScopes.length) {
+      opts.auth = async (cb: (data: Record<string, string>) => void) => {
+        const account = msalInstance.getActiveAccount()
+        if (!account) return cb({})
+        try {
+          const res = await msalInstance.acquireTokenSilent({
+            scopes: apiScopes,
+            account,
+          })
+          cb({ token: res.accessToken })
+        } catch {
+          cb({})
+        }
+      }
+    }
+
+    const socket = io(SIMULATOR_CONFIG.url, opts)
 
     socketRef.current = socket
 

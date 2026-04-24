@@ -41,3 +41,7 @@ export const loginRequest = {
 export const msalInstance = new PublicClientApplication(msalConfig)
 
 export const isAzureADConfigured = Boolean(rawClientId)
+
+export const apiScopes = isAzureADConfigured
+  ? [`api://${rawClientId}/access_as_user`]
+  : []
